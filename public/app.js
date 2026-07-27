@@ -291,18 +291,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Interceptar selector de rol con Autenticación por PIN Numérico
+  // Interceptar selector de usuario con Autenticación por PIN Numérico
   if (userRoleSelect) {
     userRoleSelect.addEventListener('change', (e) => {
-      const selectedRole = e.target.value;
-      const targetUser = systemUsers.find(u => u.role === selectedRole) || systemUsers[0];
+      const selectedUserId = e.target.value;
+      const targetUser = systemUsers.find(u => u.id === selectedUserId) || systemUsers[0];
 
       // Revertir selector temporalmente hasta que se ingrese el PIN correcto
-      userRoleSelect.value = activeUserSession.role;
+      userRoleSelect.value = activeUserSession.id;
 
       openPinAuthModal(targetUser, () => {
         activeUserSession = targetUser;
-        userRoleSelect.value = targetUser.role;
+        userRoleSelect.value = targetUser.id;
         applyRolePermissions(targetUser.role);
 
         // Actualizar Badge en Top Header
@@ -316,18 +316,49 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Hacer el Badge de Usuario en la barra superior interactivo para cambio rápido
+  const userProfileBadge = document.querySelector('.user-profile-badge');
+  if (userProfileBadge && userRoleSelect) {
+    userProfileBadge.style.cursor = 'pointer';
+    userProfileBadge.title = 'Hacé clic para cambiar de usuario activo';
+    userProfileBadge.addEventListener('click', () => {
+      userRoleSelect.focus();
+      try { userRoleSelect.showPicker(); } catch (err) {}
+    });
+  }
+
   // -----------------------------------------------------------------------------
   // CONTROLES DE MODAL AUTENTICACIÓN POR PIN NUMÉRICO (NUMPAD POS)
   // -----------------------------------------------------------------------------
   const modalPinAuth = document.getElementById('modal-pin-auth');
+  const btnClosePinAuth = document.getElementById('btn-close-pin-auth-modal');
   let currentTypedPin = '';
   let pendingPinCallback = null;
   let targetUserForPin = null;
+
+  if (btnClosePinAuth && modalPinAuth) {
+    btnClosePinAuth.addEventListener('click', () => {
+      modalPinAuth.classList.remove('active');
+      if (userRoleSelect) userRoleSelect.value = activeUserSession.id;
+    });
+  }
 
   function openPinAuthModal(userObj, onSuccessCallback) {
     targetUserForPin = userObj;
     pendingPinCallback = onSuccessCallback;
     currentTypedPin = '';
+    updatePinDisplayDots();
+
+    const nameElem = document.getElementById('pin-modal-username');
+    const roleElem = document.getElementById('pin-modal-role');
+    const avatarElem = document.getElementById('pin-modal-avatar');
+
+    if (nameElem) nameElem.innerText = userObj.name;
+    if (roleElem) roleElem.innerText = `Ingresa tu PIN de 4 dígitos (${userObj.title})`;
+    if (avatarElem) avatarElem.innerText = userObj.avatar;
+
+    if (modalPinAuth) modalPinAuth.classList.add('active');
+  }
     updatePinDisplayDots();
 
     const nameElem = document.getElementById('pin-modal-username');
@@ -2514,7 +2545,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!selectElem) return;
 
     selectElem.innerHTML = systemUsers.map(u => `
-      <option value="${u.role}" ${u.role === activeUserSession.role ? 'selected' : ''}>
+      <option value="${u.id}" ${u.id === activeUserSession.id ? 'selected' : ''}>
         ${u.role === 'ADMIN' ? '👑' : (u.role === 'CASHIER' ? '🛒' : '📦')} ${u.name} (${u.title})
       </option>
     `).join('');
