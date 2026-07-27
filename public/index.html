@@ -181,6 +181,42 @@
       transform: scale(0.94);
     }
   </style>
+
+  <script>
+    window.systemUsersData = [
+      { id: 'u1', name: 'María Clara', role: 'ADMIN', pin: '1234', avatar: 'MC', title: 'Dueño / Admin' },
+      { id: 'u2', name: 'Juan Pérez', role: 'CASHIER', pin: '4321', avatar: 'JP', title: 'Cajero / Ventas' },
+      { id: 'u3', name: 'Carlos Ruiz', role: 'OPERATOR', pin: '9999', avatar: 'CR', title: 'Operario Depósito' }
+    ];
+
+    window.loginSelectedUser = null;
+    window.loginTypedPin = '';
+
+    window.selectLoginUser = function(uid) {
+      const usersList = window.systemUsers || window.systemUsersData;
+      window.loginSelectedUser = usersList.find(x => x.id === uid) || usersList[0];
+
+      document.querySelectorAll('.login-user-card').forEach(c => {
+        if (c.getAttribute('data-id') === uid) {
+          c.classList.add('selected');
+        } else {
+          c.classList.remove('selected');
+        }
+      });
+
+      const pinCont = document.getElementById('login-pin-container');
+      if (pinCont) {
+        pinCont.style.display = 'block';
+        const nameElem = document.getElementById('login-selected-user-name');
+        const roleElem = document.getElementById('login-selected-user-role');
+        if (nameElem) nameElem.innerText = window.loginSelectedUser.name;
+        if (roleElem) roleElem.innerText = window.loginSelectedUser.title + ' | Ingresa tu PIN de 4 dígitos';
+      }
+
+      window.loginTypedPin = '';
+      if (window.updateLoginPinDots) window.updateLoginPinDots();
+    };
+  </script>
 </head>
 <body>
 
@@ -3045,6 +3081,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=2.0.6"></script>
+  <script src="app.js?v=2.0.7"></script>
 </body>
 </html>

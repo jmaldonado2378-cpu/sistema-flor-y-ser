@@ -2730,24 +2730,24 @@ document.addEventListener('DOMContentLoaded', () => {
     `).join('');
   }
 
-  function updateLoginPinDots() {
+  window.updateLoginPinDots = function() {
     const dotsContainer = document.getElementById('login-pin-display-dots');
     if (!dotsContainer) return;
-    const len = loginTypedPin.length;
+    const len = (window.loginTypedPin || '').length;
     let dotsHtml = '';
     for (let i = 0; i < 4; i++) {
       dotsHtml += i < len ? `<span class="pin-dot" style="color: var(--primary-sage);">●</span>` : `<span class="pin-dot" style="color: #CBD5E1;">○</span>`;
     }
     dotsContainer.innerHTML = dotsHtml;
-  }
+  };
 
   document.querySelectorAll('.login-numpad-btn[data-val]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const val = e.target.getAttribute('data-val');
-      if (loginTypedPin.length < 6) {
-        loginTypedPin += val;
-        updateLoginPinDots();
-        if (loginTypedPin.length === 4 && loginSelectedUser) {
+      if ((window.loginTypedPin || '').length < 6) {
+        window.loginTypedPin = (window.loginTypedPin || '') + val;
+        window.updateLoginPinDots();
+        if (window.loginTypedPin.length === 4 && window.loginSelectedUser) {
           verifyLoginPin();
         }
       }
@@ -2757,8 +2757,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnLoginClear = document.getElementById('btn-login-numpad-clear');
   if (btnLoginClear) {
     btnLoginClear.addEventListener('click', () => {
-      loginTypedPin = loginTypedPin.slice(0, -1);
-      updateLoginPinDots();
+      window.loginTypedPin = (window.loginTypedPin || '').slice(0, -1);
+      window.updateLoginPinDots();
     });
   }
 
@@ -2768,10 +2768,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function verifyLoginPin() {
-    if (!loginSelectedUser) return;
+    const targetUser = window.loginSelectedUser;
+    if (!targetUser) return;
 
-    if (loginTypedPin === loginSelectedUser.pin) {
-      activeUserSession = loginSelectedUser;
+    if (window.loginTypedPin === targetUser.pin) {
+      activeUserSession = targetUser;
       if (userRoleSelect) userRoleSelect.value = activeUserSession.id;
       applyRolePermissions(activeUserSession.role);
 
@@ -2782,9 +2783,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (loginOverlay) loginOverlay.classList.remove('active');
     } else {
-      alert(`❌ PIN de seguridad incorrecto para ${loginSelectedUser.name}. Intenta nuevamente.`);
-      loginTypedPin = '';
-      updateLoginPinDots();
+      alert(`❌ PIN de seguridad incorrecto para ${targetUser.name}. Intenta nuevamente.`);
+      window.loginTypedPin = '';
+      window.updateLoginPinDots();
     }
   }
 
