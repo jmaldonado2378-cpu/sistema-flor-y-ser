@@ -498,22 +498,38 @@ document.addEventListener('DOMContentLoaded', () => {
   // -----------------------------------------------------------------------------
   // NAVEGACIÓN Y CAMBIO DE PESTAÑAS (TABS)
   // -----------------------------------------------------------------------------
-  const navItems = document.querySelectorAll('.nav-item');
-  const tabContents = document.querySelectorAll('.tab-content');
+  // CONTROLADOR GLOBAL DE NAVEGACIÓN Y CAMBIO DE PESTAÑAS
+  // -----------------------------------------------------------------------------
+  window.switchTab = function(targetTab) {
+    if (!targetTab) return;
+    const navItems = document.querySelectorAll('.nav-item');
+    const tabContents = document.querySelectorAll('.tab-content');
 
+    navItems.forEach(n => {
+      if (n.getAttribute('data-tab') === targetTab) {
+        n.classList.add('active');
+      } else {
+        n.classList.remove('active');
+      }
+    });
+
+    tabContents.forEach(t => {
+      if (t.id === targetTab) {
+        t.classList.add('active');
+      } else {
+        t.classList.remove('active');
+      }
+    });
+
+    refreshViewData(targetTab);
+    if (window.lucide) lucide.createIcons();
+  };
+
+  const navItems = document.querySelectorAll('.nav-item');
   navItems.forEach(item => {
     item.addEventListener('click', () => {
       const targetTab = item.getAttribute('data-tab');
-
-      navItems.forEach(n => n.classList.remove('active'));
-      tabContents.forEach(t => t.classList.remove('active'));
-
-      item.classList.add('active');
-      const targetEl = document.getElementById(targetTab);
-      if (targetEl) targetEl.classList.add('active');
-
-      refreshViewData(targetTab);
-      if (window.lucide) lucide.createIcons();
+      window.switchTab(targetTab);
     });
   });
 
