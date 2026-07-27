@@ -2694,35 +2694,40 @@ document.addEventListener('DOMContentLoaded', () => {
   let loginSelectedUser = null;
   let loginTypedPin = '';
 
+  window.selectLoginUser = function(uid) {
+    loginSelectedUser = systemUsers.find(x => x.id === uid) || systemUsers[0];
+
+    document.querySelectorAll('.login-user-card').forEach(c => {
+      if (c.getAttribute('data-id') === uid) {
+        c.classList.add('selected');
+      } else {
+        c.classList.remove('selected');
+      }
+    });
+
+    const pinCont = document.getElementById('login-pin-container');
+    if (pinCont) {
+      pinCont.style.display = 'block';
+      const nameElem = document.getElementById('login-selected-user-name');
+      const roleElem = document.getElementById('login-selected-user-role');
+      if (nameElem) nameElem.innerText = loginSelectedUser.name;
+      if (roleElem) roleElem.innerText = `${loginSelectedUser.title} | Ingresa tu PIN de 4 dígitos`;
+    }
+
+    loginTypedPin = '';
+    updateLoginPinDots();
+  };
+
   function renderLoginUserCards() {
     if (!loginCardsContainer) return;
 
     loginCardsContainer.innerHTML = systemUsers.map(u => `
-      <div class="login-user-card ${loginSelectedUser && loginSelectedUser.id === u.id ? 'selected' : ''}" data-id="${u.id}">
+      <div class="login-user-card ${loginSelectedUser && loginSelectedUser.id === u.id ? 'selected' : ''}" data-id="${u.id}" onclick="selectLoginUser('${u.id}')">
         <div class="login-user-avatar">${u.avatar}</div>
         <div class="login-user-name">${u.name}</div>
         <div class="login-user-role-badge">${u.role === 'ADMIN' ? '👑 Admin' : (u.role === 'CASHIER' ? '🛒 Cajero' : '📦 Operario')}</div>
       </div>
     `).join('');
-
-    loginCardsContainer.querySelectorAll('.login-user-card').forEach(card => {
-      card.addEventListener('click', () => {
-        const uid = card.getAttribute('data-id');
-        loginSelectedUser = systemUsers.find(x => x.id === uid) || systemUsers[0];
-
-        loginCardsContainer.querySelectorAll('.login-user-card').forEach(c => c.classList.remove('selected'));
-        card.classList.add('selected');
-
-        if (loginPinContainer) {
-          loginPinContainer.style.display = 'block';
-          document.getElementById('login-selected-user-name').innerText = loginSelectedUser.name;
-          document.getElementById('login-selected-user-role').innerText = `${loginSelectedUser.title} | Ingresa tu PIN de 4 dígitos`;
-        }
-
-        loginTypedPin = '';
-        updateLoginPinDots();
-      });
-    });
   }
 
   function updateLoginPinDots() {
