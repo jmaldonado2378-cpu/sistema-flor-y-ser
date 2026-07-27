@@ -19,6 +19,56 @@
 </head>
 <body>
 
+  <!-- Pantalla de Selección de Perfil Estilo POS / Netflix -->
+  <div id="login-profile-overlay" class="login-profile-overlay active">
+    <div class="login-profile-content">
+      <div class="login-brand-header">
+        <div class="brand-logo" style="width: 54px; height: 54px; margin: 0 auto 12px auto; font-size: 24px;">
+          <i data-lucide="sprout"></i>
+        </div>
+        <h1 style="font-family: var(--font-serif); font-size: 28px; color: var(--primary-sage);">Flor y Ser</h1>
+        <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: var(--text-muted); font-weight: 700;">Almacén Natural ERP/CRM</span>
+        <h2 style="font-size: 20px; font-weight: 700; color: var(--text-dark); margin-top: 18px;">¿Quién está ingresando al sistema?</h2>
+        <p style="font-size: 13px; color: var(--text-muted);">Selecciona tu perfil de usuario e ingresa tu PIN de seguridad:</p>
+      </div>
+
+      <!-- Grid de Avatares de Usuarios (Estilo Netflix / POS) -->
+      <div class="login-user-cards-grid" id="login-user-cards-grid">
+        <!-- Carga dinámica por JS -->
+      </div>
+
+      <!-- Teclado Numpad de PIN integrado en la pantalla de bienvenida -->
+      <div id="login-pin-container" style="display: none; margin-top: 20px; text-align: center;">
+        <div style="margin-bottom: 12px;">
+          <strong id="login-selected-user-name" style="font-size: 16px; color: var(--primary-sage);">--</strong>
+          <div style="font-size: 12px; color: var(--text-muted);" id="login-selected-user-role">--</div>
+        </div>
+
+        <div id="login-pin-display-dots" style="display: flex; justify-content: center; gap: 12px; font-size: 28px; color: var(--primary-sage); margin-bottom: 16px;">
+          <span class="pin-dot">○</span>
+          <span class="pin-dot">○</span>
+          <span class="pin-dot">○</span>
+          <span class="pin-dot">○</span>
+        </div>
+
+        <div class="numpad-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 240px; margin: 0 auto;">
+          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="1" style="font-size: 18px; font-weight: 700; height: 46px;">1</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="2" style="font-size: 18px; font-weight: 700; height: 46px;">2</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="3" style="font-size: 18px; font-weight: 700; height: 46px;">3</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="4" style="font-size: 18px; font-weight: 700; height: 46px;">4</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="5" style="font-size: 18px; font-weight: 700; height: 46px;">5</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="6" style="font-size: 18px; font-weight: 700; height: 46px;">6</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="7" style="font-size: 18px; font-weight: 700; height: 46px;">7</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="8" style="font-size: 18px; font-weight: 700; height: 46px;">8</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="9" style="font-size: 18px; font-weight: 700; height: 46px;">9</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" id="btn-login-numpad-clear" style="color: var(--terracotta); font-size: 18px; font-weight: 700; height: 46px;">⌫</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="0" style="font-size: 18px; font-weight: 700; height: 46px;">0</button>
+          <button type="button" class="btn btn-primary login-numpad-btn" id="btn-login-numpad-ok" style="font-size: 18px; font-weight: 700; height: 46px;">✓</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Layout Principal -->
   <div class="app-container">
     

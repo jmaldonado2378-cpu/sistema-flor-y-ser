@@ -2679,9 +2679,126 @@ document.addEventListener('DOMContentLoaded', () => {
 
       updateUserRoleSelectDropdown();
       renderSystemUsersList();
+      renderLoginUserCards();
       formCreateUser.reset();
       alert(`✅ Permisos y datos de usuario "${name}" guardados exitosamente (${selectedTabs.length} módulos permitidos).`);
     });
+  }
+
+  // -----------------------------------------------------------------------------
+  // PANTALLA DE BIENVENIDA / SELECCIÓN DE USUARIO ESTILO POS / NETFLIX
+  // -----------------------------------------------------------------------------
+  const loginOverlay = document.getElementById('login-profile-overlay');
+  const loginCardsContainer = document.getElementById('login-user-cards-grid');
+  const loginPinContainer = document.getElementById('login-pin-container');
+  let loginSelectedUser = null;
+  let loginTypedPin = '';
+
+  function renderLoginUserCards() {
+    if (!loginCardsContainer) return;
+
+    loginCardsContainer.innerHTML = systemUsers.map(u => `
+      <div class="login-user-card ${loginSelectedUser && loginSelectedUser.id === u.id ? 'selected' : ''}" data-id="${u.id}">
+        <div class="login-user-avatar">${u.avatar}</div>
+        <div class="login-user-name">${u.name}</div>
+        <div class="login-user-role-badge">${u.role === 'ADMIN' ? '👑 Admin' : (u.role === 'CASHIER' ? '🛒 Cajero' : '📦 Operario')}</div>
+      </div>
+    `).join('');
+
+    loginCardsContainer.querySelectorAll('.login-user-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const uid = card.getAttribute('data-id');
+        loginSelectedUser = systemUsers.find(x => x.id === uid) || systemUsers[0];
+
+        loginCardsContainer.querySelectorAll('.login-user-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+
+        if (loginPinContainer) {
+          loginPinContainer.style.display = 'block';
+          document.getElementById('login-selected-user-name').innerText = loginSelectedUser.name;
+          document.getElementById('login-selected-user-role').innerText = `${loginSelectedUser.title} | Ingresa tu PIN de 4 dígitos`;
+        }
+
+        loginTypedPin = '';
+        updateLoginPinDots();
+      });
+    });
+  }
+
+  function updateLoginPinDots() {
+    const dotsContainer = document.getElementById('login-pin-display-dots');
+    if (!dotsContainer) return;
+    const len = loginTypedPin.length;
+    let dotsHtml = '';
+    for (let i = 0; i < 4; i++) {
+      dotsHtml += i < len ? `<span class="pin-dot" style="color: var(--primary-sage);">●</span>` : `<span class="pin-dot" style="color: #CBD5E1;">○</span>`;
+    }
+    dotsContainer.innerHTML = dotsHtml;
+  }
+
+  document.querySelectorAll('.login-numpad-btn[data-val]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const val = e.target.getAttribute('data-val');
+      if (loginTypedPin.length < 6) {
+        loginTypedPin += val;
+        updateLoginPinDots();
+        if (loginTypedPin.length === 4 && loginSelectedUser) {
+          verifyLoginPin();
+        }
+      }
+    });
+  });
+
+  const btnLoginClear = document.getElementById('btn-login-numpad-clear');
+  if (btnLoginClear) {
+    btnLoginClear.addEventListener('click', () => {
+      loginTypedPin = loginTypedPin.slice(0, -1);
+      updateLoginPinDots();
+    });
+  }
+
+  const btnLoginOk = document.getElementById('btn-login-numpad-ok');
+  if (btnLoginOk) {
+    btnLoginOk.addEventListener('click', () => verifyLoginPin());
+  }
+
+  function verifyLoginPin() {
+    if (!loginSelectedUser) return;
+
+    if (loginTypedPin === loginSelectedUser.pin) {
+      activeUserSession = loginSelectedUser;
+      if (userRoleSelect) userRoleSelect.value = activeUserSession.id;
+      applyRolePermissions(activeUserSession.role);
+
+      const avatarCircle = document.querySelector('.user-avatar-circle');
+      const profileBadgeSpan = document.querySelector('.user-profile-badge span');
+      if (avatarCircle) avatarCircle.innerText = activeUserSession.avatar;
+      if (profileBadgeSpan) profileBadgeSpan.innerText = activeUserSession.name;
+
+      if (loginOverlay) loginOverlay.classList.remove('active');
+    } else {
+      alert(`❌ PIN de seguridad incorrecto para ${loginSelectedUser.name}. Intenta nuevamente.`);
+      loginTypedPin = '';
+      updateLoginPinDots();
+    }
+  }
+
+  const btnLockSwitchUser = document.getElementById('btn-lock-switch-user');
+  const userProfileBadge = document.querySelector('.user-profile-badge');
+
+  function triggerUserSwitchLockScreen() {
+    loginSelectedUser = null;
+    loginTypedPin = '';
+    if (loginPinContainer) loginPinContainer.style.display = 'none';
+    renderLoginUserCards();
+    if (loginOverlay) loginOverlay.classList.add('active');
+  }
+
+  if (btnLockSwitchUser) btnLockSwitchUser.addEventListener('click', triggerUserSwitchLockScreen);
+  if (userProfileBadge) {
+    userProfileBadge.style.cursor = 'pointer';
+    userProfileBadge.title = 'Hacé clic para cambiar de usuario / Bloquear pantalla';
+    userProfileBadge.addEventListener('click', triggerUserSwitchLockScreen);
   }
 
   // -----------------------------------------------------------------------------
@@ -2694,6 +2811,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderTaskKanbanBoard(mockTasksBoard);
   renderSystemUsersList();
   updateUserRoleSelectDropdown();
+  renderLoginUserCards();
   renderSalesKanbanBoard(mockSalesBoard);
   loadSalesFormData();
   loadExpensesData();
