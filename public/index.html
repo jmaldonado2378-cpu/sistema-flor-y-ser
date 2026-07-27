@@ -210,12 +210,84 @@
         const nameElem = document.getElementById('login-selected-user-name');
         const roleElem = document.getElementById('login-selected-user-role');
         if (nameElem) nameElem.innerText = window.loginSelectedUser.name;
-        if (roleElem) roleElem.innerText = window.loginSelectedUser.title + ' | Ingresa tu PIN de 4 dígitos';
+        if (roleElem) roleElem.innerText = window.loginSelectedUser.title + ' | Ingresa tu PIN';
       }
 
       window.loginTypedPin = '';
-      if (window.updateLoginPinDots) window.updateLoginPinDots();
+      window.updateLoginPinDots();
+
+      // Scroll suave para revelar el teclado completo si es necesario
+      try {
+        const contentBox = document.querySelector('.login-profile-content');
+        if (contentBox) contentBox.scrollTop = contentBox.scrollHeight;
+      } catch (err) {}
     };
+
+    window.updateLoginPinDots = function() {
+      const dotsContainer = document.getElementById('login-pin-display-dots');
+      if (!dotsContainer) return;
+
+      const expectedLen = (window.loginSelectedUser && window.loginSelectedUser.pin) ? window.loginSelectedUser.pin.length : 4;
+      const currentLen = (window.loginTypedPin || '').length;
+      const totalDots = Math.max(expectedLen, currentLen, 4);
+
+      let dotsHtml = '';
+      for (let i = 0; i < totalDots; i++) {
+        dotsHtml += i < currentLen
+          ? `<span class="pin-dot" style="color: #2E5339; font-size: 24px; font-weight: bold;">●</span>`
+          : `<span class="pin-dot" style="color: #CBD5E1; font-size: 24px;">○</span>`;
+      }
+      dotsContainer.innerHTML = dotsHtml;
+    };
+
+    window.pressLoginNumpad = function(val) {
+      if (!window.loginSelectedUser) return;
+      if ((window.loginTypedPin || '').length < 10) {
+        window.loginTypedPin = (window.loginTypedPin || '') + val;
+        window.updateLoginPinDots();
+
+        const expectedLen = window.loginSelectedUser.pin.length;
+        if (window.loginTypedPin.length === expectedLen) {
+          window.submitLoginPin();
+        }
+      }
+    };
+
+    window.clearLoginPin = function() {
+      window.loginTypedPin = (window.loginTypedPin || '').slice(0, -1);
+      window.updateLoginPinDots();
+    };
+
+    window.submitLoginPin = function() {
+      if (!window.loginSelectedUser) return;
+
+      if (window.loginTypedPin === window.loginSelectedUser.pin) {
+        if (window.verifyLoginPinSuccess) {
+          window.verifyLoginPinSuccess(window.loginSelectedUser);
+        } else {
+          const overlay = document.getElementById('login-profile-overlay');
+          if (overlay) overlay.classList.remove('active');
+        }
+      } else {
+        alert(`❌ PIN incorrecto para ${window.loginSelectedUser.name}. Intenta nuevamente.`);
+        window.loginTypedPin = '';
+        window.updateLoginPinDots();
+      }
+    };
+
+    // Listener de Teclado Físico (0-9, Backspace, Enter)
+    window.addEventListener('keydown', function(e) {
+      const overlay = document.getElementById('login-profile-overlay');
+      if (!overlay || !overlay.classList.contains('active') || !window.loginSelectedUser) return;
+
+      if (e.key >= '0' && e.key <= '9') {
+        window.pressLoginNumpad(e.key);
+      } else if (e.key === 'Backspace') {
+        window.clearLoginPin();
+      } else if (e.key === 'Enter') {
+        window.submitLoginPin();
+      }
+    });
   </script>
 </head>
 <body>
@@ -264,19 +336,19 @@
           <span class="pin-dot">○</span>
         </div>
 
-        <div class="numpad-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 240px; margin: 0 auto;">
-          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="1" style="font-size: 18px; font-weight: 700; height: 46px;">1</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="2" style="font-size: 18px; font-weight: 700; height: 46px;">2</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="3" style="font-size: 18px; font-weight: 700; height: 46px;">3</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="4" style="font-size: 18px; font-weight: 700; height: 46px;">4</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="5" style="font-size: 18px; font-weight: 700; height: 46px;">5</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="6" style="font-size: 18px; font-weight: 700; height: 46px;">6</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="7" style="font-size: 18px; font-weight: 700; height: 46px;">7</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="8" style="font-size: 18px; font-weight: 700; height: 46px;">8</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="9" style="font-size: 18px; font-weight: 700; height: 46px;">9</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" id="btn-login-numpad-clear" style="color: var(--terracotta); font-size: 18px; font-weight: 700; height: 46px;">⌫</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" data-val="0" style="font-size: 18px; font-weight: 700; height: 46px;">0</button>
-          <button type="button" class="btn btn-primary login-numpad-btn" id="btn-login-numpad-ok" style="font-size: 18px; font-weight: 700; height: 46px;">✓</button>
+        <div class="numpad-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 250px; margin: 0 auto 10px auto;">
+          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('1')" style="font-size: 18px; font-weight: 700; height: 44px;">1</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('2')" style="font-size: 18px; font-weight: 700; height: 44px;">2</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('3')" style="font-size: 18px; font-weight: 700; height: 44px;">3</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('4')" style="font-size: 18px; font-weight: 700; height: 44px;">4</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('5')" style="font-size: 18px; font-weight: 700; height: 44px;">5</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('6')" style="font-size: 18px; font-weight: 700; height: 44px;">6</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('7')" style="font-size: 18px; font-weight: 700; height: 44px;">7</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('8')" style="font-size: 18px; font-weight: 700; height: 44px;">8</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('9')" style="font-size: 18px; font-weight: 700; height: 44px;">9</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="clearLoginPin()" style="color: #D97753; font-size: 18px; font-weight: 700; height: 44px;">⌫</button>
+          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('0')" style="font-size: 18px; font-weight: 700; height: 44px;">0</button>
+          <button type="button" class="btn btn-primary login-numpad-btn" onclick="submitLoginPin()" style="background: #2E5339; color: white; font-size: 18px; font-weight: 700; height: 44px;">✓</button>
         </div>
       </div>
     </div>
@@ -3081,6 +3153,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=2.0.7"></script>
+  <script src="app.js?v=2.0.8"></script>
 </body>
 </html>

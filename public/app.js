@@ -2767,27 +2767,19 @@ document.addEventListener('DOMContentLoaded', () => {
     btnLoginOk.addEventListener('click', () => verifyLoginPin());
   }
 
-  function verifyLoginPin() {
-    const targetUser = window.loginSelectedUser;
-    if (!targetUser) return;
+  window.verifyLoginPinSuccess = function(targetUser) {
+    activeUserSession = targetUser;
+    if (userRoleSelect) userRoleSelect.value = activeUserSession.id;
+    applyRolePermissions(activeUserSession.role);
 
-    if (window.loginTypedPin === targetUser.pin) {
-      activeUserSession = targetUser;
-      if (userRoleSelect) userRoleSelect.value = activeUserSession.id;
-      applyRolePermissions(activeUserSession.role);
+    const avatarCircle = document.querySelector('.user-avatar-circle');
+    const profileBadgeSpan = document.querySelector('.user-profile-badge span');
+    if (avatarCircle) avatarCircle.innerText = activeUserSession.avatar;
+    if (profileBadgeSpan) profileBadgeSpan.innerText = activeUserSession.name;
 
-      const avatarCircle = document.querySelector('.user-avatar-circle');
-      const profileBadgeSpan = document.querySelector('.user-profile-badge span');
-      if (avatarCircle) avatarCircle.innerText = activeUserSession.avatar;
-      if (profileBadgeSpan) profileBadgeSpan.innerText = activeUserSession.name;
-
-      if (loginOverlay) loginOverlay.classList.remove('active');
-    } else {
-      alert(`❌ PIN de seguridad incorrecto para ${targetUser.name}. Intenta nuevamente.`);
-      window.loginTypedPin = '';
-      window.updateLoginPinDots();
-    }
-  }
+    const overlay = document.getElementById('login-profile-overlay');
+    if (overlay) overlay.classList.remove('active');
+  };
 
   const btnLockSwitchUser = document.getElementById('btn-lock-switch-user');
   const userProfileBadge = document.querySelector('.user-profile-badge');
