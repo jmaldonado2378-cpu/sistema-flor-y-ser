@@ -2794,18 +2794,28 @@ document.addEventListener('DOMContentLoaded', () => {
     if (profileBadgeSpan) profileBadgeSpan.innerText = activeUserSession.name;
 
     const overlay = document.getElementById('login-profile-overlay');
-    if (overlay) overlay.classList.remove('active');
+    if (overlay) {
+      overlay.classList.remove('active');
+      overlay.style.display = 'none';
+      overlay.style.pointerEvents = 'none';
+      overlay.style.visibility = 'hidden';
+    }
   };
 
   const btnLockSwitchUser = document.getElementById('btn-lock-switch-user');
   const userProfileBadge = document.querySelector('.user-profile-badge');
 
   function triggerUserSwitchLockScreen() {
-    loginSelectedUser = null;
-    loginTypedPin = '';
+    window.loginSelectedUser = null;
+    window.loginTypedPin = '';
     if (loginPinContainer) loginPinContainer.style.display = 'none';
     renderLoginUserCards();
-    if (loginOverlay) loginOverlay.classList.add('active');
+    if (loginOverlay) {
+      loginOverlay.style.display = 'flex';
+      loginOverlay.style.pointerEvents = 'auto';
+      loginOverlay.style.visibility = 'visible';
+      loginOverlay.classList.add('active');
+    }
   }
 
   if (btnLockSwitchUser) btnLockSwitchUser.addEventListener('click', triggerUserSwitchLockScreen);

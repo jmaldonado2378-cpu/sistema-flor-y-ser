@@ -29,7 +29,9 @@
       backdrop-filter: blur(16px) !important;
       -webkit-backdrop-filter: blur(16px) !important;
       z-index: 9999999 !important;
-      display: none;
+      display: none !important;
+      pointer-events: none !important;
+      visibility: hidden !important;
       align-items: flex-start !important;
       justify-content: center;
       padding: 16px !important;
@@ -39,6 +41,8 @@
 
     .login-profile-overlay.active {
       display: flex !important;
+      pointer-events: auto !important;
+      visibility: visible !important;
       animation: fadeInOverlay 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
@@ -264,11 +268,15 @@
       if (!window.loginSelectedUser) return;
 
       if (window.loginTypedPin === window.loginSelectedUser.pin) {
+        const overlay = document.getElementById('login-profile-overlay');
+        if (overlay) {
+          overlay.classList.remove('active');
+          overlay.style.display = 'none';
+          overlay.style.pointerEvents = 'none';
+          overlay.style.visibility = 'hidden';
+        }
         if (window.verifyLoginPinSuccess) {
           window.verifyLoginPinSuccess(window.loginSelectedUser);
-        } else {
-          const overlay = document.getElementById('login-profile-overlay');
-          if (overlay) overlay.classList.remove('active');
         }
       } else {
         alert(`❌ PIN incorrecto para ${window.loginSelectedUser.name}. Intenta nuevamente.`);
@@ -3155,6 +3163,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=2.0.9"></script>
+  <script src="app.js?v=2.1.0"></script>
 </body>
 </html>
