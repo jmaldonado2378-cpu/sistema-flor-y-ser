@@ -2,7 +2,7 @@
 // LÓGICA FRONTEND COMPLETA Y TOTALMENTE INTERACTIVA (V2.0) - FLOR Y SER
 // =============================================================================
 
-document.addEventListener('DOMContentLoaded', () => {
+function initApp() {
   if (window.lucide) {
     lucide.createIcons();
   }
@@ -2844,4 +2844,10 @@ document.addEventListener('DOMContentLoaded', () => {
   loadMarketingData();
   loadFinanceCustomers();
   loadFinanceSuppliers();
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}
