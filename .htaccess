@@ -1,0 +1,13 @@
+# Configuration file for Hostinger LiteSpeed / Apache Reverse Proxy & Direct Static Serving
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Direct access to static assets in public folder
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Proxy all other requests to internal Node.js server running on port 3000
+    RewriteRule ^(.*)$ http://127.0.0.1:3000/$1 [P,L]
+</IfModule>

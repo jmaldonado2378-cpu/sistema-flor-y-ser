@@ -1,0 +1,2822 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flor y Ser - Almacén Natural ERP & CRM v2.0</title>
+  
+  <!-- Tipografía Google Fonts: Plus Jakarta Sans & Libre Caslon Text -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Iconos Lucide -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Generador de Códigos de Barras JsBarcode -->
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Layout Principal -->
+  <div class="app-container">
+    
+    <!-- Sidebar de Navegación -->
+    <aside class="sidebar" id="main-sidebar">
+      <div class="brand-header">
+        <div class="brand-logo">
+          <i data-lucide="sprout"></i>
+        </div>
+        <div class="brand-title">
+          <h1>Flor y Ser</h1>
+          <span>Almacén Natural</span>
+        </div>
+        <button class="btn-toggle-sidebar" id="btn-toggle-sidebar" title="Colapsar / Expandir Menú">
+          <i data-lucide="panel-left-close"></i>
+        </button>
+      </div>
+
+      <button class="sidebar-action-btn quick-action-btn" data-target="tab-sales">
+        <i data-lucide="plus"></i> <span>+ Nueva Venta / Pedido</span>
+      </button>
+
+      <nav class="nav-menu" style="overflow-y: auto;">
+        <div class="nav-group-title">📊 PANEL DE CONTROL</div>
+        <button class="nav-item active" data-tab="tab-dashboard">
+          <i data-lucide="layout-dashboard"></i>
+          <span>Dashboard Principal</span>
+        </button>
+
+        <div class="nav-group-title">👥 CLIENTES</div>
+        <button class="nav-item" data-tab="tab-crm">
+          <i data-lucide="users"></i>
+          <span>Maestro de Clientes</span>
+        </button>
+        <button class="nav-item" data-tab="tab-automations">
+          <i data-lucide="send"></i>
+          <span>WhatsApp Marketing</span>
+        </button>
+
+        <div class="nav-group-title">📦 INVENTARIO</div>
+        <button class="nav-item" data-tab="tab-inventory">
+          <i data-lucide="boxes"></i>
+          <span>Stock Doble Nivel</span>
+        </button>
+        <button class="nav-item" data-tab="tab-goods-receipt">
+          <i data-lucide="download"></i>
+          <span>Ingreso de Insumos</span>
+        </button>
+        <button class="nav-item" data-tab="tab-fractioning">
+          <i data-lucide="scale"></i>
+          <span>Fraccionado</span>
+        </button>
+        <button class="nav-item" data-tab="tab-suppliers">
+          <i data-lucide="truck"></i>
+          <span>Maestro de Proveedores</span>
+        </button>
+
+        <div class="nav-group-title">📋 TAREAS & ENVASADO</div>
+        <button class="nav-item" data-tab="tab-kanban-tasks">
+          <i data-lucide="check-square"></i>
+          <span>Kanban de Tareas</span>
+        </button>
+
+        <div class="nav-group-title">🛒 VENTAS</div>
+        <button class="nav-item" data-tab="tab-sales">
+          <i data-lucide="shopping-bag"></i>
+          <span>Ventas</span>
+        </button>
+        <button class="nav-item" data-tab="tab-kanban-orders">
+          <i data-lucide="columns"></i>
+          <span>Kanban de Pedidos</span>
+        </button>
+        <button class="nav-item" data-tab="tab-printer">
+          <i data-lucide="printer"></i>
+          <span>Impresión de Etiquetas</span>
+        </button>
+
+        <div class="nav-group-title">💰 FINANZAS & COSTOS</div>
+        <button class="nav-item" data-tab="tab-finance-customers">
+          <i data-lucide="credit-card"></i>
+          <span>Cta Cte Clientes</span>
+        </button>
+        <button class="nav-item" data-tab="tab-finance-suppliers">
+          <i data-lucide="receipt"></i>
+          <span>Cta Cte Proveedores</span>
+        </button>
+        <button class="nav-item" data-tab="tab-finance-expenses">
+          <i data-lucide="dollar-sign"></i>
+          <span>Gastos Operativos</span>
+        </button>
+        <button class="nav-item" data-tab="tab-finance-pricing">
+          <i data-lucide="calculator"></i>
+          <span>Estructura de Precios</span>
+        </button>
+
+        <div class="nav-group-title">⚙️ CONFIGURACIÓN</div>
+        <button class="nav-item" data-tab="tab-settings">
+          <i data-lucide="settings"></i>
+          <span>Configuración del Sistema</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-role-widget" style="margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(0,0,0,0.08);">
+          <label style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 700;">👤 Rol de Usuario Activo:</label>
+          <select id="user-role-select" class="form-control" style="font-size: 12px; padding: 5px; font-weight: 700; color: var(--primary-sage); background: white; border-radius: 6px;">
+            <option value="ADMIN">👑 María Clara (Dueño / Admin)</option>
+            <option value="CASHIER">🛒 Juan Pérez (Cajero / Ventas)</option>
+            <option value="OPERATOR">📦 Carlos Ruiz (Operario Depósito)</option>
+          </select>
+        </div>
+        <div class="user-status">
+          <div class="status-indicator online"></div>
+          <span>Sistema Operativo v2.0</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Área de Contenido Principal -->
+    <main class="main-content">
+      
+      <!-- Top Header Bar (Estilo Stitch SaaS) -->
+      <header class="top-header-bar">
+        <div class="top-search-pill">
+          <i data-lucide="search" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
+          <input type="text" placeholder="Buscar clientes, productos, lotes o transacciones...">
+        </div>
+        <div class="top-user-actions">
+          <button class="top-action-icon" id="btn-quick-users-settings" title="Configurar Usuarios & PINs de Seguridad">
+            <i data-lucide="shield" style="width: 18px; height: 18px; color: var(--primary-sage);"></i>
+          </button>
+          <button class="top-action-icon" title="Notificaciones">
+            <i data-lucide="bell" style="width: 18px; height: 18px;"></i>
+          </button>
+          <button class="top-action-icon" title="Ayuda & Soporte">
+            <i data-lucide="help-circle" style="width: 18px; height: 18px;"></i>
+          </button>
+          <div class="user-profile-badge">
+            <div class="user-avatar-circle">MC</div>
+            <span style="font-size: 13px; font-weight: 700; color: var(--text-dark);">María Clara</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- TAB 0: Dashboard General Editable & Centro de Control -->
+      <section id="tab-dashboard" class="tab-content active">
+        <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h2>Dashboard General & Centro de Control</h2>
+            <p>Resumen ejecutivo interactivo del almacén natural: Metas de venta, indicadores de inventario y acciones rápidas.</p>
+          </div>
+          <div>
+            <button class="btn btn-secondary btn-sm" id="btn-open-dashboard-goals-modal">
+              <i data-lucide="sliders"></i> ⚙️ Personalizar Metas & Objetivos
+            </button>
+          </div>
+        </div>
+
+        <!-- Barra de Acciones Rápidas en 1 Clic -->
+        <div class="card" style="margin-bottom: 20px; padding: 16px;">
+          <h4 style="font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">
+            ⚡ Acciones Rápidas Operativas
+          </h4>
+          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <button class="btn btn-primary btn-sm quick-action-btn" data-target="tab-sales">
+              <i data-lucide="shopping-cart"></i> + Nueva Venta / Pedido
+            </button>
+            <button class="btn btn-secondary btn-sm quick-action-btn" data-target="tab-finance-customers">
+              <i data-lucide="dollar-sign"></i> + Registrar Cobro Cta Cte
+            </button>
+            <button class="btn btn-secondary btn-sm quick-action-btn" data-target="tab-kanban-tasks">
+              <i data-lucide="check-square"></i> + Nueva Tarea Envasado
+            </button>
+            <button class="btn btn-secondary btn-sm quick-action-btn" data-target="tab-goods-receipt">
+              <i data-lucide="download"></i> + Recepción de Mercadería
+            </button>
+            <button class="btn btn-secondary btn-sm quick-action-btn" data-target="tab-crm">
+              <i data-lucide="user-plus"></i> + Nuevo Cliente CRM
+            </button>
+          </div>
+        </div>
+
+        <!-- KPIs Principales con Barra de Avance de Metas -->
+        <div class="kpi-summary-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;">
+          
+          <div class="kpi-card">
+            <div class="kpi-icon-wrapper terracotta"><i data-lucide="trending-up"></i></div>
+            <div class="kpi-info" style="width: 100%;">
+              <span class="kpi-title">Ventas del Mes ($)</span>
+              <span class="kpi-value" id="dash-sales-val">$845.000</span>
+              <div style="margin-top: 6px;">
+                <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted);">
+                  <span>Meta: <strong id="dash-sales-goal-text">$1.200.000</strong></span>
+                  <span id="dash-sales-pct" style="font-weight: 700; color: var(--terracotta);">70.4%</span>
+                </div>
+                <div style="background: var(--bg-linen); height: 6px; border-radius: 3px; overflow: hidden; margin-top: 3px;">
+                  <div id="dash-sales-bar" style="background: var(--terracotta); width: 70.4%; height: 100%; border-radius: 3px;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-icon-wrapper olive"><i data-lucide="shopping-bag"></i></div>
+            <div class="kpi-info" style="width: 100%;">
+              <span class="kpi-title">Ticket Promedio ($)</span>
+              <span class="kpi-value" id="dash-ticket-val">$14.083</span>
+              <div style="margin-top: 6px;">
+                <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted);">
+                  <span>Meta: <strong id="dash-ticket-goal-text">$15.000</strong></span>
+                  <span id="dash-ticket-pct" style="font-weight: 700; color: var(--primary-sage);">93.8%</span>
+                </div>
+                <div style="background: var(--bg-linen); height: 6px; border-radius: 3px; overflow: hidden; margin-top: 3px;">
+                  <div id="dash-ticket-bar" style="background: var(--primary-sage); width: 93.8%; height: 100%; border-radius: 3px;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-icon-wrapper info"><i data-lucide="users"></i></div>
+            <div class="kpi-info">
+              <span class="kpi-title">Clientes Registrados</span>
+              <span class="kpi-value" id="dash-cust-count">4 Activos</span>
+              <span class="kpi-sub positive">VIP / Frecuentes</span>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-icon-wrapper warning"><i data-lucide="boxes"></i></div>
+            <div class="kpi-info">
+              <span class="kpi-title">Valor Total Inventario</span>
+              <span class="kpi-value" id="dash-inventory-val">$1.485.200</span>
+              <span class="kpi-sub neutral">Granel + Empaquetado</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Gráfico Analítico de Canales y Alertas de Stock Bajo -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
+          
+          <div class="card">
+            <div class="card-header">
+              <h3><i data-lucide="pie-chart"></i> Distribución de Ventas por Canal</h3>
+            </div>
+            <div class="channel-stats-list">
+              <div class="channel-stat-item">
+                <div class="channel-stat-header">
+                  <span class="channel-stat-title">💬 WhatsApp & Envíos Directos</span>
+                  <span class="channel-stat-value">$445.000 (52.6%)</span>
+                </div>
+                <div style="background: #E2E8F0; height: 8px; border-radius: 4px; overflow: hidden;">
+                  <div style="background: var(--primary-sage); width: 52.6%; height: 100%;"></div>
+                </div>
+              </div>
+              <div class="channel-stat-item">
+                <div class="channel-stat-header">
+                  <span class="channel-stat-title">🏪 Local / Mostrador</span>
+                  <span class="channel-stat-value">$260.000 (30.7%)</span>
+                </div>
+                <div style="background: #E2E8F0; height: 8px; border-radius: 4px; overflow: hidden;">
+                  <div style="background: var(--terracotta); width: 30.7%; height: 100%;"></div>
+                </div>
+              </div>
+              <div class="channel-stat-item">
+                <div class="channel-stat-header">
+                  <span class="channel-stat-title">🌐 Tienda Online</span>
+                  <span class="channel-stat-value">$140.000 (16.7%)</span>
+                </div>
+                <div style="background: #E2E8F0; height: 8px; border-radius: 4px; overflow: hidden;">
+                  <div style="background: #0EA5E9; width: 16.7%; height: 100%;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card-table">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <h3><i data-lucide="alert-triangle"></i> Alertas Inmediatas de Stock</h3>
+              <button class="btn btn-secondary btn-sm quick-action-btn" data-target="tab-inventory">Ver Inventario</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Ítem / Insumo</th>
+                    <th>Tipo</th>
+                    <th>Stock</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody id="dash-table-stock-alerts">
+                  <!-- Carga dinámica -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- TAB 1: Maestro de Clientes & CRM (Tabla Profesional + Filtros) -->
+      <section id="tab-crm" class="tab-content">
+        <!-- Top Bar contextual exclusivo de Clientes -->
+        <header class="top-bar" style="margin-bottom: 20px;">
+          <div class="search-box">
+            <i data-lucide="search"></i>
+            <input type="text" id="global-customer-search" placeholder="Buscar cliente por teléfono, nombre o WhatsApp...">
+          </div>
+
+          <div class="top-actions">
+            <button class="btn btn-primary" id="btn-open-customer-modal">
+              <i data-lucide="user-plus"></i>
+              <span>+ Nuevo Cliente</span>
+            </button>
+          </div>
+        </header>
+
+        <div class="section-header">
+          <div>
+            <h2>Maestro de Clientes & Ficha Deslizante</h2>
+            <p>Tabla profesional de clientes con filtros avanzados por dieta, saldo y segmento. Haz clic en una fila para abrir la Ficha Superpuesta editable.</p>
+          </div>
+        </div>
+
+        <!-- Filtros del Maestro de Clientes -->
+        <div class="card" style="margin-bottom: 16px; padding: 14px;">
+          <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+            <div style="flex: 1; min-width: 200px;">
+              <input type="text" id="filter-customer-search" class="form-control" placeholder="🔍 Filtrar por nombre, WhatsApp o email...">
+            </div>
+            <div style="width: 180px;">
+              <select id="filter-customer-diet" class="form-control">
+                <option value="">Todas las Dietas</option>
+                <option value="VEGAN">Vegano</option>
+                <option value="CELIAC">Sin TACC / Celíaco</option>
+                <option value="ORGANIC">Orgánico</option>
+                <option value="KETO">Keto</option>
+              </select>
+            </div>
+            <div style="width: 170px;">
+              <select id="filter-customer-segment" class="form-control">
+                <option value="">Todos los Segmentos</option>
+                <option value="VIP">VIP</option>
+                <option value="Frecuente">Frecuente</option>
+                <option value="Ocasional">Ocasional</option>
+                <option value="Mayorista / Revendedor">Mayorista</option>
+              </select>
+            </div>
+            <div style="width: 170px;">
+              <select id="filter-customer-balance" class="form-control">
+                <option value="">Todos los Saldos</option>
+                <option value="DEBT">Con Saldo Deudor</option>
+                <option value="CLEAR">Al Día (Sin Deuda)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabla Profesional Maestro de Clientes -->
+        <div class="card card-table">
+          <div class="table-responsive">
+            <table class="data-table" id="table-master-customers-wrapper">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Contacto / WhatsApp</th>
+                  <th>Canal</th>
+                  <th>Segmento</th>
+                  <th>Dietas / Preferencias</th>
+                  <th>Saldo Cta Cte</th>
+                  <th>Puntos</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody id="table-master-customers">
+                <!-- Cargado dinámicamente por JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: WhatsApp Marketing -->
+      <section id="tab-automations" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>WhatsApp Marketing & Campañas Automáticas</h2>
+            <p>Diseña mensajes masivos segmentados por dietas, puntos acumulados o recordatorios de reposición.</p>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <!-- Formulario de Campaña -->
+          <div class="card">
+            <div class="card-header">
+              <h3><i data-lucide="send"></i> Crear Campaña de WhatsApp</h3>
+            </div>
+            <form id="form-create-marketing-campaign">
+              <div class="form-group">
+                <label>Nombre de la Campaña</label>
+                <input type="text" id="mkt-campaign-name" placeholder="Ej: Promo Celíacos Mes de Agosto" required>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group col">
+                  <label>Plantilla Predefinida</label>
+                  <select id="mkt-template-select" class="form-control">
+                    <option value="BIENVENIDA">Mensaje de Bienvenida</option>
+                    <option value="REPOSICION">Recordatorio de Reposición (30 días)</option>
+                    <option value="CUMPLEANOS">Regalo de Cumpleaños (15% Desc)</option>
+                    <option value="DIETA_PROMO">Novedad Especial por Dieta</option>
+                  </select>
+                </div>
+                <div class="form-group col">
+                  <label>Filtro de Audiencia (Dieta)</label>
+                  <select id="mkt-audience-diet" class="form-control">
+                    <option value="">Todos los Clientes</option>
+                    <option value="VEGAN">Solo Veganos</option>
+                    <option value="CELIAC">Solo Sin TACC</option>
+                    <option value="KETO">Solo Keto</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Cuerpo del Mensaje (Soporta variables {nombre}, {descuento}, {puntos})</label>
+                <textarea id="mkt-message-body" rows="4" required>Hola {nombre}! 🌸 En Flor y Ser tenemos novedades frescas en productos aptos para tu dieta. ¡Aprovechá un 10% de descuento en tu próxima compra!</textarea>
+              </div>
+
+              <button type="submit" class="btn btn-primary">
+                <i data-lucide="send"></i> Previsualizar y Simular Envío Masivo
+              </button>
+            </form>
+          </div>
+
+          <!-- Previsualizador de Audiencia Destinataria -->
+          <div class="card card-table">
+            <div class="card-header">
+              <h3><i data-lucide="users"></i> Clientes Destinatarios Alcanzados</h3>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Cliente</th>
+                    <th>WhatsApp</th>
+                    <th>Segmento</th>
+                    <th>Estado Envío</th>
+                  </tr>
+                </thead>
+                <tbody id="table-marketing-recipients">
+                  <!-- Carga dinámica -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: Gestión Dinámica de Dietas -->
+      <section id="tab-dietary" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>Gestión Dinámica de Preferencias Dietéticas</h2>
+            <p>Crea, edita y personaliza etiquetas dietéticas para clientes y etiquetado de productos.</p>
+          </div>
+        </div>
+
+        <div class="dietary-manager-grid">
+          
+          <!-- Formulario de Nueva Dieta -->
+          <div class="card">
+            <div class="card-header">
+              <h3><i data-lucide="plus-circle"></i> Agregar Nueva Dieta / Alérgeno</h3>
+            </div>
+            <form id="form-create-diet">
+              <div class="form-group">
+                <label>Nombre de la Preferencia Dietética</label>
+                <input type="text" id="diet-name" placeholder="Ej: Sin Lactosa, Low Carb, Intolerancia a la Fructosa..." required>
+              </div>
+
+              <div class="form-group">
+                <label>Código Identificador Único</label>
+                <input type="text" id="diet-code" placeholder="Ej: SIN_LACTOSA" required>
+              </div>
+
+              <div class="form-group">
+                <label>Color de Etiqueta (Hexadecimal)</label>
+                <div class="color-picker-row">
+                  <input type="color" id="diet-color" value="#5E7055">
+                  <input type="text" id="diet-color-hex" value="#5E7055">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Descripción u Observaciones Médicas</label>
+                <textarea id="diet-desc" rows="2" placeholder="Detalles sobre restricciones de ingredientes o celioquía..."></textarea>
+              </div>
+
+              <button type="submit" class="btn btn-primary">
+                <i data-lucide="check"></i> Guardar Nueva Dieta
+              </button>
+            </form>
+          </div>
+
+          <!-- Listado de Dietas Existentes -->
+          <div class="card">
+            <div class="card-header">
+              <h3><i data-lucide="tags"></i> Catálogo Dinámico de Dietas Activas</h3>
+            </div>
+            <div class="diet-cards-container" id="diet-cards-list">
+              <!-- Carga dinámica -->
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- TAB 3: Control Integrado de Stock a Doble Nivel -->
+      <section id="tab-inventory" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>Stock Doble Nivel (Insumos vs Productos Finales)</h2>
+            <p>Selecciona la vista activa para auditar Materia Prima a Granel (Nivel 1) o Productos Empaquetados (Nivel 2).</p>
+          </div>
+          <div class="top-actions">
+            <button class="btn btn-secondary btn-sm" id="btn-open-new-raw-modal">
+              <i data-lucide="plus-circle"></i> + Nuevo Insumo Granel
+            </button>
+            <button class="btn btn-primary btn-sm" id="btn-open-new-product-modal">
+              <i data-lucide="package-plus"></i> + Nuevo Producto Final
+            </button>
+          </div>
+        </div>
+
+        <div class="subtabs-bar" style="display: flex; gap: 10px; margin-bottom: 16px;">
+          <button class="btn btn-primary active" id="btn-toggle-stock-raw">
+            <i data-lucide="boxes"></i> Materia Prima / Granel (Nivel 1)
+          </button>
+          <button class="btn btn-secondary" id="btn-toggle-stock-final">
+            <i data-lucide="package"></i> Productos Empaquetados (Nivel 2)
+          </button>
+          <button class="btn btn-terracotta btn-sm" id="filter-stock-low" style="margin-left: auto;">
+            <i data-lucide="alert-triangle"></i> Solo Stock Bajo
+          </button>
+        </div>
+
+        <!-- Tabla Nivel 1: Materia Prima / Granel (Visible por defecto) -->
+        <div class="card card-table" id="card-raw-materials">
+          <div class="card-header">
+            <h3><i data-lucide="boxes"></i> Inventario de Materia Prima & Insumos a Granel (Nivel 1)</h3>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Código SKU</th>
+                  <th>Insumo / Granel</th>
+                  <th>Stock Actual</th>
+                  <th>Stock Mín.</th>
+                  <th>Costo / Unidad</th>
+                  <th>Proveedor</th>
+                  <th>Ubicación</th>
+                  <th>Estado Stock</th>
+                  <th>Ajuste Rápido</th>
+                </tr>
+              </thead>
+              <tbody id="table-raw-materials">
+                <!-- Carga dinámica por JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tabla Nivel 2: Productos Finales Empaquetados (Oculta por defecto) -->
+        <div class="card card-table" id="card-final-products" style="display: none;">
+          <div class="card-header">
+            <h3><i data-lucide="package"></i> Inventario de Productos Finales Empaquetados (Nivel 2)</h3>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Código / Barcode</th>
+                  <th>Producto Empaquetado</th>
+                  <th>Peso Neto</th>
+                  <th>Insumo Origen</th>
+                  <th>Stock Actual</th>
+                  <th>Stock Mín.</th>
+                  <th>Precio Venta</th>
+                  <th>Dietas / Sellos</th>
+                  <th>Estado Stock</th>
+                  <th>Ajuste Rápido</th>
+                </tr>
+              </thead>
+              <tbody id="table-final-products">
+                <!-- Carga dinámica por JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: Módulo Operativo de Fraccionado con Registro de Mermas -->
+      <section id="tab-fractioning" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>Módulo Operativo de Fraccionado & Registro de Mermas</h2>
+            <p>Transformación de bolsas industriales a unidades empaquetadas, cálculo de mermas y tiempo de mano de obra.</p>
+          </div>
+        </div>
+
+        <div class="subtabs-bar" style="display: flex; gap: 10px; margin-bottom: 16px;">
+          <button class="btn btn-primary active" id="btn-frac-subtab-execute">
+            <i data-lucide="scale"></i> ⚙️ Ejecutar Fraccionado
+          </button>
+          <button class="btn btn-secondary" id="btn-frac-subtab-history">
+            <i data-lucide="history"></i> 📜 Historial de Lotes & Mermas
+          </button>
+          <button class="btn btn-secondary" id="btn-frac-subtab-calc">
+            <i data-lucide="clock"></i> ⏱️ Calculadora de Tiempo & Mano de Obra
+          </button>
+        </div>
+
+        <!-- Subview 1: Ejecutar Fraccionado -->
+        <div id="frac-view-execute" class="frac-subview">
+          <div class="card" style="max-width: 680px;">
+            <div class="card-header">
+              <h3><i data-lucide="scale"></i> Operación de Fraccionado de Lote</h3>
+            </div>
+
+            <form id="form-execute-fractioning">
+              <div class="form-group">
+                <label>Insumo a Granel a Fraccionar (Materia Prima Origen)</label>
+                <select id="frac-raw-select" class="form-control" required></select>
+              </div>
+
+              <div class="form-group">
+                <label>Producto Final a Generar (Presentación Empaquetada)</label>
+                <select id="frac-final-select" class="form-control" required></select>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group col">
+                  <label>Cantidad Bruta (kg / Litros)</label>
+                  <input type="number" id="frac-input-kg" value="10.0" step="0.1" min="0.1" required>
+                </div>
+                <div class="form-group col">
+                  <label>Unidades Teóricas Esperadas</label>
+                  <input type="number" id="frac-target-units" value="40" readonly style="background-color: var(--surface-hover); font-weight: 700;">
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group col">
+                  <label>Unidades Reales Obtenidas</label>
+                  <input type="number" id="frac-actual-units" value="39" min="0" required>
+                </div>
+                <div class="form-group col">
+                  <label>Lote Materia Prima</label>
+                  <input type="text" id="frac-raw-batch" value="L-ALM-2026-06" required>
+                </div>
+              </div>
+
+              <!-- Calculadora de Tiempo y Costo de Mano de Obra en la Tarea -->
+              <h4 style="font-size: 13px; color: var(--terracotta); margin: 12px 0 8px 0;"><i data-lucide="clock"></i> Tiempo y Costo de Mano de Obra de la Tarea</h4>
+              <div class="form-row">
+                <div class="form-group col">
+                  <label>Tiempo Duración Tarea (Minutos)</label>
+                  <input type="number" id="frac-time-minutes" value="45" min="1" required>
+                </div>
+                <div class="form-group col">
+                  <label>Tarifa Operario por Hora ($)</label>
+                  <input type="number" id="frac-operator-rate" value="2400" step="50" required>
+                </div>
+              </div>
+
+              <div style="background: var(--bg-linen); border: 1px solid var(--card-border); border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 13px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span>Costo Total Mano de Obra Tarea:</span>
+                  <strong id="frac-calculated-labor-total" style="color: var(--terracotta);">$1.800</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted);">
+                  <span>Costo Mano Obra por Unidad Producida:</span>
+                  <strong id="frac-calculated-labor-per-unit" style="color: var(--primary-sage);">$46,15 / un</strong>
+                </div>
+              </div>
+
+              <!-- Caja Resumen de Merma Registrada -->
+              <div class="waste-metric-box" style="background-color: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 14px; margin: 12px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <strong style="color: #92400E; font-size: 14px;"><i data-lucide="alert-circle"></i> Merma Física Detectada:</strong>
+                  <span id="frac-waste-badge" class="badge" style="background-color: #F59E0B; color: white; font-size: 13px;">0.250 kg (2.50%)</span>
+                </div>
+                <p style="font-size: 12px; color: #78350F; margin: 4px 0 0 0;">La merma se descuenta automáticamente del inventario de materia prima.</p>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group col">
+                  <label>Número de Lote Generado</label>
+                  <input type="text" id="frac-generated-batch" value="LOT-20260722-001" required>
+                </div>
+                <div class="form-group col">
+                  <label>Fecha de Vencimiento</label>
+                  <input type="date" id="frac-expiration-date" required>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group col">
+                  <label>Operario Responsable</label>
+                  <input type="text" id="frac-operator" value="María Clara (Empaque)" required>
+                </div>
+                <div class="form-group col">
+                  <label>Motivo de Merma</label>
+                  <select id="frac-waste-reason" class="form-control">
+                    <option value="Merma normal de descarte y empaque">Merma normal de descarte y empaque</option>
+                    <option value="Merma por polvo/residuos en tolva">Merma por polvo/residuos en tolva</option>
+                    <option value="Bolsa dañada o rotura">Bolsa dañada o rotura</option>
+                    <option value="Calibración de balanza">Calibración de balanza</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Notas de la Operación</label>
+                <textarea id="frac-notes" rows="2" placeholder="Observaciones sobre la calidad del insumo o empaque..."></textarea>
+              </div>
+
+              <button type="submit" class="btn btn-terracotta btn-block">
+                <i data-lucide="check-circle"></i> Ejecutar Fraccionado y Descargar Stock
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Subview 2: Historial de Fraccionados -->
+        <div id="frac-view-history" class="frac-subview" style="display: none;">
+          <div class="card card-table">
+            <div class="card-header">
+              <h3><i data-lucide="history"></i> Historial de Ordenes de Fraccionado</h3>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Nro Orden</th>
+                    <th>Insumo Granel</th>
+                    <th>Producto Final</th>
+                    <th>Kg Entrado</th>
+                    <th>Un. Producidas</th>
+                    <th>Merma Kg (%)</th>
+                    <th>Lote Creado</th>
+                    <th>Operario</th>
+                  </tr>
+                </thead>
+                <tbody id="table-fractioning-history">
+                  <!-- Carga dinámica -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subview 3: Calculadora de Tiempo y Mano de Obra -->
+        <div id="frac-view-calc" class="frac-subview" style="display: none;">
+          <div class="card" style="max-width: 580px;">
+            <div class="card-header">
+              <h3><i data-lucide="clock"></i> Simulación de Costos de Mano de Obra por Lote</h3>
+            </div>
+            <div class="form-group">
+              <label>Presentación a Evaluar</label>
+              <input type="text" value="Doypack 250 gr / 500 gr" readonly style="background: var(--bg-linen);">
+            </div>
+            <div class="form-row">
+              <div class="form-group col">
+                <label>Minutos Totales Empleados</label>
+                <input type="number" id="sim-time-min" value="60" min="1">
+              </div>
+              <div class="form-group col">
+                <label>Tarifa Horaria ($/hr)</label>
+                <input type="number" id="sim-rate-hr" value="2400" step="50">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Unidades Producidas en la Sesión</label>
+              <input type="number" id="sim-units-prod" value="80" min="1">
+            </div>
+
+            <div style="background: #ECFDF5; border: 1px solid #10B981; border-radius: 8px; padding: 14px; margin-top: 12px;">
+              <div style="display: flex; justify-content: space-between; font-size: 14px; color: #065F46;">
+                <span>Costo Total Mano de Obra:</span>
+                <strong id="sim-total-labor-cost" style="font-size: 16px;">$2.400</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 15px; color: #047857; margin-top: 6px; font-weight: 800;">
+                <span>Costo Unitario de Fraccionado:</span>
+                <span id="sim-unit-labor-cost">$30,00 / unidad</span>
+              </div>
+            </div>
+      </section>
+
+      <!-- TAB 5: Impresión Térmica NIIMBOT B1 Pro & TSPL (Etiquetas de Producto y Envíos) -->
+      <section id="tab-printer" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>Módulo de Impresión de Etiquetas Térmicas (NIIMBOT B1 Pro / TSPL / Envíos)</h2>
+            <p>Diseño, previsualización interactiva y emisión directa a impresoras NIIMBOT B1 Pro y dispositivos térmicos TSPL/Logística.</p>
+          </div>
+        </div>
+
+        <div class="label-type-switcher" style="display: flex; gap: 10px; margin-bottom: 16px;">
+          <button class="btn btn-primary active" id="btn-mode-product-label">
+            <i data-lucide="tag"></i> Etiquetas para Productos Fraccionados (50x30 mm)
+          </button>
+          <button class="btn btn-secondary" id="btn-mode-shipping-label">
+            <i data-lucide="truck"></i> Etiquetas de Envío y Logística de Envíos (50x50 mm)
+          </button>
+        </div>
+
+        <div class="printer-grid">
+          
+          <!-- Panel de Configuración e Impresión -->
+          <div class="card">
+            <div class="card-header">
+              <h3 id="printer-form-title"><i data-lucide="settings"></i> Parámetros de Etiqueta de Producto</h3>
+            </div>
+
+            <!-- Formulario de Etiqueta de Producto -->
+            <form id="form-print-label">
+              <div class="form-group">
+                <label>Impresora / Conexión Seleccionada</label>
+                <select id="select-printer" class="form-control">
+                  <option value="niimbot-b1-pro">NIIMBOT B1 Pro (Bluetooth / USB) [Recomendado]</option>
+                  <option value="zebra-tspl">Zebra / Xprinter TSPL (50x30mm / 50x50mm)</option>
+                  <option value="escpos-ticket">Impresora de Ticket Térmico POS</option>
+                </select>
+              </div>
+
+              <!-- CAMPOS PRODUCTO -->
+              <div id="fields-product-label">
+                <div class="form-group">
+                  <label>Nombre del Producto Fraccionado</label>
+                  <input type="text" id="label-product-name" value="Granola Artesanal Coco & Almendras" required>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group col">
+                    <label>Peso / Contenido Neto</label>
+                    <input type="text" id="label-weight" value="500g" required>
+                  </div>
+                  <div class="form-group col">
+                    <label>Número de Lote</label>
+                    <input type="text" id="label-batch" value="LOT-20260722-001" required>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group col">
+                    <label>Fecha Vencimiento</label>
+                    <input type="date" id="label-expiry" value="2027-01-20" required>
+                  </div>
+                  <div class="form-group col">
+                    <label>Código de Barras EAN / Code128</label>
+                    <input type="text" id="label-barcode" value="7791234567891" required>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label>Sellos y Etiquetas Dietéticas a Incluir</label>
+                  <div class="checkbox-group" id="printer-diet-checkboxes">
+                    <!-- Carga dinámica -->
+                  </div>
+                </div>
+              </div>
+
+              <!-- CAMPOS ENVÍO Y LOGÍSTICA -->
+              <div id="fields-shipping-label" style="display: none;">
+                <div class="form-row">
+                  <div class="form-group col">
+                    <label>Número de Pedido</label>
+                    <input type="text" id="ship-order-number" value="PED-8821">
+                  </div>
+                  <div class="form-group col">
+                    <label>Nombre del Cliente</label>
+                    <input type="text" id="ship-customer-name" value="Martina Gómez">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group col">
+                    <label>Teléfono / WhatsApp</label>
+                    <input type="text" id="ship-customer-phone" value="+54 9 11 5543-9821">
+                  </div>
+                  <div class="form-group col">
+                    <label>Barrio / Zona de Envío</label>
+                    <input type="text" id="ship-zone" value="Palermo Soho, CABA">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label>Dirección Completa de Entrega</label>
+                  <input type="text" id="ship-address" value="Av. Corrientes 3421, Piso 4 Dep B">
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group col">
+                    <label>Estado del Pago</label>
+                    <select id="ship-payment-status" class="form-control">
+                      <option value="PAGADO (Mercado Pago)">PAGADO (Mercado Pago)</option>
+                      <option value="PENDIENTE CONTRAENTREGA">PENDIENTE CONTRAENTREGA</option>
+                      <option value="CUENTA CORRIENTE">CUENTA CORRIENTE</option>
+                    </select>
+                  </div>
+                  <div class="form-group col">
+                    <label>Monto Total ($)</label>
+                    <input type="number" id="ship-total-amount" value="8450">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label>Notas de Reparto / Envíos</label>
+                  <textarea id="ship-notes" rows="2">Timbre 4B. Entregar preferentemente por la tarde.</textarea>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Cantidad de Copias a Imprimir</label>
+                <input type="number" id="label-copies" value="1" min="1" max="100">
+              </div>
+
+              <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn btn-terracotta" id="btn-print-now" style="flex: 2;">
+                  <i data-lucide="printer"></i> Imprimir en NIIMBOT B1 Pro
+                </button>
+                <button type="button" class="btn btn-secondary" id="btn-show-tspl" style="flex: 1;">
+                  <i data-lucide="code"></i> Ver Código TSPL
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Vista Previa Interactiva de Etiqueta Térmica -->
+          <div class="card card-preview">
+            <div class="card-header">
+              <h3 id="label-preview-header-title"><i data-lucide="eye"></i> Vista Previa Térmica 203 DPI (50x30 mm)</h3>
+            </div>
+            
+            <div class="label-preview-wrapper" style="display: flex; justify-content: center; align-items: center; background-color: var(--surface-hover); padding: 24px; border-radius: 8px;">
+              
+              <!-- CANVAS DE ETIQUETA PRODUCTO FRACCIONADO -->
+              <div class="thermal-label-canvas" id="thermal-label" style="width: 320px; min-height: 200px; background: white; border: 2px dashed #94A3B8; border-radius: 6px; padding: 14px; font-family: 'Plus Jakarta Sans', sans-serif; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                <div class="label-brand" style="text-align: center; font-size: 11px; font-weight: 700; color: var(--terracotta); border-bottom: 1px solid #E2E8F0; padding-bottom: 4px; margin-bottom: 6px;">FLOR Y SER - ALMACÉN NATURAL</div>
+                <div class="label-title" id="prev-title" style="text-align: center; font-size: 15px; font-weight: 800; color: #1E293B; margin-bottom: 8px;">Granola Artesanal Coco & Almendras</div>
+                
+                <div class="label-specs-row" style="display: flex; justify-content: space-between; font-size: 12px; color: #334155; margin-bottom: 4px;">
+                  <div>PESO NETO: <strong id="prev-weight">500g</strong></div>
+                  <div>LOTE: <strong id="prev-batch">LOT-20260722-001</strong></div>
+                </div>
+                <div class="label-specs-row" style="display: flex; justify-content: space-between; font-size: 12px; color: #334155; margin-bottom: 8px;">
+                  <div>VENCIMIENTO: <strong id="prev-expiry">2027-01-20</strong></div>
+                </div>
+
+                <div class="label-diet-badges" id="prev-badges" style="display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-bottom: 10px;">
+                  <span style="background-color: #5E7055; color: white; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">[VEGANO]</span> 
+                  <span style="background-color: #C87053; color: white; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">[SIN TACC]</span>
+                </div>
+
+                <div class="barcode-container" style="text-align: center;">
+                  <svg id="barcode-svg"></svg>
+                </div>
+              </div>
+
+              <!-- CANVAS DE ETIQUETA ENVÍO Y LOGÍSTICA (50x50 mm) -->
+              <div class="thermal-label-canvas-shipping" id="thermal-label-shipping" style="display: none; width: 320px; min-height: 320px; background: white; border: 2px dashed #94A3B8; border-radius: 6px; padding: 14px; font-family: 'Plus Jakarta Sans', sans-serif; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                <div style="text-align: center; font-size: 11px; font-weight: 700; color: var(--terracotta); border-bottom: 1px dotted #CBD5E1; padding-bottom: 4px;">FLOR Y SER - DELIVERIES</div>
+                <div style="text-align: center; font-size: 16px; font-weight: 800; color: #0F172A; margin: 6px 0;" id="prev-ship-order">PEDIDO #PED-8821</div>
+                
+                <div style="border: 1px solid #E2E8F0; padding: 8px; border-radius: 6px; background-color: #F8FAFC; margin-bottom: 8px;">
+                  <div style="font-size: 11px; color: #64748B;">DESTINATARIO:</div>
+                  <strong style="font-size: 14px; color: #1E293B;" id="prev-ship-customer">Martina Gómez</strong>
+                  <div style="font-size: 12px; color: #475569;" id="prev-ship-phone">TEL: +54 9 11 5543-9821</div>
+                </div>
+
+                <div style="font-size: 12px; color: #1E293B; margin-bottom: 6px;">
+                  <div>DIRECCIÓN: <strong id="prev-ship-address">Av. Corrientes 3421, Piso 4 Dep B</strong></div>
+                  <div>ZONA: <strong id="prev-ship-zone">Palermo Soho, CABA</strong></div>
+                </div>
+
+                <div style="font-size: 11px; color: #059669; font-weight: 700; background: #ECFDF5; padding: 4px 8px; border-radius: 4px; margin-bottom: 6px;" id="prev-ship-status">
+                  ESTADO: PAGADO ($8,450)
+                </div>
+
+                <div style="font-size: 11px; color: #64748B; font-style: italic; margin-bottom: 8px;" id="prev-ship-notes">
+                  "Timbre 4B. Entregar preferentemente por la tarde."
+                </div>
+
+                <div style="text-align: center;">
+                  <svg id="barcode-shipping-svg"></svg>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- TAB 6: Ventas -->
+      <section id="tab-sales" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>Gestión de Ventas & Pedidos</h2>
+            <p>Formulario de facturación multi-producto con autocompletado de precios y cálculo de totales.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3><i data-lucide="shopping-cart"></i> Registrar Nueva Venta / Pedido</h3>
+          </div>
+          <form id="form-new-order">
+            <div class="form-row">
+              <div class="form-group col">
+                <label>Cliente</label>
+                <select id="sale-customer-select" class="form-control" required>
+                  <!-- Carga dinámica -->
+                </select>
+              </div>
+              <div class="form-group col">
+                <label>Canal de Venta</label>
+                <select id="sale-channel-select" class="form-control" required>
+                  <option value="LOCAL">Local / Mostrador</option>
+                  <option value="WHATSAPP">WhatsApp</option>
+                  <option value="ONLINE_STORE">Tienda Online</option>
+                  <option value="INSTAGRAM">Instagram</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Tabla de Ítems / Productos del Pedido -->
+            <div style="margin: 16px 0;">
+              <h4 style="margin-bottom: 8px; font-size: 14px; color: var(--primary-sage);"><i data-lucide="package"></i> Productos del Pedido</h4>
+              <div class="table-responsive">
+                <table class="data-table" id="table-sale-items">
+                  <thead>
+                    <tr>
+                      <th style="width: 45%;">Producto Empaquetado</th>
+                      <th style="width: 15%;">Cantidad</th>
+                      <th style="width: 20%;">Precio Unit. ($)</th>
+                      <th style="width: 15%;">Subtotal ($)</th>
+                      <th style="width: 5%;">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sale-items-tbody">
+                    <!-- Filas dinámicas generadas por JS -->
+                  </tbody>
+                </table>
+              </div>
+              <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-add-sale-item">
+                  <i data-lucide="plus"></i> + Agregar Producto
+                </button>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-open-sales-qr-scanner">
+                  <i data-lucide="qr-code"></i> 📷 Escanear QR con Cámara / Láser
+                </button>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group col">
+                <label>Descuento ($)</label>
+                <input type="number" id="sale-discount" value="0" min="0">
+              </div>
+              <div class="form-group col">
+                <label>Costo de Envío ($)</label>
+                <input type="number" id="sale-shipping-fee" value="0" min="0">
+              </div>
+              <div class="form-group col">
+                <label>Método de Pago</label>
+                <select id="sale-payment-select" class="form-control" required>
+                  <option value="EFECTIVO">Efectivo</option>
+                  <option value="MERCADO_PAGO">Mercado Pago</option>
+                  <option value="TRANSFERENCIA">Transferencia Bancaria</option>
+                  <option value="CUENTA_CORRIENTE">Cuenta Corriente</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-linen); padding: 14px; border-radius: 8px; margin-top: 12px;">
+              <span style="font-size: 16px; font-weight: 700; color: var(--text-dark);">Total Venta:</span>
+              <span id="sale-grand-total" style="font-size: 22px; font-weight: 800; color: var(--terracotta);">$0</span>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block" style="margin-top: 16px;">
+              <i data-lucide="check-circle"></i> Confirmar y Registrar Venta
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- TAB: Kanban de Tareas & Envasado -->
+      <section id="tab-kanban-tasks" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>Kanban de Tareas Operativas & Envasado</h2>
+            <p>Monitoreo visual del flujo de trabajo: Fraccionado, Empaque, Control de Calidad y Finalizados.</p>
+          </div>
+          <div>
+            <button class="btn btn-primary btn-sm" id="btn-open-task-modal">
+              <i data-lucide="plus-circle"></i> Nueva Tarea de Envasado
+            </button>
+          </div>
+        </div>
+
+        <div class="kanban-board" id="kanban-tasks-board">
+          <!-- Columna 1: Pendiente de Fraccionar -->
+          <div class="kanban-column" data-status="PENDING_FRACTIONING">
+            <div class="kanban-column-header">
+              <span><i data-lucide="scale"></i> Pendiente de Fraccionar</span>
+              <span class="kanban-count-badge" id="count-pending-fractioning">0</span>
+            </div>
+            <div class="kanban-cards-container" id="cards-pending-fractioning"></div>
+          </div>
+
+          <!-- Columna 2: En Proceso de Empaque -->
+          <div class="kanban-column" data-status="PACKAGING_IN_PROGRESS">
+            <div class="kanban-column-header">
+              <span><i data-lucide="package"></i> En Proceso de Empaque</span>
+              <span class="kanban-count-badge" id="count-packaging-progress">0</span>
+            </div>
+            <div class="kanban-cards-container" id="cards-packaging-progress"></div>
+          </div>
+
+          <!-- Columna 3: Control de Calidad / Sellado -->
+          <div class="kanban-column" data-status="QUALITY_CONTROL">
+            <div class="kanban-column-header">
+              <span><i data-lucide="shield-check"></i> Control de Calidad</span>
+              <span class="kanban-count-badge" id="count-quality-control">0</span>
+            </div>
+            <div class="kanban-cards-container" id="cards-quality-control"></div>
+          </div>
+
+          <!-- Columna 4: Finalizado -->
+          <div class="kanban-column" data-status="COMPLETED">
+            <div class="kanban-column-header">
+              <span><i data-lucide="check-circle-2"></i> Finalizado</span>
+              <span class="kanban-count-badge" id="count-task-completed">0</span>
+            </div>
+            <div class="kanban-cards-container" id="cards-task-completed"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: Kanban de Pedidos (5 Estados) -->
+      <section id="tab-kanban-orders" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>Kanban de Pedidos (Flujo de Ventas)</h2>
+            <p>Control en tiempo real de los pedidos desde la recepción hasta la entrega al cliente.</p>
+          </div>
+        </div>
+
+        <div class="kanban-board" id="kanban-orders-board">
+          <!-- Estado 1: Recibido -->
+          <div class="kanban-column" data-order-status="RECEIVED">
+            <div class="kanban-column-header">
+              <span><i data-lucide="inbox"></i> Recibido</span>
+              <span class="kanban-count-badge" id="count-order-received">0</span>
+            </div>
+            <div class="kanban-cards-container" id="cards-order-received"></div>
+          </div>
+
+          <!-- Estado 2: En Preparación -->
+          <div class="kanban-column" data-order-status="IN_PREPARATION">
+            <div class="kanban-column-header">
+              <span><i data-lucide="box"></i> En Preparación</span>
+              <span class="kanban-count-badge" id="count-order-prep">0</span>
+            </div>
+            <div class="kanban-cards-container" id="cards-order-prep"></div>
+          </div>
+
+          <!-- Estado 3: Listo para Entrega -->
+          <div class="kanban-column" data-order-status="READY_FOR_DELIVERY">
+            <div class="kanban-column-header">
+              <span><i data-lucide="check-square"></i> Listo para Entrega</span>
+              <span class="kanban-count-badge" id="count-order-ready">0</span>
+            </div>
+            <div class="kanban-cards-container" id="cards-order-ready"></div>
+          </div>
+
+          <!-- Estado 4: En Reparto -->
+          <div class="kanban-column" data-order-status="IN_DELIVERY">
+            <div class="kanban-column-header">
+              <span><i data-lucide="truck"></i> En Reparto</span>
+              <span class="kanban-count-badge" id="count-order-delivery">0</span>
+            </div>
+            <div class="kanban-cards-container" id="cards-order-delivery"></div>
+          </div>
+
+          <!-- Estado 5: Entregado -->
+          <div class="kanban-column" data-order-status="DELIVERED">
+            <div class="kanban-column-header">
+              <span><i data-lucide="smile"></i> Entregado</span>
+              <span class="kanban-count-badge" id="count-order-delivered">0</span>
+            </div>
+            <div class="kanban-cards-container" id="cards-order-delivered"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: Gastos Operativos -->
+      <section id="tab-finance-expenses" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>Gastos Operativos del Almacén</h2>
+            <p>Registro y clasificación de gastos fijos y variables para el prorrateo financiero.</p>
+          </div>
+        </div>
+
+        <div class="subtabs-bar" style="display: flex; gap: 10px; margin-bottom: 16px;">
+          <button class="btn btn-primary active" id="btn-expense-subtab-list">
+            <i data-lucide="list"></i> 📋 Historial & Listado de Gastos
+          </button>
+          <button class="btn btn-secondary" id="btn-expense-subtab-new">
+            <i data-lucide="plus-circle"></i> ➕ Registrar Nuevo Gasto
+          </button>
+          <button class="btn btn-secondary" id="btn-expense-subtab-stats">
+            <i data-lucide="pie-chart"></i> 📊 Resumen por Categoría
+          </button>
+        </div>
+
+        <!-- Subview 1: Historial de Gastos -->
+        <div id="expense-view-list" class="expense-subview">
+          <div class="card card-table">
+            <div class="card-header">
+              <h3><i data-lucide="list"></i> Registro Reciente de Gastos Operativos</h3>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Categoría</th>
+                    <th>Descripción</th>
+                    <th>Método</th>
+                    <th>Monto</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="table-expenses-list">
+                  <!-- Carga dinámica -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subview 2: Registrar Nuevo Gasto -->
+        <div id="expense-view-new" class="expense-subview" style="display: none;">
+          <div class="card" style="max-width: 600px;">
+            <div class="card-header">
+              <h3><i data-lucide="plus-circle"></i> Formulario de Nuevo Gasto</h3>
+            </div>
+            <form id="form-create-expense">
+              <div class="form-group">
+                <label>Descripción del Gasto</label>
+                <input type="text" id="expense-desc" placeholder="Ej: Compra de Bolsas Biodegradables 250g" required>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group col">
+                  <label>Categoría</label>
+                  <select id="expense-category" class="form-control" required>
+                    <option value="LOGISTICA">Bolsas / Envases / Packaging</option>
+                    <option value="ALQUILER">Alquiler de Local / Depósito</option>
+                    <option value="SERVICIOS">Servicios (Luz, Agua, Internet)</option>
+                    <option value="SUELDOS">Mano de Obra / Sueldos</option>
+                    <option value="MARKETING">Marketing & Publicidad</option>
+                    <option value="MANTENIMIENTO">Mantenimiento Balanzas/Maquinarias</option>
+                    <option value="OTROS">Otros Gastos Operativos</option>
+                  </select>
+                </div>
+                <div class="form-group col">
+                  <label>Monto ($)</label>
+                  <input type="number" id="expense-amount" placeholder="Ej: 45000" step="0.01" required>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group col">
+                  <label>Fecha</label>
+                  <input type="date" id="expense-date" required>
+                </div>
+                <div class="form-group col">
+                  <label>Método de Pago</label>
+                  <select id="expense-payment-method" class="form-control">
+                    <option value="TRANSFERENCIA">Transferencia Bancaria</option>
+                    <option value="EFECTIVO">Efectivo</option>
+                    <option value="MERCADO_PAGO">Mercado Pago</option>
+                    <option value="CHEQUE">Cheque</option>
+                  </select>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary">
+                <i data-lucide="save"></i> Registrar Gasto Operativo
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Subview 3: Resumen por Categoría -->
+        <div id="expense-view-stats" class="expense-subview" style="display: none;">
+          <div class="card" style="max-width: 650px;">
+            <div class="card-header">
+              <h3><i data-lucide="pie-chart"></i> Desglose de Gastos por Categoría</h3>
+            </div>
+            <div id="expenses-category-breakdown-list" style="display: flex; flex-direction: column; gap: 12px; padding: 10px 0;">
+              <!-- Carga dinámica -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: Estructura Completa de Precios & Costos por Canal -->
+      <section id="tab-finance-pricing" class="tab-content">
+        <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h2>Estructura de Precios & Análisis de Costos por Producto</h2>
+            <p>Selecciona cualquier producto para abrir su Ficha Financiera Editable y recalcular costos base y márgenes por canal.</p>
+          </div>
+        </div>
+
+        <!-- Filtro de Búsqueda de Productos -->
+        <div class="card" style="margin-bottom: 16px; padding: 14px;">
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <div style="flex: 1;">
+              <input type="text" id="filter-pricing-search" class="form-control" placeholder="🔍 Buscar producto por nombre, SKU o código de barras...">
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted);">
+              Total Catálogo: <strong id="pricing-total-count">0 Productos</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabla Compacta de Productos de Venta (Muestra solo Precio Mostrador + Ícono Editar) -->
+        <div class="card card-table">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Código SKU</th>
+                  <th>Producto Empaquetado</th>
+                  <th>Peso Neto</th>
+                  <th>Insumo Origen</th>
+                  <th>Precio Venta Mostrador ($)</th>
+                  <th>Estado Margen</th>
+                  <th style="text-align: center;">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="pricing-products-table-body">
+                <!-- Carga dinámica por JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <!-- TAB: Ingreso de Insumos a Granel -->
+      <section id="tab-goods-receipt" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>Ingreso de Insumos a Granel (Recepción de Mercadería)</h2>
+            <p>Registra la entrada de sacos/lotes de materia prima, actualiza el stock y el costo por kg.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3><i data-lucide="download"></i> Registrar Comprobante de Recepción Granel</h3>
+          </div>
+          <form id="form-goods-receipt">
+            <div class="form-row">
+              <div class="form-group col">
+                <label>Proveedor</label>
+                <select id="receipt-supplier-select" class="form-control" required>
+                  <!-- Carga dinámica -->
+                </select>
+              </div>
+              <div class="form-group col">
+                <label>Insumo a Granel</label>
+                <select id="receipt-raw-material-select" class="form-control" required>
+                  <!-- Carga dinámica -->
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group col">
+                <label>Cantidad Recibida (Kg / Litros)</label>
+                <input type="number" id="receipt-quantity" step="0.01" placeholder="Ej: 25.00" required>
+              </div>
+              <div class="form-group col">
+                <label>Costo por Kg / Litro ($)</label>
+                <input type="number" id="receipt-cost-per-unit" step="0.01" placeholder="Ej: 3400.00" required>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group col">
+                <label>Nro de Factura / Remito</label>
+                <input type="text" id="receipt-invoice-number" placeholder="Ej: FC-A-0001-9921" required>
+              </div>
+              <div class="form-group col">
+                <label>Número de Lote del Proveedor</label>
+                <input type="text" id="receipt-batch-number" placeholder="Ej: LOT-PROV-8821" required>
+              </div>
+              <div class="form-group col">
+                <label>Fecha de Vencimiento</label>
+                <input type="date" id="receipt-expiry-date" required>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+              <i data-lucide="check-circle"></i> Guardar Recepción e Incrementar Stock
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- TAB: Maestro de Proveedores -->
+      <section id="tab-suppliers" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>Maestro de Proveedores</h2>
+            <p>Directorio centralizado de distribuidores de insumos a granel y productos elaborados.</p>
+          </div>
+          <div>
+            <button class="btn btn-primary btn-sm" id="btn-open-supplier-modal">
+              <i data-lucide="plus-circle"></i> + Nuevo Proveedor
+            </button>
+          </div>
+        </div>
+
+        <div class="card card-table">
+          <div class="card-header">
+            <h3><i data-lucide="truck"></i> Listado de Proveedores Registrados</h3>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>CUIT / Tax ID</th>
+                  <th>Razón Social</th>
+                  <th>Contacto</th>
+                  <th>Teléfono</th>
+                  <th>Correo</th>
+                  <th>Términos Comerciales</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="table-suppliers-list">
+                <!-- Carga dinámica -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: Cta Cte Clientes -->
+      <section id="tab-finance-customers" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>Cuentas Corrientes de Clientes</h2>
+            <p>Monitoreo de saldos deudores, historial de cargos y emisión de resúmenes de cuenta.</p>
+          </div>
+        </div>
+
+        <div class="card card-table">
+          <div class="card-header">
+            <h3><i data-lucide="credit-card"></i> Estado de Deuda de Clientes</h3>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>WhatsApp</th>
+                  <th>Límite Crédito</th>
+                  <th>Saldo Deudor ($)</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="table-finance-customers-list">
+                <!-- Carga dinámica -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: Cta Cte Proveedores -->
+      <section id="tab-finance-suppliers" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>Cuentas por Pagar a Proveedores</h2>
+            <p>Calendario de vencimientos de comprobantes y pagos pendientes a distribuidores.</p>
+          </div>
+        </div>
+
+        <div class="card card-table">
+          <div class="card-header">
+            <h3><i data-lucide="receipt"></i> Pasivo y Facturas Pendientes</h3>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Proveedor</th>
+                  <th>Nro Factura</th>
+                  <th>Fecha Emisión</th>
+                  <th>Vencimiento</th>
+                  <th>Importe Total</th>
+                  <th>Saldo Pendiente</th>
+                  <th>Urgencia</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="table-finance-suppliers-list">
+                <!-- Carga dinámica -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: Configuración del Sistema -->
+      <section id="tab-settings" class="tab-content">
+        <div class="section-header">
+          <div>
+            <h2>Configuración General del Sistema</h2>
+            <p>Parámetros comerciales, impresoras térmicas, comisiones de canales y dietas dinámicas.</p>
+          </div>
+        </div>
+
+        <div class="subtabs-bar" style="display: flex; gap: 10px; margin-bottom: 16px;">
+          <button class="btn btn-primary active" id="btn-settings-subtab-diet">
+            <i data-lucide="apple"></i> Gestión de Dietas
+          </button>
+          <button class="btn btn-secondary" id="btn-settings-subtab-business">
+            <i data-lucide="building"></i> Datos del Almacén
+          </button>
+          <button class="btn btn-secondary" id="btn-settings-subtab-print">
+            <i data-lucide="printer"></i> Impresión Térmica
+          </button>
+          <button class="btn btn-secondary" id="btn-settings-subtab-commissions">
+            <i data-lucide="percent"></i> Comisiones & Canales
+          </button>
+          <button class="btn btn-secondary" id="btn-settings-subtab-users">
+            <i data-lucide="shield"></i> 👤 Usuarios & Claves PIN
+          </button>
+        </div>
+
+        <!-- Subtab 1: Dietas -->
+        <div id="settings-view-diet" class="settings-subview">
+          <div class="dietary-manager-grid">
+            <div class="card">
+              <div class="card-header">
+                <h3><i data-lucide="plus-circle"></i> Agregar Nueva Dieta / Alérgeno</h3>
+              </div>
+              <form id="form-create-diet">
+                <div class="form-group">
+                  <label>Nombre de la Preferencia Dietética</label>
+                  <input type="text" id="diet-name" placeholder="Ej: Sin Lactosa, Low Carb..." required>
+                </div>
+                <div class="form-group">
+                  <label>Código Identificador Único</label>
+                  <input type="text" id="diet-code" placeholder="Ej: SIN_LACTOSA" required>
+                </div>
+                <div class="form-group">
+                  <label>Color Hexadecimal</label>
+                  <div class="color-picker-row">
+                    <input type="color" id="diet-color" value="#5E7055">
+                    <input type="text" id="diet-color-hex" value="#5E7055">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Descripción</label>
+                  <textarea id="diet-desc" rows="2"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                  <i data-lucide="check"></i> Guardar Dieta
+                </button>
+              </form>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <h3><i data-lucide="tags"></i> Catálogo de Dietas Activas</h3>
+              </div>
+              <div class="diet-cards-container" id="diet-cards-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subtab 2: Datos del Almacén -->
+        <div id="settings-view-business" class="settings-subview" style="display: none;">
+          <div class="card" style="max-width: 600px;">
+            <div class="card-header">
+              <h3><i data-lucide="building"></i> Identación Comercial & Fiscal</h3>
+            </div>
+            <form id="form-settings-business">
+              <div class="form-group">
+                <label>Nombre Fantasía del Negocio</label>
+                <input type="text" id="setting-biz-name" value="Flor y Ser Almacén Natural" required>
+              </div>
+              <div class="form-row">
+                <div class="form-group col">
+                  <label>CUIT / Identificación Fiscal</label>
+                  <input type="text" id="setting-biz-cuit" value="30-71628945-8" required>
+                </div>
+                <div class="form-group col">
+                  <label>WhatsApp Business Oficial</label>
+                  <input type="text" id="setting-biz-whatsapp" value="+54 9 11 5543-9821" required>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Logo del Negocio (Imagen / URL)</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                  <input type="file" id="setting-biz-logo-file" accept="image/*" style="display: none;">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-upload-logo-file">
+                    <i data-lucide="upload"></i> Cargar Imagen Logo
+                  </button>
+                  <input type="text" id="setting-biz-logo-url" class="form-control" placeholder="o URL de imagen..." style="flex: 1;">
+                </div>
+                <div id="setting-logo-preview" style="margin-top: 8px; font-size: 11px; color: var(--text-muted);">
+                  Estado Logo: <span style="font-weight: 700; color: var(--primary-sage);">Predeterminado (Flor y Ser)</span>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-primary">
+                <i data-lucide="save"></i> Guardar Datos Comerciales & Logo
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Subtab 3: Impresión Térmica -->
+        <div id="settings-view-print" class="settings-subview" style="display: none;">
+          <div class="card" style="max-width: 600px;">
+            <div class="card-header">
+              <h3><i data-lucide="printer"></i> Parámetros de Impresión Térmica</h3>
+            </div>
+            <form id="form-settings-print">
+              <div class="form-group">
+                <label>Impresora Predeterminada</label>
+                <select id="setting-print-default" class="form-control">
+                  <option value="NIIMBOT B1 Pro">NIIMBOT B1 Pro (Bluetooth/USB)</option>
+                  <option value="Zebra TSPL">Zebra / Xprinter TSPL (Direct Thermal)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Resolución de Cabezal Térmico (DPI)</label>
+                <select id="setting-print-dpi" class="form-control">
+                  <option value="203">203 DPI (Estándar NIIMBOT / Zebra)</option>
+                  <option value="300">300 DPI (Alta Definición)</option>
+                </select>
+              </div>
+              <button type="submit" class="btn btn-primary">
+                <i data-lucide="save"></i> Guardar Parámetros de Impresión
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Subtab 4: Comisiones & Canales -->
+        <div id="settings-view-commissions" class="settings-subview" style="display: none;">
+          <div class="card" style="max-width: 600px;">
+            <div class="card-header">
+              <h3><i data-lucide="percent"></i> Esquema de Comisiones por Canal (%)</h3>
+            </div>
+            <form id="form-settings-commissions">
+              <div class="form-row">
+                <div class="form-group col">
+                  <label>Comisión Mostrador (%)</label>
+                  <input type="number" id="setting-comm-local" value="0.0" step="0.1" required>
+                </div>
+                <div class="form-group col">
+                  <label>Comisión WhatsApp (%)</label>
+                  <input type="number" id="setting-comm-whatsapp" value="2.0" step="0.1" required>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group col">
+                  <label>Comisión Tienda Online (%)</label>
+                  <input type="number" id="setting-comm-online" value="5.0" step="0.1" required>
+                </div>
+                <div class="form-group col">
+                  <label>Mercado Pago / Pasarela (%)</label>
+                  <input type="number" id="setting-comm-mp" value="4.5" step="0.1" required>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-primary">
+                <i data-lucide="save"></i> Guardar Comisiones
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Subtab 5: Usuarios & Seguridad -->
+        <div id="settings-view-users" class="settings-subview" style="display: none;">
+          <div class="dietary-manager-grid">
+            <div class="card">
+              <div class="card-header">
+                <h3><i data-lucide="user-plus"></i> Registrar / Editar Usuario del Sistema</h3>
+              </div>
+              <form id="form-create-system-user">
+                <div class="form-group">
+                  <label>Nombre y Apellido</label>
+                  <input type="text" id="user-full-name" placeholder="Ej: María Clara" required>
+                </div>
+                <div class="form-row">
+                  <div class="form-group col">
+                    <label>Rol de Permisos</label>
+                    <select id="user-role-assign" class="form-control">
+                      <option value="ADMIN">👑 Dueño / Administrador</option>
+                      <option value="CASHIER">🛒 Cajero / Ventas</option>
+                      <option value="OPERATOR">📦 Operario Depósito</option>
+                    </select>
+                  </div>
+                  <div class="form-group col">
+                    <label>PIN de Ingreso (4 a 6 dígitos)</label>
+                    <input type="password" id="user-pin-input" maxlength="6" placeholder="Ej: 1234" required style="letter-spacing: 4px; font-weight: 800;">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Iniciales para Avatar</label>
+                  <input type="text" id="user-avatar-initials" maxlength="2" placeholder="Ej: MC" required>
+                </div>
+
+                <div class="form-group" style="margin-top: 14px;">
+                  <label style="font-weight: 700; color: var(--primary-sage); display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="shield-check"></i> Matriz de Permisos & Acceso a Módulos (Personalizable)
+                  </label>
+                  <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">Selecciona o desmarca libremente los módulos permitidos para este usuario:</p>
+                  
+                  <div class="user-permissions-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; background: var(--bg-linen); padding: 12px; border-radius: 12px; border: 1px solid var(--card-border); max-height: 220px; overflow-y: auto;">
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="checkbox" class="user-perm-cb" value="tab-dashboard" checked> 📊 Dashboard Principal
+                    </label>
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="checkbox" class="user-perm-cb" value="tab-crm" checked> 👥 Maestro de Clientes
+                    </label>
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="checkbox" class="user-perm-cb" value="tab-automations" checked> 💬 WhatsApp Marketing
+                    </label>
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="checkbox" class="user-perm-cb" value="tab-inventory" checked> 📦 Stock Doble Nivel
+                    </label>
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="checkbox" class="user-perm-cb" value="tab-goods-receipt" checked> 📋 Recepción Mercadería
+                    </label>
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="checkbox" class="user-perm-cb" value="tab-fractioning" checked> 🔪 Operación Fraccionado
+                    </label>
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="checkbox" class="user-perm-cb" value="tab-suppliers" checked> 🚚 Proveedores & Compras
+                    </label>
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="checkbox" class="user-perm-cb" value="tab-kanban-tasks" checked> 📋 Kanban Tareas
+                    </label>
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="checkbox" class="user-perm-cb" value="tab-sales" checked> 🛒 Ventas & Pedidos
+                    </label>
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="checkbox" class="user-perm-cb" value="tab-kanban-orders" checked> 🚚 Kanban de Pedidos
+                    </label>
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="checkbox" class="user-perm-cb" value="tab-printer" checked> 🏷️ Impresión Etiquetas
+                    </label>
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="checkbox" class="user-perm-cb" value="tab-finance-customers" checked> 💳 Cta Cte Clientes
+                    </label>
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="checkbox" class="user-perm-cb" value="tab-finance-suppliers" checked> 🧾 Cta Cte Proveedores
+                    </label>
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="checkbox" class="user-perm-cb" value="tab-finance-expenses" checked> 💸 Gastos Operativos
+                    </label>
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="checkbox" class="user-perm-cb" value="tab-finance-pricing" checked> 🧮 Estructura Precios
+                    </label>
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="checkbox" class="user-perm-cb" value="tab-settings" checked> ⚙️ Configuración Sistema
+                    </label>
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="margin-top: 14px;">
+                  <i data-lucide="save"></i> Guardar Usuario, Permisos y PIN
+                </button>
+              </form>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <h3><i data-lucide="shield"></i> Usuarios Activos & Claves Configuradas</h3>
+              </div>
+              <div id="system-users-cards-list" style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- Carga dinámica -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- SLIDE-OVER DRAWER (FICHA SUPERPUESTA DE CLIENTE EDITABLE) -->
+  <div class="slide-over-backdrop" id="customer-drawer-backdrop">
+    <div class="slide-over-panel" id="customer-drawer">
+      <div class="slide-over-header">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div class="customer-avatar" id="drawer-avatar" style="width: 44px; height: 44px; font-size: 16px;">MG</div>
+          <div>
+            <h2 id="drawer-name" style="margin: 0;">Martina Gómez</h2>
+            <span id="drawer-segment" class="badge-segment VIP">VIP</span>
+          </div>
+        </div>
+        <button class="slide-over-close" id="drawer-close">&times;</button>
+      </div>
+      <div class="slide-over-body">
+        <form id="form-edit-drawer-customer">
+          <h4 style="margin-bottom: 12px; font-size: 14px; color: var(--primary-sage);"><i data-lucide="user"></i> Información Personal & Contacto</h4>
+          <div class="form-row">
+            <div class="form-group col">
+              <label>Nombre</label>
+              <input type="text" id="drawer-firstname" required>
+            </div>
+            <div class="form-group col">
+              <label>Apellido</label>
+              <input type="text" id="drawer-lastname" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group col">
+              <label>WhatsApp / Teléfono</label>
+              <input type="text" id="drawer-phone" required>
+            </div>
+            <div class="form-group col">
+              <label>Correo Electrónico</label>
+              <input type="email" id="drawer-email">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group col">
+              <label>Dirección Completa de Entrega</label>
+              <input type="text" id="drawer-address">
+            </div>
+            <div class="form-group col">
+              <label>Instagram / Redes Sociales</label>
+              <input type="text" id="drawer-instagram" placeholder="Ej: @martina_floryser">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group col">
+              <label>Fecha de Cumpleaños</label>
+              <input type="date" id="drawer-birthdate">
+            </div>
+            <div class="form-group col">
+              <label>Canal Preferido</label>
+              <select id="drawer-channel" class="form-control">
+                <option value="WHATSAPP">WhatsApp</option>
+                <option value="LOCAL">Local / Mostrador</option>
+                <option value="ONLINE_STORE">Tienda Online</option>
+                <option value="INSTAGRAM">Instagram</option>
+              </select>
+            </div>
+          </div>
+
+          <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--card-border);">
+          <h4 style="margin-bottom: 12px; font-size: 14px; color: var(--terracotta);"><i data-lucide="apple"></i> Perfil Dietético & Alergias</h4>
+          <div class="checkbox-group" id="drawer-diet-checkboxes" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <!-- Cargado dinámicamente -->
+          </div>
+
+          <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--card-border);">
+          <h4 style="margin-bottom: 12px; font-size: 14px; color: var(--primary-sage);"><i data-lucide="credit-card"></i> Cuenta Corriente & Fidelización</h4>
+          <div class="form-row">
+            <div class="form-group col">
+              <label>Límite de Crédito ($)</label>
+              <input type="number" id="drawer-credit-limit">
+            </div>
+            <div class="form-group col">
+              <label>Saldo Deudor ($)</label>
+              <input type="number" id="drawer-current-balance" readonly style="background: var(--bg-linen); font-weight: 700;">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Puntos de Fidelización Acumulados</label>
+            <input type="number" id="drawer-points" readonly style="background: var(--bg-linen); font-weight: 700;">
+          </div>
+
+          <div class="form-group">
+            <label>Observaciones / Preferencias de Entrega</label>
+            <textarea id="drawer-notes" rows="2"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="slide-over-footer">
+        <button type="button" class="btn btn-secondary" id="btn-cancel-drawer">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btn-save-drawer-customer"><i data-lucide="save"></i> Guardar Cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Registro de Nuevo Cliente -->
+  <div class="modal-backdrop" id="modal-register-customer">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i data-lucide="user-plus"></i> Registrar Nuevo Cliente</h3>
+        <button class="btn-close" id="btn-close-modal">&times;</button>
+      </div>
+      <form id="form-register-customer">
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Nombre *</label>
+            <input type="text" id="reg-firstname" required placeholder="Ej: Sofía">
+          </div>
+          <div class="form-group col">
+            <label>Apellido *</label>
+            <input type="text" id="reg-lastname" required placeholder="Ej: Rossi">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Teléfono / WhatsApp *</label>
+            <input type="text" id="reg-phone" required placeholder="Ej: +5491166543322">
+          </div>
+          <div class="form-group col">
+            <label>Correo Electrónico</label>
+            <input type="email" id="reg-email" placeholder="sofia@email.com">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Dirección de Entrega</label>
+            <input type="text" id="reg-address" placeholder="Ej: Av. Santa Fe 1234, CABA">
+          </div>
+          <div class="form-group col">
+            <label>Instagram / Redes Sociales</label>
+            <input type="text" id="reg-instagram" placeholder="Ej: @sofia_rossi">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Canal Preferido</label>
+          <select id="reg-channel" class="form-control">
+            <option value="LOCAL">Local / Mostrador</option>
+            <option value="WHATSAPP">WhatsApp</option>
+            <option value="ONLINE_STORE">Tienda Online</option>
+            <option value="INSTAGRAM">Instagram</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Preferencias Dietéticas (Selección Múltiple)</label>
+          <div class="checkbox-group" id="reg-dietary-checkboxes">
+            <!-- Cargado por JS -->
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Notas / Observaciones de Preferencias o Reclamos</label>
+          <textarea id="reg-notes" rows="2" placeholder="Observaciones de entregas, sugerencias, etc..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label><input type="checkbox" id="reg-send-welcome" checked> Enviar automáticamente Mensaje de Bienvenida con Cupón de Descuento por WhatsApp/Email</label>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Cliente en CRM</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Registro de Nuevo Cliente -->
+  <div class="modal-backdrop" id="modal-register-customer">
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3><i data-lucide="user-plus"></i> Registrar Nuevo Cliente</h3>
+        <button class="btn-close" id="btn-close-customer-modal">&times;</button>
+      </div>
+      <form id="form-register-customer">
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Nombre</label>
+            <input type="text" id="reg-firstname" placeholder="Ej: Valentina" required>
+          </div>
+          <div class="form-group col">
+            <label>Apellido</label>
+            <input type="text" id="reg-lastname" placeholder="Ej: Rossi" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label>WhatsApp / Teléfono</label>
+            <input type="text" id="reg-phone" placeholder="Ej: +5491133221100" required>
+          </div>
+          <div class="form-group col">
+            <label>Correo Electrónico</label>
+            <input type="email" id="reg-email" placeholder="Ej: valentina@email.com">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Dirección de Entrega</label>
+          <input type="text" id="reg-address" placeholder="Ej: Av. Santa Fe 1234, CABA">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Fecha de Cumpleaños</label>
+            <input type="date" id="reg-birthdate">
+          </div>
+          <div class="form-group col">
+            <label>Canal Preferido</label>
+            <select id="reg-channel" class="form-control">
+              <option value="WHATSAPP">WhatsApp</option>
+              <option value="LOCAL">Local / Mostrador</option>
+              <option value="ONLINE_STORE">Tienda Online</option>
+              <option value="INSTAGRAM">Instagram</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Preferencias Dietéticas / Alérgenos</label>
+          <div class="checkbox-group" id="reg-dietary-checkboxes" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <!-- Cargado por JS -->
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-customer-modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Registrar Cliente</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Crear Nueva Tarea Operativa / Kanban -->
+  <div class="modal-backdrop" id="modal-new-task">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3><i data-lucide="check-square"></i> Crear Nueva Tarea de Envasado</h3>
+        <button class="btn-close" id="btn-close-task-modal">&times;</button>
+      </div>
+      <form id="form-create-task">
+        <div class="form-group">
+          <label>Título / Descripción de la Tarea</label>
+          <input type="text" id="task-title" placeholder="Ej: Fraccionar 25kg de Avena Orgánica" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Tipo de Tarea</label>
+            <select id="task-type" class="form-control">
+              <option value="FRACTIONING">Fraccionado Granel</option>
+              <option value="PACKAGING">Empaque y Sellado</option>
+              <option value="CLEANING">Higienización / Limpieza</option>
+              <option value="GENERAL">General Depósito</option>
+            </select>
+          </div>
+          <div class="form-group col">
+            <label>Prioridad</label>
+            <select id="task-priority" class="form-control">
+              <option value="MEDIUM">Normal</option>
+              <option value="HIGH">Alta Urgencia</option>
+              <option value="LOW">Baja Prioridad</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Operario Asignado</label>
+          <input type="text" id="task-operator" placeholder="Ej: María Clara (Empaque)">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-task-modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Crear Tarea Kanban</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Crear Nuevo Proveedor -->
+  <div class="modal-backdrop" id="modal-new-supplier">
+    <div class="modal-content" style="max-width: 550px;">
+      <div class="modal-header">
+        <h3><i data-lucide="truck"></i> Registrar Nuevo Proveedor</h3>
+        <button class="btn-close" id="btn-close-supplier-modal">&times;</button>
+      </div>
+      <form id="form-create-supplier">
+        <div class="form-row">
+          <div class="form-group col">
+            <label>CUIT / Identificación Fiscal</label>
+            <input type="text" id="supp-cuit" placeholder="Ej: 30-70891234-9" required>
+          </div>
+          <div class="form-group col">
+            <label>Razón Social</label>
+            <input type="text" id="supp-name" placeholder="Ej: Frutos del Valle S.A." required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Persona de Contacto</label>
+            <input type="text" id="supp-contact" placeholder="Ej: Roberto Gómez">
+          </div>
+          <div class="form-group col">
+            <label>Teléfono de Contacto</label>
+            <input type="text" id="supp-phone" placeholder="Ej: +5491144332211" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Correo Electrónico</label>
+          <input type="email" id="supp-email" placeholder="Ej: ventas@frutosdelvalle.com">
+        </div>
+
+        <div class="form-group">
+          <label>Términos Comerciales / Plazo de Pago</label>
+          <input type="text" id="supp-terms" placeholder="Ej: Cuenta corriente a 30 días, 5% desc. pago contado">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-supplier-modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Proveedor</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 1: Alta de Nuevo Insumo a Granel / Materia Prima -->
+  <div class="modal-backdrop" id="modal-new-raw-material">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i data-lucide="boxes"></i> Registrar Nuevo Insumo a Granel (Materia Prima)</h3>
+        <button class="btn-close" id="btn-close-raw-modal">&times;</button>
+      </div>
+      <form id="form-create-raw-material">
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Código SKU / Identificador</label>
+            <input type="text" id="raw-code" placeholder="Ej: MP-ALM-02" required>
+          </div>
+          <div class="form-group col">
+            <label>Unidad de Medida</label>
+            <select id="raw-unit" class="form-control">
+              <option value="KG">Kilogramos (KG)</option>
+              <option value="L">Litros (L)</option>
+              <option value="G">Gramos (G)</option>
+              <option value="ML">Mililitros (ML)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Nombre de la Materia Prima / Insumo</label>
+          <input type="text" id="raw-name" placeholder="Ej: Nueces Mariposa Blancas Granel" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Stock Inicial</label>
+            <input type="number" id="raw-stock" placeholder="Ej: 50.0" step="0.1" required>
+          </div>
+          <div class="form-group col">
+            <label>Stock Mínimo de Alerta</label>
+            <input type="number" id="raw-min-stock" value="10.0" step="0.1">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Costo por Unidad ($)</label>
+            <input type="number" id="raw-cost" placeholder="Ej: 7500" step="0.01">
+          </div>
+          <div class="form-group col">
+            <label>Proveedor Habitual</label>
+            <input type="text" id="raw-supplier" placeholder="Ej: Frutos del Valle S.A.">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Ubicación en Depósito</label>
+          <input type="text" id="raw-location" placeholder="Ej: Depósito A - Estante 3">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-raw-modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Insumo Granel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 2: Alta de Nuevo Producto Final Empaquetado -->
+  <div class="modal-backdrop" id="modal-new-final-product">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i data-lucide="package-plus"></i> Registrar Nuevo Producto Final Empaquetado</h3>
+        <button class="btn-close" id="btn-close-product-modal">&times;</button>
+      </div>
+      <form id="form-create-final-product">
+        <div class="form-group">
+          <label>Insumo a Granel de Origen (Opcional para Vinculación)</label>
+          <select id="prod-raw-id" class="form-control"></select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Código SKU Producto</label>
+            <input type="text" id="prod-code" placeholder="Ej: PF-NUE-250" required>
+          </div>
+          <div class="form-group col">
+            <label>Código de Barras EAN-13 / Code128</label>
+            <input type="text" id="prod-barcode" placeholder="Ej: 7799887766554">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Nombre del Producto Empaquetado</label>
+          <input type="text" id="prod-name" placeholder="Ej: Nueces Mariposa Selección 250g" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Peso / Volumen Unitario (Gramos/ML)</label>
+            <input type="number" id="prod-unit-weight" placeholder="Ej: 250" required>
+          </div>
+          <div class="form-group col">
+            <label>Etiqueta de Contenido</label>
+            <input type="text" id="prod-net-label" placeholder="Ej: 250g" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Stock Inicial Empaquetado</label>
+            <input type="number" id="prod-stock" value="0" required>
+          </div>
+          <div class="form-group col">
+            <label>Stock Mínimo de Alerta</label>
+            <input type="number" id="prod-min-stock" value="10">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Precio de Venta ($)</label>
+            <input type="number" id="prod-price" placeholder="Ej: 3200" step="0.01" required>
+          </div>
+          <div class="form-group col">
+            <label>Días de Vencimiento Estándar</label>
+            <input type="number" id="prod-expiration-days" value="180">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Ingredientes</label>
+          <input type="text" id="prod-ingredients" placeholder="Ej: 100% Nueces mariposa peladas">
+        </div>
+
+        <div class="form-group">
+          <label>Sellos / Dietas Aplicables (Selección Múltiple)</label>
+          <div class="checkbox-group" id="prod-diet-checkboxes">
+            <!-- Cargado por JS -->
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-product-modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Producto Final</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 3: Visor y Copiador de Código TSPL -->
+  <div class="modal-backdrop" id="modal-tspl-code">
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3><i data-lucide="code"></i> Código de Impresión Térmica TSPL</h3>
+        <button class="btn-close" id="btn-close-tspl-modal">&times;</button>
+      </div>
+      <div style="padding: 16px;">
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">Comandos raw TSPL listos para enviar a impresoras térmicas Zebra, Xprinter o Gaincha:</p>
+        <textarea id="tspl-code-output" rows="12" readonly style="width: 100%; font-family: monospace; font-size: 12px; background-color: #1E293B; color: #38BDF8; padding: 12px; border-radius: 6px;"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-copy-tspl"><i data-lucide="copy"></i> Copiar Código TSPL</button>
+        <button type="button" class="btn btn-primary" id="btn-close-tspl">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 4: Alta de Nuevo Proveedor -->
+  <div class="modal-backdrop" id="modal-new-supplier">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i data-lucide="truck"></i> Registrar Nuevo Proveedor</h3>
+        <button class="btn-close" id="btn-close-supplier-modal">&times;</button>
+      </div>
+      <form id="form-create-supplier">
+        <div class="form-row">
+          <div class="form-group col">
+            <label>CUIT / Tax ID</label>
+            <input type="text" id="supp-cuit" placeholder="Ej: 30-70891234-9" required>
+          </div>
+          <div class="form-group col">
+            <label>Razón Social / Nombre Comercial</label>
+            <input type="text" id="supp-name" placeholder="Ej: Frutos del Valle S.A." required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Nombre de Contacto</label>
+            <input type="text" id="supp-contact" placeholder="Ej: Roberto Gómez">
+          </div>
+          <div class="form-group col">
+            <label>Teléfono de Contacto / WhatsApp</label>
+            <input type="text" id="supp-phone" placeholder="Ej: +5491144332211" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Correo Electrónico</label>
+            <input type="email" id="supp-email" placeholder="Ej: ventas@frutosdelvalle.com">
+          </div>
+          <div class="form-group col">
+            <label>Términos Comerciales / Pago</label>
+            <select id="supp-terms" class="form-control">
+              <option value="Cta Cte 30 días">Cta Cte 30 días</option>
+              <option value="Cta Cte 15 días">Cta Cte 15 días</option>
+              <option value="Contado (Desc 5%)">Contado (Desc 5%)</option>
+              <option value="Cheque 30 días">Cheque 30 días</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-supplier-modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Proveedor</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 5: Visor de Detalles de Tarea Operativa -->
+  <div class="modal-backdrop" id="modal-task-detail">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i data-lucide="clipboard"></i> Ficha Técnica de Tarea Operativa</h3>
+        <button class="btn-close" id="btn-close-task-detail-modal">&times;</button>
+      </div>
+      <div style="padding: 16px;">
+        <div style="margin-bottom: 12px;">
+          <h4 id="task-detail-title" style="color: var(--primary-color); margin-bottom: 4px;">--</h4>
+          <span class="badge" id="task-detail-priority" style="background: var(--craft-light); color: var(--text-dark);">--</span>
+          <span class="badge" id="task-detail-stage" style="background: var(--primary-color); color: white;">--</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; font-size: 13px;">
+          <div><strong>Producto Afectado:</strong> <span id="task-detail-product">--</span></div>
+          <div><strong>Operador Asignado:</strong> <span id="task-detail-operator">Juan Pérez (Planta)</span></div>
+          <div><strong>Lote Origen:</strong> <span id="task-detail-batch">L-ALM-2026-07</span></div>
+          <div><strong>Peso / Cantidad Objetivo:</strong> <span id="task-detail-target">25.00 kg</span></div>
+        </div>
+        <div class="form-group">
+          <label>Bitácora de Observaciones / Control de Calidad</label>
+          <textarea id="task-detail-notes" rows="3" class="form-control" placeholder="Escriba novedades de fraccionado, mermas o sellado..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-cancel-task-detail">Cerrar</button>
+        <button type="button" class="btn btn-primary" id="btn-advance-task-modal">Avanzar Etapa ➔</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 6: Visor de Detalles de Pedido de Venta -->
+  <div class="modal-backdrop" id="modal-order-detail">
+    <div class="modal-content" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3><i data-lucide="shopping-bag"></i> Detalle de Pedido de Venta</h3>
+        <button class="btn-close" id="btn-close-order-detail-modal">&times;</button>
+      </div>
+      <div style="padding: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <div>
+            <h4 id="order-detail-number" style="color: var(--primary-color); margin: 0;">--</h4>
+            <small id="order-detail-date" style="color: var(--text-muted);">--</small>
+          </div>
+          <span class="badge" id="order-detail-stage" style="background: var(--terracotta); color: white; font-size: 13px;">--</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; font-size: 13px; background: var(--craft-light); padding: 12px; border-radius: 6px;">
+          <div><strong>Cliente:</strong> <span id="order-detail-customer">--</span></div>
+          <div><strong>WhatsApp:</strong> <span id="order-detail-phone">--</span></div>
+          <div><strong>Dirección de Entrega:</strong> <span id="order-detail-address">--</span></div>
+          <div><strong>Método de Pago:</strong> <span id="order-detail-payment">--</span></div>
+        </div>
+
+        <h5 style="margin-bottom: 8px;"><i data-lucide="package"></i> Productos Seleccionados</h5>
+        <div class="table-responsive">
+          <table class="data-table" style="font-size: 12px;">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Cant</th>
+                <th>Precio Unit.</th>
+                <th>Subtotal</th>
+              </tr>
+            </thead>
+            <tbody id="order-detail-items">
+              <!-- Carga dinámica -->
+            </tbody>
+          </table>
+        </div>
+
+        <div style="text-align: right; margin-top: 12px; font-size: 16px; font-weight: 700; color: var(--terracotta);">
+          Total General: <span id="order-detail-total">$0</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-cancel-order-detail">Cerrar</button>
+        <button type="button" class="btn btn-primary" id="btn-advance-order-modal">Avanzar Estado ➔</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 7: Ficha / Modificación de Proveedor -->
+  <div class="modal-backdrop" id="modal-supplier-detail">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i data-lucide="truck"></i> Ficha del Proveedor</h3>
+        <button class="btn-close" id="btn-close-supplier-detail-modal">&times;</button>
+      </div>
+      <div style="padding: 16px;">
+        <form id="form-edit-supplier">
+          <div class="form-row">
+            <div class="form-group col">
+              <label>CUIT / Tax ID</label>
+              <input type="text" id="edit-supp-cuit" class="form-control" required>
+            </div>
+            <div class="form-group col">
+              <label>Razón Social</label>
+              <input type="text" id="edit-supp-name" class="form-control" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group col">
+              <label>Contacto</label>
+              <input type="text" id="edit-supp-contact" class="form-control">
+            </div>
+            <div class="form-group col">
+              <label>Teléfono / WhatsApp</label>
+              <input type="text" id="edit-supp-phone" class="form-control" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group col">
+              <label>Correo Electrónico</label>
+              <input type="email" id="edit-supp-email" class="form-control">
+            </div>
+            <div class="form-group col">
+              <label>Términos Comerciales</label>
+              <input type="text" id="edit-supp-terms" class="form-control">
+            </div>
+          </div>
+          <div style="background: var(--craft-light); padding: 12px; border-radius: 6px; margin-top: 8px;">
+            <strong>Saldo de Deuda en Cta Cte:</strong> <span id="supp-detail-balance" style="font-weight: 700; color: var(--terracotta);">$0</span>
+          </div>
+          <div class="modal-footer" style="padding: 16px 0 0 0;">
+            <button type="button" class="btn btn-secondary" id="btn-cancel-supplier-detail">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 8: Extracto WhatsApp Formateado -->
+  <div class="modal-backdrop" id="modal-whatsapp-statement">
+    <div class="modal-content" style="max-width: 550px;">
+      <div class="modal-header">
+        <h3><i data-lucide="message-square"></i> Resumen de Cuenta listo para WhatsApp</h3>
+        <button class="btn-close" id="btn-close-wa-modal">&times;</button>
+      </div>
+      <div style="padding: 16px;">
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">Copia y pega este mensaje en WhatsApp Web o haz clic en enviar:</p>
+        <textarea id="wa-statement-text" rows="8" class="form-control" readonly style="font-family: sans-serif; font-size: 13px; background: #F8FAF9; padding: 12px;"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-copy-wa-statement"><i data-lucide="copy"></i> Copiar Mensaje</button>
+        <a id="btn-send-wa-direct" target="_blank" class="btn btn-primary"><i data-lucide="send"></i> Abrir en WhatsApp</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 9: Registrar Cobro a Cliente -->
+  <div class="modal-backdrop" id="modal-customer-payment">
+    <div class="modal-content" style="max-width: 450px;">
+      <div class="modal-header">
+        <h3><i data-lucide="dollar-sign"></i> Registrar Cobro de Cliente</h3>
+        <button class="btn-close" id="btn-close-cust-pay-modal">&times;</button>
+      </div>
+      <form id="form-register-customer-payment" style="padding: 16px;">
+        <div style="margin-bottom: 12px;">
+          <strong id="cust-pay-name">--</strong><br>
+          <small style="color: var(--text-muted);">Saldo Deudor Actual: <span id="cust-pay-debt" style="color: var(--terracotta); font-weight: 700;">$0</span></small>
+        </div>
+        <div class="form-group">
+          <label>Monto Cobrado ($)</label>
+          <input type="number" id="cust-pay-amount" class="form-control" step="0.01" placeholder="Ej: 5000" required>
+        </div>
+        <div class="form-group">
+          <label>Medio de Pago</label>
+          <select id="cust-pay-method" class="form-control">
+            <option value="EFECTIVO">Efectivo</option>
+            <option value="TRANSFERENCIA">Transferencia Bancaria</option>
+            <option value="MERCADO_PAGO">Mercado Pago</option>
+          </select>
+        </div>
+        <div class="modal-footer" style="padding: 12px 0 0 0;">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-cust-pay">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Cobro y Saldar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 10: Registrar Pago a Proveedor -->
+  <div class="modal-backdrop" id="modal-supplier-payment">
+    <div class="modal-content" style="max-width: 450px;">
+      <div class="modal-header">
+        <h3><i data-lucide="check-circle"></i> Registrar Pago a Proveedor</h3>
+        <button class="btn-close" id="btn-close-supp-pay-modal">&times;</button>
+      </div>
+      <form id="form-register-supplier-payment" style="padding: 16px;">
+        <div style="margin-bottom: 12px;">
+          <strong id="supp-pay-name">--</strong><br>
+          <small style="color: var(--text-muted);">Pasivo Pendiente: <span id="supp-pay-debt" style="color: var(--terracotta); font-weight: 700;">$0</span></small>
+        </div>
+        <div class="form-group">
+          <label>Monto Abonado ($)</label>
+          <input type="number" id="supp-pay-amount" class="form-control" step="0.01" placeholder="Ej: 20000" required>
+        </div>
+        <div class="form-group">
+          <label>Medio de Pago</label>
+          <select id="supp-pay-method" class="form-control">
+            <option value="TRANSFERENCIA">Transferencia Bancaria</option>
+            <option value="CHEQUE">Cheque de Terceros</option>
+            <option value="EFECTIVO">Efectivo</option>
+          </select>
+        </div>
+        <div class="modal-footer" style="padding: 12px 0 0 0;">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-supp-pay">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Registrar Pago</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Ficha Financiera Editable de Producto -->
+  <div class="modal-backdrop" id="modal-edit-product-pricing">
+    <div class="modal-content" style="max-width: 680px;">
+      <div class="modal-header">
+        <div>
+          <h3 id="pricing-modal-title"><i data-lucide="calculator"></i> Estructura de Costos del Producto</h3>
+          <small id="pricing-modal-subtitle" style="color: var(--text-muted);">Ajusta los parámetros financieros para recalcular precios sugeridos.</small>
+        </div>
+        <button class="btn-close" id="btn-close-pricing-modal">&times;</button>
+      </div>
+
+      <form id="form-edit-product-pricing">
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Insumo a Granel de Origen</label>
+            <select id="edit-price-raw-id" class="form-control"></select>
+          </div>
+          <div class="form-group col">
+            <label>Consumo Insumo por Unidad (Kg/L)</label>
+            <input type="number" id="edit-price-raw-qty" step="0.001" placeholder="Ej: 0.250" required>
+          </div>
+        </div>
+
+        <div style="background: var(--bg-linen); padding: 10px 14px; border-radius: 6px; margin-bottom: 14px; font-size: 13px; display: flex; justify-content: space-between;">
+          <span>Costo Calculado Insumo Granel:</span>
+          <strong id="edit-price-raw-calculated-cost" style="color: var(--primary-sage); font-size: 14px;">$0.00</strong>
+        </div>
+
+        <h4 style="font-size: 13px; color: var(--terracotta); margin-bottom: 8px;"><i data-lucide="package"></i> Costos Directos de Packaging & Operativos</h4>
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Envase / Doypack / Bolsa ($)</label>
+            <input type="number" id="edit-price-pkg-cost" step="0.01" value="150.00" required>
+          </div>
+          <div class="form-group col">
+            <label>Etiqueta Térmica ($)</label>
+            <input type="number" id="edit-price-label-cost" step="0.01" value="30.00" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Mano de Obra Fraccionado ($)</label>
+            <input type="number" id="edit-price-labor-cost" step="0.01" value="100.00" required>
+          </div>
+          <div class="form-group col">
+            <label>Costos Fijos Prorrateados ($)</label>
+            <input type="number" id="edit-price-fixed-cost" step="0.01" value="200.00" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Tasa Impositiva IVA / IIBB (%)</label>
+          <input type="number" id="edit-price-tax-pct" step="0.1" value="21.0" required>
+        </div>
+
+        <div style="background: #ECFDF5; border: 1px solid #10B981; padding: 12px; border-radius: 8px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+          <strong style="color: #065F46; font-size: 14px;"><i data-lucide="check-circle"></i> Costo Base Mínimo Calculado:</strong>
+          <span id="edit-price-total-base-cost" style="font-size: 18px; font-weight: 800; color: #047857;">$0.00</span>
+        </div>
+
+        <h4 style="font-size: 13px; color: var(--primary-sage); margin-bottom: 8px;"><i data-lucide="percent"></i> Márgenes & Comisiones por Canal</h4>
+        
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Margen Mostrador (%)</label>
+            <input type="number" id="edit-price-margin-local" step="0.1" value="40.0" required>
+          </div>
+          <div class="form-group col">
+            <label>Precio Venta Mostrador ($)</label>
+            <input type="number" id="edit-price-out-local" step="0.01" style="font-weight: 700; color: var(--terracotta);" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Margen WhatsApp (%)</label>
+            <input type="number" id="edit-price-margin-wa" step="0.1" value="45.0" required>
+          </div>
+          <div class="form-group col">
+            <label>Precio Venta WhatsApp ($)</label>
+            <input type="number" id="edit-price-out-wa" step="0.01" style="font-weight: 700; color: var(--terracotta);" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Margen Tienda Online (%)</label>
+            <input type="number" id="edit-price-margin-web" step="0.1" value="55.0" required>
+          </div>
+          <div class="form-group col">
+            <label>Precio Tienda Online ($)</label>
+            <input type="number" id="edit-price-out-web" step="0.01" style="font-weight: 700; color: var(--terracotta);" required>
+          </div>
+        </div>
+
+        <!-- Barra Visual de Composición de Costo -->
+        <div style="margin-top: 10px;">
+          <label style="font-size: 12px; color: var(--text-muted);">Estructura Proporcional del Precio (Mostrador):</label>
+          <div style="display: flex; height: 12px; border-radius: 6px; overflow: hidden; margin-top: 4px; border: 1px solid var(--card-border);">
+            <div id="bar-cost-raw" style="background: var(--primary-sage); width: 40%;" title="Insumo Granel"></div>
+            <div id="bar-cost-pkg" style="background: var(--terracotta); width: 15%;" title="Packaging & Etiqueta"></div>
+            <div id="bar-cost-labor" style="background: #F59E0B; width: 15%;" title="Mano de Obra & Fijos"></div>
+            <div id="bar-cost-profit" style="background: #10B981; width: 30%;" title="Ganancia Neta"></div>
+          </div>
+          <div style="display: flex; gap: 10px; font-size: 10px; color: var(--text-muted); margin-top: 4px; justify-content: space-around;">
+            <span><span style="color: var(--primary-sage);">■</span> Insumo</span>
+            <span><span style="color: var(--terracotta);">■</span> Packaging</span>
+            <span><span style="color: #F59E0B;">■</span> Mano de Obra/Fijos</span>
+            <span><span style="color: #10B981;">■</span> Ganancia Neta</span>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-pricing-modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Guardar y Recalcular Precios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Personalizar Metas del Dashboard -->
+  <div class="modal-backdrop" id="modal-edit-dashboard-goals">
+    <div class="modal-content" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3><i data-lucide="sliders"></i> Personalizar Metas del Dashboard</h3>
+        <button class="btn-close" id="btn-close-goals-modal">&times;</button>
+      </div>
+      <form id="form-edit-dashboard-goals">
+        <div class="form-group">
+          <label>Meta Mensual de Ventas ($)</label>
+          <input type="number" id="goal-sales-input" value="1200000" step="10000" required>
+        </div>
+
+        <div class="form-group">
+          <label>Meta de Ticket Promedio ($)</label>
+          <input type="number" id="goal-ticket-input" value="15000" step="500" required>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-goals-modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Metas</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Escáner de Códigos QR por Cámara / Láser -->
+  <div class="modal-backdrop" id="modal-qr-scanner">
+    <div class="modal-content" style="max-width: 520px; text-align: center;">
+      <div class="modal-header">
+        <h3><i data-lucide="qr-code"></i> Escáner de Código QR Inteligente</h3>
+        <button class="btn-close" id="btn-close-qr-scanner-modal">&times;</button>
+      </div>
+      <div style="padding: 16px;">
+        <div style="width: 100%; height: 200px; background: #0E1F13; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; position: relative; overflow: hidden;" id="qr-camera-container">
+          <i data-lucide="camera" style="width: 44px; height: 44px; color: #D8EBD9; margin-bottom: 8px;"></i>
+          <span style="font-size: 13px; color: #D8EBD9;">Cámara buscando código QR...</span>
+          <div style="position: absolute; width: 150px; height: 150px; border: 2px dashed #10B981; border-radius: 12px;"></div>
+        </div>
+
+        <div style="margin-top: 16px;">
+          <label style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">o ingresar código SKU / QR (Pistola Láser USB/BT):</label>
+          <div style="display: flex; gap: 8px; margin-top: 6px;">
+            <input type="text" id="qr-manual-input" class="form-control" placeholder="Ej: PF-NUE-250..." style="font-family: monospace; font-weight: 700;">
+            <button type="button" class="btn btn-primary" id="btn-submit-manual-qr">Procesar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Autenticación por PIN Numérico (Teclado Táctil Numpad) -->
+  <div class="modal-backdrop" id="modal-pin-auth">
+    <div class="modal-content" style="max-width: 380px; text-align: center;">
+      <div class="modal-header" style="justify-content: center;">
+        <div style="text-align: center;">
+          <div class="user-avatar-circle" id="pin-modal-avatar" style="width: 48px; height: 48px; font-size: 18px; margin: 0 auto 8px auto;">MC</div>
+          <h3 id="pin-modal-username" style="font-size: 18px;">María Clara</h3>
+          <p id="pin-modal-role" style="font-size: 12px; color: var(--text-muted);">Ingresa tu PIN para desbloquear sesión</p>
+        </div>
+      </div>
+
+      <div style="padding: 16px;">
+        <div style="margin-bottom: 16px;">
+          <div id="pin-display-dots" style="display: flex; justify-content: center; gap: 12px; font-size: 28px; color: var(--primary-sage);">
+            <span class="pin-dot">○</span>
+            <span class="pin-dot">○</span>
+            <span class="pin-dot">○</span>
+            <span class="pin-dot">○</span>
+          </div>
+        </div>
+
+        <!-- Teclado Numérico Táctil (Numpad POS) -->
+        <div class="numpad-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 240px; margin: 0 auto;">
+          <button type="button" class="btn btn-secondary numpad-btn" data-val="1" style="font-size: 18px; font-weight: 700; height: 46px;">1</button>
+          <button type="button" class="btn btn-secondary numpad-btn" data-val="2" style="font-size: 18px; font-weight: 700; height: 46px;">2</button>
+          <button type="button" class="btn btn-secondary numpad-btn" data-val="3" style="font-size: 18px; font-weight: 700; height: 46px;">3</button>
+          <button type="button" class="btn btn-secondary numpad-btn" data-val="4" style="font-size: 18px; font-weight: 700; height: 46px;">4</button>
+          <button type="button" class="btn btn-secondary numpad-btn" data-val="5" style="font-size: 18px; font-weight: 700; height: 46px;">5</button>
+          <button type="button" class="btn btn-secondary numpad-btn" data-val="6" style="font-size: 18px; font-weight: 700; height: 46px;">6</button>
+          <button type="button" class="btn btn-secondary numpad-btn" data-val="7" style="font-size: 18px; font-weight: 700; height: 46px;">7</button>
+          <button type="button" class="btn btn-secondary numpad-btn" data-val="8" style="font-size: 18px; font-weight: 700; height: 46px;">8</button>
+          <button type="button" class="btn btn-secondary numpad-btn" data-val="9" style="font-size: 18px; font-weight: 700; height: 46px;">9</button>
+          <button type="button" class="btn btn-secondary numpad-btn" id="btn-numpad-clear" style="color: var(--terracotta); font-size: 18px; font-weight: 700; height: 46px;">⌫</button>
+          <button type="button" class="btn btn-secondary numpad-btn" data-val="0" style="font-size: 18px; font-weight: 700; height: 46px;">0</button>
+          <button type="button" class="btn btn-primary numpad-btn" id="btn-numpad-ok" style="font-size: 18px; font-weight: 700; height: 46px;">✓</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

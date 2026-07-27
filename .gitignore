@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Production Build
+# dist/ (Descomentar si compilas directamente en Hostinger vía CI/CD)
+
+# Environment Variables & Secrets
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# System & OS Files
+.DS_Store
+Thumbs.db
