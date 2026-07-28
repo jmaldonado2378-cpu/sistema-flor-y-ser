@@ -5,7 +5,7 @@ const path = require('path');
 console.log('📦 Bundling vendor.bundle.js with esbuild...');
 execSync('npx esbuild src/frontend_entry.js --bundle --minify --outfile=public/vendor.bundle.js', { stdio: 'inherit' });
 
-const filesToCopy = ['vendor.bundle.js', 'app.js', 'index.html', 'styles.css'];
+const filesToCopy = ['vendor.bundle.js', 'app.js', 'index.html', 'styles.css', '.htaccess'];
 
 filesToCopy.forEach(file => {
   const src = path.join(__dirname, 'public', file);
