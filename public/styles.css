@@ -599,24 +599,27 @@ body {
   gap: 8px;
 }
 
-/* Data Tables */
+/* Data Tables Ultra-Compact ERP */
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13.5px;
+  font-size: 12.5px;
 }
 
 .data-table th, .data-table td {
-  padding: 12px;
+  padding: 8px 10px;
   text-align: left;
   border-bottom: 1px solid var(--bg-linen);
+  vertical-align: middle;
 }
 
 .data-table th {
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
   color: var(--text-muted);
   letter-spacing: 0.5px;
+  background: #F8FAFC;
 }
 
 .channel-chip {

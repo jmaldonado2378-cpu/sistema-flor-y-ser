@@ -1375,6 +1375,44 @@ function initApp() {
     populateFractioningSelects();
   }
 
+  const formExecuteFractioning = document.getElementById('form-execute-fractioning');
+  if (formExecuteFractioning) {
+    formExecuteFractioning.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const rawId = document.getElementById('frac-raw-select')?.value;
+      const finalId = document.getElementById('frac-final-select')?.value;
+      const inputKg = parseFloat(document.getElementById('frac-input-kg')?.value || '0');
+      const actualUnits = parseInt(document.getElementById('frac-actual-units')?.value || '0');
+      const generatedBatch = document.getElementById('frac-generated-batch')?.value.trim() || `LOT-${Date.now()}`;
+
+      if (!rawId || !finalId) {
+        alert('⚠️ Selecciona un insumo a granel y un producto final.');
+        return;
+      }
+
+      const rawItem = rawMaterials.find(m => m.id === rawId);
+      const finalItem = finalProducts.find(p => p.id === finalId);
+
+      if (!rawItem || !finalItem) return;
+
+      if (rawItem.currentStock < inputKg) {
+        alert(`❌ Stock insuficiente de ${rawItem.name}. Stock disponible: ${rawItem.currentStock} ${rawItem.unit}.`);
+        return;
+      }
+
+      rawItem.currentStock = Math.max(0, parseFloat((rawItem.currentStock - inputKg).toFixed(2)));
+      finalItem.currentStock += actualUnits;
+
+      renderRawMaterialsTable(rawMaterials);
+      renderFinalProductsTable(finalProducts);
+      populateFractioningSelects();
+
+      if (window.saveStateToLocalStorage) window.saveStateToLocalStorage();
+
+      alert(`✅ ¡Fraccionado de ${inputKg} ${rawItem.unit} de "${rawItem.name}" ejecutado con éxito! Se obtuvieron ${actualUnits} unidades de "${finalItem.name}" (Lote: ${generatedBatch}).`);
+    });
+  }
+
   // Modal Crear Nueva Tarea Kanban
   const modalNewTask = document.getElementById('modal-new-task');
   const btnOpenTaskModal = document.getElementById('btn-open-task-modal');
