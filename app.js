@@ -12,7 +12,9 @@ function initApp() {
   // -----------------------------------------------------------------------------
   // ESTADO GLOBAL REVOLUCIONARIO DE LA APLICACIÓN
   // -----------------------------------------------------------------------------
-  let activeDietaryProfiles = [
+  let activeDietaryProfiles = (_savedState && _savedState.activeDietaryProfiles && _savedState.activeDietaryProfiles.length)
+    ? _savedState.activeDietaryProfiles
+    : [
     { id: '1', code: 'VEGAN', name: 'Vegano', badgeColorHex: '#5E7055', description: 'Libre de ingredientes de origen animal.' },
     { id: '2', code: 'CELIAC', name: 'Sin TACC / Celíaco', badgeColorHex: '#C87053', description: 'Sin trigo, avena, cebada ni centeno.' },
     { id: '3', code: 'ORGANIC', name: 'Orgánico', badgeColorHex: '#8B9A46', description: 'Certificación de cultivo libre de pesticidas.' },
@@ -22,7 +24,9 @@ function initApp() {
     { id: '7', code: 'FODMAP', name: 'Bajo FODMAP', badgeColorHex: '#0EA5E9', description: 'Apto para síndrome de intestino irritable.' }
   ];
 
-  let currentCustomers = [
+  let currentCustomers = (_savedState && _savedState.currentCustomers && _savedState.currentCustomers.length)
+    ? _savedState.currentCustomers
+    : [
     {
       id: 'c-101',
       firstName: 'Martina',
@@ -102,14 +106,18 @@ function initApp() {
     }
   ];
 
-  let currentSuppliers = [
+  let currentSuppliers = (_savedState && _savedState.currentSuppliers && _savedState.currentSuppliers.length)
+    ? _savedState.currentSuppliers
+    : [
     { id: 's1', taxId: '30-70891234-9', businessName: 'Frutos del Valle S.A.', contactName: 'Roberto Gómez', phone: '+5491144332211', email: 'ventas@frutosdelvalle.com', commercialTerms: 'Cta Cte 30 días', balance: 184000 },
     { id: 's2', taxId: '30-66442211-5', businessName: 'Hierbas & Especias del Sur', contactName: 'Laura Fernández', phone: '+5491155667788', email: 'contacto@hierbassur.com', commercialTerms: 'Pago al contado (5% desc)', balance: 65000 },
     { id: 's3', taxId: '30-71122334-2', businessName: 'Molinos & Granos Orgánicos', contactName: 'Mariano Silva', phone: '+5491133445566', email: 'pedidos@molinosorganicos.com', commercialTerms: 'Cta Cte 15 días', balance: 0 },
     { id: 's4', taxId: '30-79887766-1', businessName: 'Envases & Packaging Ecológico', contactName: 'Patricia Luna', phone: '+5491188776655', email: 'patricia@envaseseco.com', commercialTerms: 'Cheque 30 días', balance: 35000 }
   ];
 
-  let rawMaterials = [
+  let rawMaterials = (_savedState && _savedState.rawMaterials && _savedState.rawMaterials.length)
+    ? _savedState.rawMaterials
+    : [
     { id: 'rm-1', code: 'MP-NUE-01', name: 'Nueces Peladas Granel', currentStock: 25.42, minStock: 5.0, unit: 'kg', costPerUnit: 16200, supplierName: 'Frutos del Valle S.A.', storageLocation: 'Estantería 1' },
     { id: 'rm-2', code: 'MP-ALM-01', name: 'Almendras Peladas Granel', currentStock: 30.70, minStock: 5.0, unit: 'kg', costPerUnit: 19800, supplierName: 'Frutos del Valle S.A.', storageLocation: 'Estantería 1' },
     { id: 'rm-3', code: 'MP-CAS-01', name: 'Castañas de Cajú Granel', currentStock: 15.52, minStock: 5.0, unit: 'kg', costPerUnit: 16850, supplierName: 'Frutos del Valle S.A.', storageLocation: 'Estantería 1' },
@@ -120,7 +128,9 @@ function initApp() {
     { id: 'rm-8', code: 'MP-MEN-01', name: 'Menta Hojas Granel', currentStock: 6.05, minStock: 2.0, unit: 'kg', costPerUnit: 13150, supplierName: 'Hierbas & Especias del Sur', storageLocation: 'Estantería 2' }
   ];
 
-  let finalProducts = [
+  let finalProducts = (_savedState && _savedState.finalProducts && _savedState.finalProducts.length)
+    ? _savedState.finalProducts
+    : [
     { id: 'fp-1', code: 'NUE-100', barcode: '7791112223331', name: 'Nueces x 100 gr', netWeightLabel: '100g', currentStock: 15, minStock: 3, salePrice: 1620, dietaryProfiles: ['Sin TACC', 'Vegano'] },
     { id: 'fp-2', code: 'NUE-250', barcode: '7791112223332', name: 'Nueces x 250 gr', netWeightLabel: '250g', currentStock: 8, minStock: 2, salePrice: 4050, dietaryProfiles: ['Sin TACC', 'Vegano'] },
     { id: 'fp-3', code: 'ALM-100', barcode: '7791112223333', name: 'Almendras x 100 gr', netWeightLabel: '100g', currentStock: 20, minStock: 3, salePrice: 1980, dietaryProfiles: ['Sin TACC', 'Keto'] },
@@ -132,7 +142,9 @@ function initApp() {
     { id: 'fp-9', code: 'HAR-250', barcode: '7791112223347', name: 'Harina de Almendra x 250 gr', netWeightLabel: '250g', currentStock: 10, minStock: 2, salePrice: 1750, dietaryProfiles: ['Sin TACC', 'Keto'] }
   ];
 
-  let operatingExpenses = [
+  let operatingExpenses = (_savedState && _savedState.operatingExpenses && _savedState.operatingExpenses.length)
+    ? _savedState.operatingExpenses
+    : [
     { id: 'exp-1', date: '2026-07-22', category: 'ALQUILER', description: 'Alquiler de Depósito & Local Mostrador', method: 'TRANSFERENCIA', amount: 180000 },
     { id: 'exp-2', date: '2026-07-20', category: 'LOGISTICA', description: 'Compra de Bolsas Kraft & Envoltorios Ecológicos', method: 'MERCADO_PAGO', amount: 35000 },
     { id: 'exp-3', date: '2026-07-18', category: 'SERVICIOS', description: 'Factura de Energía Eléctrica Depósito', method: 'TRANSFERENCIA', amount: 42500 },
@@ -140,7 +152,9 @@ function initApp() {
     { id: 'exp-5', date: '2026-07-10', category: 'MARKETING', description: 'Campaña Anuncios Meta / WhatsApp Business', method: 'MERCADO_PAGO', amount: 28000 }
   ];
 
-  let mockTasksBoard = {
+  let mockTasksBoard = (_savedState && _savedState.mockTasksBoard)
+    ? _savedState.mockTasksBoard
+    : {
     PENDING_FRACTIONING: [
       { id: 't1', title: 'Fraccionar saco de Almendras (10kg)', priority: 'HIGH', productName: 'Almendras Peladas', batchNumber: 'L-ALM-2026-07', operator: 'Juan Pérez', targetWeight: '10.00 kg', notes: 'Verificar humedad pre-sellado.' },
       { id: 't2', title: 'Fraccionar Avena Arrollada (25kg)', priority: 'MEDIUM', productName: 'Avena Orgánica', batchNumber: 'L-AVE-2026-06', operator: 'María Luz', targetWeight: '25.00 kg', notes: 'Empaque kraft de 500g.' }
@@ -156,7 +170,9 @@ function initApp() {
     ]
   };
 
-  let mockSalesBoard = {
+  let mockSalesBoard = (_savedState && _savedState.mockSalesBoard)
+    ? _savedState.mockSalesBoard
+    : {
     RECEIVED: [
       { id: 'ord-001', orderNumber: 'PED-8821', customerName: 'Martina Gómez', phone: '+5491133445566', address: 'Av. Corrientes 1420', payment: 'Mercado Pago', items: [{ name: 'Nueces x 250 gr', qty: 2, price: 4050, subtotal: 8100 }, { name: 'Almendras x 250 gr', qty: 1, price: 4950, subtotal: 4950 }], totalAmount: 13050, date: '2026-07-25 14:30' }
     ],
@@ -181,113 +197,38 @@ function initApp() {
   let activeSuppPaymentModal = null;
 
   // -----------------------------------------------------------------------------
-  // MOTOR DE BASE DE DATOS EMBEBIDA CLIENTE (INDEXEDDB PERSISTENTE 100% GARANTIZADO)
+  // MOTOR DE PERSISTENCIA SÍNCRONO — CARGA INMEDIATA GARANTIZADA
   // -----------------------------------------------------------------------------
   const STORAGE_KEY = 'floryser_erp_crm_state_v2';
 
-  class IndexedDBEngine {
-    constructor() {
-      this.dbName = 'FlorYSerERP_V2';
-      this.version = 1;
-      this.db = null;
-    }
+  // Cargar estado guardado SÍNCRONAMENTE antes de declarar cualquier variable
+  let _savedState = null;
+  try {
+    const _raw = localStorage.getItem(STORAGE_KEY);
+    if (_raw) _savedState = JSON.parse(_raw);
+  } catch(e) { _savedState = null; }
 
-    async init() {
-      return new Promise((resolve) => {
-        if (!window.indexedDB) return resolve(null);
-        const request = indexedDB.open(this.dbName, this.version);
-
-        request.onupgradeneeded = (e) => {
-          const db = e.target.result;
-          if (!db.objectStoreNames.contains('stateStore')) {
-            db.createObjectStore('stateStore', { keyPath: 'id' });
-          }
-        };
-
-        request.onsuccess = (e) => {
-          this.db = e.target.result;
-          resolve(this.db);
-        };
-
-        request.onerror = () => resolve(null);
-      });
-    }
-
-    async saveState(stateObj) {
-      if (!this.db) return;
-      try {
-        const tx = this.db.transaction('stateStore', 'readwrite');
-        const store = tx.objectStore('stateStore');
-        store.put({ id: 'app_state', data: stateObj, updatedAt: new Date().toISOString() });
-      } catch(err) {}
-    }
-
-    async loadState() {
-      if (!this.db) return null;
-      return new Promise((resolve) => {
-        try {
-          const tx = this.db.transaction('stateStore', 'readonly');
-          const store = tx.objectStore('stateStore');
-          const request = store.get('app_state');
-          request.onsuccess = () => resolve(request.result ? request.result.data : null);
-          request.onerror = () => resolve(null);
-        } catch(err) {
-          resolve(null);
-        }
-      });
-    }
-  }
-
-  const idbEngine = new IndexedDBEngine();
-  idbEngine.init();
-
+  // Función de guardado global — llama a esto en cualquier formulario
   window.saveStateToLocalStorage = function() {
-    const state = {
-      currentCustomers,
-      rawMaterials,
-      finalProducts,
-      currentSuppliers,
-      operatingExpenses,
-      mockTasksBoard,
-      mockSalesBoard,
-      activeDietaryProfiles,
-      systemUsers,
-      dashboardGoals
-    };
-
     try {
+      const state = {
+        currentCustomers,
+        rawMaterials,
+        finalProducts,
+        currentSuppliers,
+        operatingExpenses,
+        mockTasksBoard,
+        mockSalesBoard,
+        activeDietaryProfiles,
+        systemUsers,
+        dashboardGoals
+      };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch(err) {}
-
-    idbEngine.saveState(state);
+    } catch(err) {
+      console.error('Error guardando estado:', err);
+    }
   };
 
-  async function loadStateFromLocalStorage() {
-    try {
-      let parsed = null;
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        parsed = JSON.parse(saved);
-      } else {
-        parsed = await idbEngine.loadState();
-      }
-
-      if (parsed) {
-        if (parsed.currentCustomers && parsed.currentCustomers.length) currentCustomers = parsed.currentCustomers;
-        if (parsed.rawMaterials && parsed.rawMaterials.length) rawMaterials = parsed.rawMaterials;
-        if (parsed.finalProducts && parsed.finalProducts.length) finalProducts = parsed.finalProducts;
-        if (parsed.currentSuppliers && parsed.currentSuppliers.length) currentSuppliers = parsed.currentSuppliers;
-        if (parsed.operatingExpenses && parsed.operatingExpenses.length) operatingExpenses = parsed.operatingExpenses;
-        if (parsed.mockTasksBoard) mockTasksBoard = parsed.mockTasksBoard;
-        if (parsed.mockSalesBoard) mockSalesBoard = parsed.mockSalesBoard;
-        if (parsed.activeDietaryProfiles) activeDietaryProfiles = parsed.activeDietaryProfiles;
-        if (parsed.systemUsers) systemUsers = parsed.systemUsers;
-        if (parsed.dashboardGoals) dashboardGoals = parsed.dashboardGoals;
-      }
-    } catch(err) {}
-  }
-
-  loadStateFromLocalStorage();
 
   // -----------------------------------------------------------------------------
   // COLAPSO / EXPANSION DE SIDEBAR EN NAVEGADOR Y TABLETS
@@ -309,7 +250,9 @@ function initApp() {
   // -----------------------------------------------------------------------------
   // GESTIÓN DE USUARIOS Y AUTENTICACIÓN POR PIN (RBAC + NUMPAD POS + MATRIZ DE PERMISOS)
   // -----------------------------------------------------------------------------
-  let systemUsers = [
+  let systemUsers = (_savedState && _savedState.systemUsers && _savedState.systemUsers.length)
+    ? _savedState.systemUsers
+    : [
     {
       id: 'u1', name: 'María Clara', role: 'ADMIN', pin: '1234', avatar: 'MC', title: 'Dueño / Admin',
       customAllowedTabs: [
