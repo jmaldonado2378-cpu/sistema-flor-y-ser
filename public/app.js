@@ -2781,12 +2781,11 @@ function initApp() {
     if (avatarCircle) avatarCircle.innerText = activeUserSession.avatar;
     if (profileBadgeSpan) profileBadgeSpan.innerText = activeUserSession.name;
 
-    const overlay = document.getElementById('login-profile-overlay');
-    if (overlay) {
-      overlay.classList.remove('active');
-      overlay.style.display = 'none';
-      overlay.style.pointerEvents = 'none';
-      overlay.style.visibility = 'hidden';
+    const loginContainer = document.getElementById('login-page-container');
+    if (loginContainer) {
+      loginContainer.style.display = 'none';
+      loginContainer.style.pointerEvents = 'none';
+      loginContainer.style.visibility = 'hidden';
     }
   };
 
@@ -2794,24 +2793,28 @@ function initApp() {
   const mainUserProfileBadge = document.querySelector('.user-profile-badge');
 
   function triggerUserSwitchLockScreen() {
-    window.loginSelectedUser = null;
-    window.loginTypedPin = '';
-    if (loginPinContainer) loginPinContainer.style.display = 'none';
-    renderLoginUserCards();
-    if (loginOverlay) {
-      loginOverlay.style.display = 'flex';
-      loginOverlay.style.pointerEvents = 'auto';
-      loginOverlay.style.visibility = 'visible';
-      loginOverlay.classList.add('active');
+    if (window.logoutCurrentSystemUser) {
+      window.logoutCurrentSystemUser();
     }
   }
 
   if (btnLockSwitchUser) btnLockSwitchUser.addEventListener('click', triggerUserSwitchLockScreen);
   if (mainUserProfileBadge) {
     mainUserProfileBadge.style.cursor = 'pointer';
-    mainUserProfileBadge.title = 'Hacé clic para cambiar de usuario / Bloquear pantalla';
+    mainUserProfileBadge.title = 'Hacé clic para cambiar de usuario / Cerrar Sesión';
     mainUserProfileBadge.addEventListener('click', triggerUserSwitchLockScreen);
   }
+
+  // Comprobar sesión guardada previamente
+  try {
+    const savedUid = sessionStorage.getItem('floryser_active_user');
+    if (savedUid) {
+      const savedUser = systemUsers.find(u => u.id === savedUid);
+      if (savedUser) {
+        window.verifyLoginPinSuccess(savedUser);
+      }
+    }
+  } catch(err) {}
 
   // -----------------------------------------------------------------------------
   // CARGA INICIAL AUTOMÁTICA DE TODAS LAS VISTAS

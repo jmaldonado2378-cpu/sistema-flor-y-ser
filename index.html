@@ -193,172 +193,103 @@
       { id: 'u3', name: 'Carlos Ruiz', role: 'OPERATOR', pin: '9999', avatar: 'CR', title: 'Operario Depósito' }
     ];
 
-    window.loginSelectedUser = null;
-    window.loginTypedPin = '';
+    window.handleStandaloneLoginSubmit = function(e) {
+      if (e) e.preventDefault();
+      const userSelect = document.getElementById('standalone-user-select');
+      const pinInput = document.getElementById('standalone-pin-input');
+      const errorBox = document.getElementById('standalone-login-error');
 
-    window.selectLoginUser = function(uid) {
+      const selectedUid = userSelect ? userSelect.value : 'u1';
+      const enteredPin = pinInput ? pinInput.value.trim() : '';
+
       const usersList = window.systemUsers || window.systemUsersData;
-      window.loginSelectedUser = usersList.find(x => x.id === uid) || usersList[0];
+      const targetUser = usersList.find(u => u.id === selectedUid) || usersList[0];
 
-      document.querySelectorAll('.login-user-card').forEach(c => {
-        if (c.getAttribute('data-id') === uid) {
-          c.classList.add('selected');
-        } else {
-          c.classList.remove('selected');
+      if (enteredPin === targetUser.pin) {
+        if (errorBox) errorBox.style.display = 'none';
+
+        try { sessionStorage.setItem('floryser_active_user', targetUser.id); } catch(err){}
+
+        const loginContainer = document.getElementById('login-page-container');
+        if (loginContainer) {
+          loginContainer.style.display = 'none';
+          loginContainer.style.pointerEvents = 'none';
+          loginContainer.style.visibility = 'hidden';
         }
-      });
 
-      const pinCont = document.getElementById('login-pin-container');
-      if (pinCont) {
-        pinCont.style.display = 'block';
-        const nameElem = document.getElementById('login-selected-user-name');
-        const roleElem = document.getElementById('login-selected-user-role');
-        if (nameElem) nameElem.innerText = window.loginSelectedUser.name;
-        if (roleElem) roleElem.innerText = window.loginSelectedUser.title + ' | Ingresa tu PIN';
-      }
-
-      window.loginTypedPin = '';
-      window.updateLoginPinDots();
-
-      // Scroll suave para revelar el teclado completo si es necesario
-      try {
-        const contentBox = document.querySelector('.login-profile-content');
-        if (contentBox) contentBox.scrollTop = contentBox.scrollHeight;
-      } catch (err) {}
-    };
-
-    window.updateLoginPinDots = function() {
-      const dotsContainer = document.getElementById('login-pin-display-dots');
-      if (!dotsContainer) return;
-
-      const expectedLen = (window.loginSelectedUser && window.loginSelectedUser.pin) ? window.loginSelectedUser.pin.length : 4;
-      const currentLen = (window.loginTypedPin || '').length;
-      const totalDots = Math.max(expectedLen, currentLen, 4);
-
-      let dotsHtml = '';
-      for (let i = 0; i < totalDots; i++) {
-        dotsHtml += i < currentLen
-          ? `<span class="pin-dot" style="color: #2E5339; font-size: 24px; font-weight: bold;">●</span>`
-          : `<span class="pin-dot" style="color: #CBD5E1; font-size: 24px;">○</span>`;
-      }
-      dotsContainer.innerHTML = dotsHtml;
-    };
-
-    window.pressLoginNumpad = function(val) {
-      if (!window.loginSelectedUser) return;
-      if ((window.loginTypedPin || '').length < 10) {
-        window.loginTypedPin = (window.loginTypedPin || '') + val;
-        window.updateLoginPinDots();
-
-        const expectedLen = window.loginSelectedUser.pin.length;
-        if (window.loginTypedPin.length === expectedLen) {
-          window.submitLoginPin();
-        }
-      }
-    };
-
-    window.clearLoginPin = function() {
-      window.loginTypedPin = (window.loginTypedPin || '').slice(0, -1);
-      window.updateLoginPinDots();
-    };
-
-    window.submitLoginPin = function() {
-      if (!window.loginSelectedUser) return;
-
-      if (window.loginTypedPin === window.loginSelectedUser.pin) {
-        const overlay = document.getElementById('login-profile-overlay');
-        if (overlay) {
-          overlay.classList.remove('active');
-          overlay.style.display = 'none';
-          overlay.style.pointerEvents = 'none';
-          overlay.style.visibility = 'hidden';
-        }
         if (window.verifyLoginPinSuccess) {
-          window.verifyLoginPinSuccess(window.loginSelectedUser);
+          window.verifyLoginPinSuccess(targetUser);
         }
       } else {
-        alert(`❌ PIN incorrecto para ${window.loginSelectedUser.name}. Intenta nuevamente.`);
-        window.loginTypedPin = '';
-        window.updateLoginPinDots();
+        if (errorBox) {
+          errorBox.innerText = `❌ PIN incorrecto para ${targetUser.name}. Intenta nuevamente.`;
+          errorBox.style.display = 'block';
+        }
+        if (pinInput) {
+          pinInput.value = '';
+          pinInput.focus();
+        }
       }
     };
 
-    // Listener de Teclado Físico (0-9, Backspace, Enter)
-    window.addEventListener('keydown', function(e) {
-      const overlay = document.getElementById('login-profile-overlay');
-      if (!overlay || !overlay.classList.contains('active') || !window.loginSelectedUser) return;
-
-      if (e.key >= '0' && e.key <= '9') {
-        window.pressLoginNumpad(e.key);
-      } else if (e.key === 'Backspace') {
-        window.clearLoginPin();
-      } else if (e.key === 'Enter') {
-        window.submitLoginPin();
+    window.toggleStandalonePinVisibility = function() {
+      const input = document.getElementById('standalone-pin-input');
+      if (input) {
+        input.type = input.type === 'password' ? 'text' : 'password';
       }
-    });
+    };
+
+    window.logoutCurrentSystemUser = function() {
+      try { sessionStorage.removeItem('floryser_active_user'); } catch(err){}
+      const loginContainer = document.getElementById('login-page-container');
+      if (loginContainer) {
+        loginContainer.style.display = 'flex';
+        loginContainer.style.pointerEvents = 'auto';
+        loginContainer.style.visibility = 'visible';
+      }
+    };
   </script>
 </head>
 <body>
 
-  <!-- Pantalla de Selección de Perfil Estilo POS / Netflix -->
-  <div id="login-profile-overlay" class="login-profile-overlay active">
-    <div class="login-profile-content">
-      <div class="login-brand-header">
-        <div class="login-brand-logo-circle">🌱</div>
-        <h1 class="login-brand-title">Flor y Ser</h1>
-        <span class="login-brand-subtitle">Almacén Natural ERP/CRM</span>
-        <h2 style="font-size: 20px; font-weight: 700; color: var(--text-dark); margin-top: 14px; margin-bottom: 4px;">¿Quién está ingresando al sistema?</h2>
-        <p style="font-size: 13px; color: var(--text-muted); margin: 0;">Selecciona tu perfil de usuario e ingresa tu PIN de seguridad:</p>
-      </div>
-
-      <!-- Grid de Avatares de Usuarios (Estilo Netflix / POS) -->
-      <div class="login-user-cards-grid" id="login-user-cards-grid">
-        <div class="login-user-card" data-id="u1" onclick="selectLoginUser('u1')">
-          <div class="login-user-avatar">MC</div>
-          <div class="login-user-name">María Clara</div>
-          <div class="login-user-role-badge">👑 Admin</div>
-        </div>
-        <div class="login-user-card" data-id="u2" onclick="selectLoginUser('u2')">
-          <div class="login-user-avatar">JP</div>
-          <div class="login-user-name">Juan Pérez</div>
-          <div class="login-user-role-badge">🛒 Cajero</div>
-        </div>
-        <div class="login-user-card" data-id="u3" onclick="selectLoginUser('u3')">
-          <div class="login-user-avatar">CR</div>
-          <div class="login-user-name">Carlos Ruiz</div>
-          <div class="login-user-role-badge">📦 Operario</div>
-        </div>
-      </div>
-
-      <!-- Teclado Numpad de PIN integrado en la pantalla de bienvenida -->
-      <div id="login-pin-container" style="display: none; margin-top: 20px; text-align: center;">
-        <div style="margin-bottom: 12px;">
-          <strong id="login-selected-user-name" style="font-size: 16px; color: var(--primary-sage);">--</strong>
-          <div style="font-size: 12px; color: var(--text-muted);" id="login-selected-user-role">--</div>
+  <!-- PÁGINA INDEPENDIENTE DE INICIO DE SESIÓN ERP (Opción 2) -->
+  <div id="login-page-container" style="min-height: 100vh; width: 100vw; background: linear-gradient(135deg, #18261E 0%, #2E5339 100%); display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; position: fixed; top: 0; left: 0; z-index: 999999;">
+    <div style="background: #FAF8F5; width: 100%; max-width: 440px; border-radius: 24px; padding: 36px 28px; box-shadow: 0 24px 60px rgba(0,0,0,0.4); text-align: center;">
+      
+      <div style="width: 64px; height: 64px; border-radius: 50%; background: #2E5339; color: white; display: flex; align-items: center; justify-content: center; font-size: 32px; margin: 0 auto 16px auto; box-shadow: 0 8px 20px rgba(46,83,57,0.3);">🌱</div>
+      
+      <h1 style="font-family: 'Libre Caslon Text', Georgia, serif; font-size: 32px; color: #2E5339; margin: 0 0 4px 0;">Flor y Ser</h1>
+      <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #64748B; font-weight: 700; display: block; margin-bottom: 24px;">Almacén Natural ERP / CRM</span>
+      
+      <form id="standalone-login-form" onsubmit="handleStandaloneLoginSubmit(event)" style="text-align: left;">
+        
+        <div style="margin-bottom: 20px;">
+          <label style="font-size: 13px; font-weight: 700; color: #1E293B; display: block; margin-bottom: 8px;">Usuario / Perfil de Ingreso</label>
+          <select id="standalone-user-select" style="width: 100%; height: 48px; border-radius: 12px; border: 1.5px solid #CBD5E1; padding: 0 14px; font-size: 15px; font-weight: 600; color: #1E293B; background: #FFFFFF; outline: none; cursor: pointer;">
+            <option value="u1">👑 María Clara (Dueño / Admin)</option>
+            <option value="u2">🛒 Juan Pérez (Cajero / Ventas)</option>
+            <option value="u3">📦 Carlos Ruiz (Operario Depósito)</option>
+          </select>
         </div>
 
-        <div id="login-pin-display-dots" style="display: flex; justify-content: center; gap: 12px; font-size: 28px; color: var(--primary-sage); margin-bottom: 16px;">
-          <span class="pin-dot">○</span>
-          <span class="pin-dot">○</span>
-          <span class="pin-dot">○</span>
-          <span class="pin-dot">○</span>
+        <div style="margin-bottom: 24px;">
+          <label style="font-size: 13px; font-weight: 700; color: #1E293B; display: block; margin-bottom: 8px;">Clave / PIN de Seguridad</label>
+          <div style="position: relative;">
+            <input type="password" id="standalone-pin-input" placeholder="Ingresa tu PIN" required style="width: 100%; height: 48px; border-radius: 12px; border: 1.5px solid #CBD5E1; padding: 0 44px 0 14px; font-size: 16px; letter-spacing: 2px; color: #1E293B; background: #FFFFFF; outline: none; box-sizing: border-box;">
+            <button type="button" onclick="toggleStandalonePinVisibility()" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 18px; cursor: pointer; color: #64748B;">👁️</button>
+          </div>
+          <small style="font-size: 11px; color: #64748B; margin-top: 6px; display: block;">PIN Demo: María Clara (1234), Juan Pérez (4321), Carlos Ruiz (9999)</small>
         </div>
 
-        <div class="numpad-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 250px; margin: 0 auto 10px auto;">
-          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('1')" style="font-size: 18px; font-weight: 700; height: 44px;">1</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('2')" style="font-size: 18px; font-weight: 700; height: 44px;">2</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('3')" style="font-size: 18px; font-weight: 700; height: 44px;">3</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('4')" style="font-size: 18px; font-weight: 700; height: 44px;">4</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('5')" style="font-size: 18px; font-weight: 700; height: 44px;">5</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('6')" style="font-size: 18px; font-weight: 700; height: 44px;">6</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('7')" style="font-size: 18px; font-weight: 700; height: 44px;">7</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('8')" style="font-size: 18px; font-weight: 700; height: 44px;">8</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('9')" style="font-size: 18px; font-weight: 700; height: 44px;">9</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="clearLoginPin()" style="color: #D97753; font-size: 18px; font-weight: 700; height: 44px;">⌫</button>
-          <button type="button" class="btn btn-secondary login-numpad-btn" onclick="pressLoginNumpad('0')" style="font-size: 18px; font-weight: 700; height: 44px;">0</button>
-          <button type="button" class="btn btn-primary login-numpad-btn" onclick="submitLoginPin()" style="background: #2E5339; color: white; font-size: 18px; font-weight: 700; height: 44px;">✓</button>
+        <div id="standalone-login-error" style="display: none; background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 600; margin-bottom: 18px; text-align: center;">
+          ❌ PIN de seguridad incorrecto. Intenta nuevamente.
         </div>
-      </div>
+
+        <button type="submit" style="width: 100%; height: 50px; background: #2E5339; color: #FFFFFF; border: none; border-radius: 14px; font-size: 16px; font-weight: 700; cursor: pointer; box-shadow: 0 8px 20px rgba(46,83,57,0.3); transition: all 0.2s ease;">
+          Ingresar al Sistema →
+        </button>
+
+      </form>
     </div>
   </div>
 
@@ -3161,6 +3092,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=2.3.0"></script>
+  <script src="app.js?v=2.4.0"></script>
 </body>
 </html>
