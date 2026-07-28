@@ -4,7 +4,7 @@
   "description": "Sistema Integral CRM + ERP para Flor y Ser Almacén Natural",
   "main": "dist/app.js",
   "scripts": {
-    "build": "echo OK",
+    "build": "npx esbuild src/frontend_entry.js --bundle --minify --outfile=public/vendor.bundle.js",
     "start": "node dist/app.js",
     "dev": "ts-node-dev --respawn --transpile-only src/app.ts"
   },
@@ -12,10 +12,13 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "jsbarcode": "^3.12.3",
+    "lucide": "^1.27.0",
     "mysql2": "^3.9.7",
     "pg": "^8.11.5",
     "typescript": "^5.4.5",
-    "uuid": "^10.0.0"
+    "uuid": "^10.0.0",
+    "vite": "^8.1.5"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
