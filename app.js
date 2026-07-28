@@ -181,6 +181,52 @@ function initApp() {
   let activeSuppPaymentModal = null;
 
   // -----------------------------------------------------------------------------
+  // PERSISTENCIA DE DATOS EN LOCALSTORAGE (GUARDADO PERMANENTE)
+  // -----------------------------------------------------------------------------
+  const STORAGE_KEY = 'floryser_erp_crm_state_v2';
+
+  window.saveStateToLocalStorage = function() {
+    try {
+      const state = {
+        currentCustomers,
+        rawMaterials,
+        finalProducts,
+        currentSuppliers,
+        operatingExpenses,
+        mockTasksBoard,
+        mockSalesBoard,
+        activeDietaryProfiles,
+        systemUsers
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch(err) {
+      console.warn('LocalStorage save error:', err);
+    }
+  };
+
+  function loadStateFromLocalStorage() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.currentCustomers && parsed.currentCustomers.length) currentCustomers = parsed.currentCustomers;
+        if (parsed.rawMaterials && parsed.rawMaterials.length) rawMaterials = parsed.rawMaterials;
+        if (parsed.finalProducts && parsed.finalProducts.length) finalProducts = parsed.finalProducts;
+        if (parsed.currentSuppliers && parsed.currentSuppliers.length) currentSuppliers = parsed.currentSuppliers;
+        if (parsed.operatingExpenses && parsed.operatingExpenses.length) operatingExpenses = parsed.operatingExpenses;
+        if (parsed.mockTasksBoard) mockTasksBoard = parsed.mockTasksBoard;
+        if (parsed.mockSalesBoard) mockSalesBoard = parsed.mockSalesBoard;
+        if (parsed.activeDietaryProfiles) activeDietaryProfiles = parsed.activeDietaryProfiles;
+        if (parsed.systemUsers) systemUsers = parsed.systemUsers;
+      }
+    } catch(err) {
+      console.warn('LocalStorage load error:', err);
+    }
+  }
+
+  loadStateFromLocalStorage();
+
+  // -----------------------------------------------------------------------------
   // COLAPSO / EXPANSION DE SIDEBAR EN NAVEGADOR Y TABLETS
   // -----------------------------------------------------------------------------
   const mainSidebar = document.getElementById('main-sidebar');
@@ -728,6 +774,7 @@ function initApp() {
 
       renderMasterCustomersTable(currentCustomers);
       loadFinanceCustomers();
+      window.saveStateToLocalStorage();
       drawerBackdrop.classList.remove('active');
       alert(`✅ Cambios guardados para ${activeCustomer.firstName} ${activeCustomer.lastName}.`);
     });
@@ -799,6 +846,7 @@ function initApp() {
       renderMasterCustomersTable(currentCustomers);
       populateCustomerSelects();
       loadFinanceCustomers();
+      window.saveStateToLocalStorage();
       formRegisterCustomer.reset();
       modalRegisterCustomer.classList.remove('active');
 
@@ -1135,6 +1183,7 @@ function initApp() {
       renderRawMaterialsTable(rawMaterials);
       loadGoodsReceiptData();
       populateFractioningSelects();
+      window.saveStateToLocalStorage();
       formCreateRaw.reset();
       modalNewRaw.classList.remove('active');
 
@@ -1200,6 +1249,7 @@ function initApp() {
       renderFinalProductsTable(finalProducts);
       populateFractioningSelects();
       loadPricingMatrix();
+      window.saveStateToLocalStorage();
       formCreateProd.reset();
       modalNewProd.classList.remove('active');
 
@@ -1305,8 +1355,8 @@ function initApp() {
   }
 
   function populateFractioningSelects() {
-    const rawSelect = document.getElementById('frac-raw-material-id');
-    const finalSelect = document.getElementById('frac-final-product-id');
+    const rawSelect = document.getElementById('frac-raw-select') || document.getElementById('frac-raw-material-id');
+    const finalSelect = document.getElementById('frac-final-select') || document.getElementById('frac-final-product-id');
 
     if (rawSelect) {
       rawSelect.innerHTML = `<option value="">-- Seleccionar Insumo Granel --</option>` + rawMaterials.map(m => `
