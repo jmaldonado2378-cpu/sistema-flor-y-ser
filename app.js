@@ -359,18 +359,6 @@ function initApp() {
 
     if (modalPinAuth) modalPinAuth.classList.add('active');
   }
-    updatePinDisplayDots();
-
-    const nameElem = document.getElementById('pin-modal-username');
-    const roleElem = document.getElementById('pin-modal-role');
-    const avatarElem = document.getElementById('pin-modal-avatar');
-
-    if (nameElem) nameElem.innerText = userObj.name;
-    if (roleElem) roleElem.innerText = `Ingresa tu PIN de 4 dígitos (${userObj.title})`;
-    if (avatarElem) avatarElem.innerText = userObj.avatar;
-
-    if (modalPinAuth) modalPinAuth.classList.add('active');
-  }
 
   function updatePinDisplayDots() {
     const dotsContainer = document.getElementById('pin-display-dots');
@@ -2803,7 +2791,7 @@ function initApp() {
   };
 
   const btnLockSwitchUser = document.getElementById('btn-lock-switch-user');
-  const userProfileBadge = document.querySelector('.user-profile-badge');
+  const mainUserProfileBadge = document.querySelector('.user-profile-badge');
 
   function triggerUserSwitchLockScreen() {
     window.loginSelectedUser = null;
@@ -2819,10 +2807,10 @@ function initApp() {
   }
 
   if (btnLockSwitchUser) btnLockSwitchUser.addEventListener('click', triggerUserSwitchLockScreen);
-  if (userProfileBadge) {
-    userProfileBadge.style.cursor = 'pointer';
-    userProfileBadge.title = 'Hacé clic para cambiar de usuario / Bloquear pantalla';
-    userProfileBadge.addEventListener('click', triggerUserSwitchLockScreen);
+  if (mainUserProfileBadge) {
+    mainUserProfileBadge.style.cursor = 'pointer';
+    mainUserProfileBadge.title = 'Hacé clic para cambiar de usuario / Bloquear pantalla';
+    mainUserProfileBadge.addEventListener('click', triggerUserSwitchLockScreen);
   }
 
   // -----------------------------------------------------------------------------
