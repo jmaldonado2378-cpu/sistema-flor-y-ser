@@ -1867,25 +1867,25 @@
               <div class="card-header">
                 <h3><i data-lucide="plus-circle"></i> Agregar Nueva Dieta / Alérgeno</h3>
               </div>
-              <form id="form-create-diet">
+              <form id="form-create-diet-settings">
                 <div class="form-group">
                   <label>Nombre de la Preferencia Dietética</label>
-                  <input type="text" id="diet-name" placeholder="Ej: Sin Lactosa, Low Carb..." required>
+                  <input type="text" id="diet-name-s" placeholder="Ej: Sin Lactosa, Low Carb..." required>
                 </div>
                 <div class="form-group">
                   <label>Código Identificador Único</label>
-                  <input type="text" id="diet-code" placeholder="Ej: SIN_LACTOSA" required>
+                  <input type="text" id="diet-code-s" placeholder="Ej: SIN_LACTOSA" required>
                 </div>
                 <div class="form-group">
                   <label>Color Hexadecimal</label>
                   <div class="color-picker-row">
-                    <input type="color" id="diet-color" value="#5E7055">
-                    <input type="text" id="diet-color-hex" value="#5E7055">
+                    <input type="color" id="diet-color-s" value="#5E7055">
+                    <input type="text" id="diet-color-hex-s" value="#5E7055">
                   </div>
                 </div>
                 <div class="form-group">
                   <label>Descripción</label>
-                  <textarea id="diet-desc" rows="2"></textarea>
+                  <textarea id="diet-desc-s" rows="2"></textarea>
                 </div>
                 <button type="submit" class="btn btn-primary">
                   <i data-lucide="check"></i> Guardar Dieta
@@ -2253,14 +2253,20 @@
           </div>
         </div>
 
-        <div class="form-group">
-          <label>Canal Preferido</label>
-          <select id="reg-channel" class="form-control">
-            <option value="LOCAL">Local / Mostrador</option>
-            <option value="WHATSAPP">WhatsApp</option>
-            <option value="ONLINE_STORE">Tienda Online</option>
-            <option value="INSTAGRAM">Instagram</option>
-          </select>
+        <div class="form-row">
+          <div class="form-group col">
+            <label>Fecha de Cumpleaños</label>
+            <input type="date" id="reg-birthdate">
+          </div>
+          <div class="form-group col">
+            <label>Canal Preferido</label>
+            <select id="reg-channel" class="form-control">
+              <option value="LOCAL">Local / Mostrador</option>
+              <option value="WHATSAPP">WhatsApp</option>
+              <option value="ONLINE_STORE">Tienda Online</option>
+              <option value="INSTAGRAM">Instagram</option>
+            </select>
+          </div>
         </div>
 
         <div class="form-group">
@@ -2287,71 +2293,6 @@
     </div>
   </div>
 
-  <!-- Modal: Registro de Nuevo Cliente -->
-  <div class="modal-backdrop" id="modal-register-customer">
-    <div class="modal-content" style="max-width: 600px;">
-      <div class="modal-header">
-        <h3><i data-lucide="user-plus"></i> Registrar Nuevo Cliente</h3>
-        <button class="btn-close" id="btn-close-customer-modal">&times;</button>
-      </div>
-      <form id="form-register-customer">
-        <div class="form-row">
-          <div class="form-group col">
-            <label>Nombre</label>
-            <input type="text" id="reg-firstname" placeholder="Ej: Valentina" required>
-          </div>
-          <div class="form-group col">
-            <label>Apellido</label>
-            <input type="text" id="reg-lastname" placeholder="Ej: Rossi" required>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group col">
-            <label>WhatsApp / Teléfono</label>
-            <input type="text" id="reg-phone" placeholder="Ej: +5491133221100" required>
-          </div>
-          <div class="form-group col">
-            <label>Correo Electrónico</label>
-            <input type="email" id="reg-email" placeholder="Ej: valentina@email.com">
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>Dirección de Entrega</label>
-          <input type="text" id="reg-address" placeholder="Ej: Av. Santa Fe 1234, CABA">
-        </div>
-
-        <div class="form-row">
-          <div class="form-group col">
-            <label>Fecha de Cumpleaños</label>
-            <input type="date" id="reg-birthdate">
-          </div>
-          <div class="form-group col">
-            <label>Canal Preferido</label>
-            <select id="reg-channel" class="form-control">
-              <option value="WHATSAPP">WhatsApp</option>
-              <option value="LOCAL">Local / Mostrador</option>
-              <option value="ONLINE_STORE">Tienda Online</option>
-              <option value="INSTAGRAM">Instagram</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>Preferencias Dietéticas / Alérgenos</label>
-          <div class="checkbox-group" id="reg-dietary-checkboxes" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-            <!-- Cargado por JS -->
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" id="btn-cancel-customer-modal">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Registrar Cliente</button>
-        </div>
-      </form>
-    </div>
-  </div>
 
   <!-- Modal: Crear Nueva Tarea Operativa / Kanban -->
   <div class="modal-backdrop" id="modal-new-task">
@@ -2611,59 +2552,7 @@
     </div>
   </div>
 
-  <!-- Modal 4: Alta de Nuevo Proveedor -->
-  <div class="modal-backdrop" id="modal-new-supplier">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3><i data-lucide="truck"></i> Registrar Nuevo Proveedor</h3>
-        <button class="btn-close" id="btn-close-supplier-modal">&times;</button>
-      </div>
-      <form id="form-create-supplier">
-        <div class="form-row">
-          <div class="form-group col">
-            <label>CUIT / Tax ID</label>
-            <input type="text" id="supp-cuit" placeholder="Ej: 30-70891234-9" required>
-          </div>
-          <div class="form-group col">
-            <label>Razón Social / Nombre Comercial</label>
-            <input type="text" id="supp-name" placeholder="Ej: Frutos del Valle S.A." required>
-          </div>
-        </div>
 
-        <div class="form-row">
-          <div class="form-group col">
-            <label>Nombre de Contacto</label>
-            <input type="text" id="supp-contact" placeholder="Ej: Roberto Gómez">
-          </div>
-          <div class="form-group col">
-            <label>Teléfono de Contacto / WhatsApp</label>
-            <input type="text" id="supp-phone" placeholder="Ej: +5491144332211" required>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group col">
-            <label>Correo Electrónico</label>
-            <input type="email" id="supp-email" placeholder="Ej: ventas@frutosdelvalle.com">
-          </div>
-          <div class="form-group col">
-            <label>Términos Comerciales / Pago</label>
-            <select id="supp-terms" class="form-control">
-              <option value="Cta Cte 30 días">Cta Cte 30 días</option>
-              <option value="Cta Cte 15 días">Cta Cte 15 días</option>
-              <option value="Contado (Desc 5%)">Contado (Desc 5%)</option>
-              <option value="Cheque 30 días">Cheque 30 días</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" id="btn-cancel-supplier-modal">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Guardar Proveedor</button>
-        </div>
-      </form>
-    </div>
-  </div>
 
   <!-- Modal 5: Visor de Detalles de Tarea Operativa -->
   <div class="modal-backdrop" id="modal-task-detail">
@@ -3092,6 +2981,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=2.7.0"></script>
+  <script src="app.js?v=2.8.0"></script>
 </body>
 </html>

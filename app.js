@@ -2608,7 +2608,30 @@ function initApp() {
       activeDietaryProfiles.push(newDiet);
 
       renderDietCardsList();
+      window.saveStateToLocalStorage();
       formCreateDiet.reset();
+      alert(`✅ Nueva preferencia dietética "${name}" guardada exitosamente.`);
+    });
+  }
+
+  // Handler del formulario de dietas en la sección de Configuración (Settings)
+  const formCreateDietSettings = document.getElementById('form-create-diet-settings');
+  if (formCreateDietSettings) {
+    formCreateDietSettings.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('diet-name-s')?.value.trim();
+      const code = document.getElementById('diet-code-s')?.value.trim().toUpperCase();
+      const color = document.getElementById('diet-color-s')?.value || '#5E7055';
+      const desc = document.getElementById('diet-desc-s')?.value.trim() || '';
+
+      if (!name || !code) return alert('⚠️ El nombre y código son obligatorios.');
+
+      const newDiet = { id: `d-${Date.now()}`, code, name, badgeColorHex: color, description: desc };
+      activeDietaryProfiles.push(newDiet);
+
+      renderDietCardsList();
+      window.saveStateToLocalStorage();
+      formCreateDietSettings.reset();
       alert(`✅ Nueva preferencia dietética "${name}" guardada exitosamente.`);
     });
   }
