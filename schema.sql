@@ -488,5 +488,30 @@ CREATE INDEX idx_tasks_order_id ON operational_tasks(order_id);
 
 CREATE TRIGGER trigger_update_task_timestamp BEFORE UPDATE ON operational_tasks FOR EACH ROW EXECUTE FUNCTION update_timestamp();
 
+-- =============================================================================
+-- MÓDULO DE CLASIFICACIÓN DE ARTÍCULOS (FAMILIAS Y SUB-FAMILIAS)
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS article_families (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    parent_id UUID REFERENCES article_families(id) ON DELETE SET NULL,
+    code VARCHAR(100) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    article_scope VARCHAR(50) NOT NULL DEFAULT 'ALL',
+    icon VARCHAR(100),
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE raw_materials ADD COLUMN IF NOT EXISTS family_id UUID REFERENCES article_families(id);
+ALTER TABLE final_products ADD COLUMN IF NOT EXISTS family_id UUID REFERENCES article_families(id);
+ALTER TABLE final_products ADD COLUMN IF NOT EXISTS is_blend BOOLEAN DEFAULT FALSE;
+ALTER TABLE final_products ADD COLUMN IF NOT EXISTS ingredients_json JSONB;
+ALTER TABLE packaging_materials ADD COLUMN IF NOT EXISTS family_id UUID REFERENCES article_families(id);
+
+
 
 

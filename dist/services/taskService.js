@@ -2,10 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TaskService = void 0;
 const uuid_1 = require("uuid");
-const customer_1 = require("../types/customer");
-/**
- * Datos iniciales en memoria para entorno de desarrollo o pruebas sin DB
- */
 const initialTasks = [
     {
         id: 'task-1001',
@@ -40,62 +36,21 @@ const initialTasks = [
         notes: 'Imprimir etiquetas térmicas NIIMBOT antes del sellado.',
         createdAt: '2026-07-24T11:30:00.000Z',
         updatedAt: '2026-07-24T12:00:00.000Z'
-    },
-    {
-        id: 'task-1003',
-        title: 'Control de Calidad en Lote L-ALM-2026-07',
-        description: 'Inspección de humedad y sellado de bolsas en lote de frutos secos.',
-        type: 'FRACTIONING',
-        status: 'QUALITY_CONTROL',
-        priority: 'HIGH',
-        assignedTo: 'Carlos Ruiz (Controlador)',
-        productId: 'rm-001',
-        productName: 'Almendras Peladas Selección',
-        quantity: 40,
-        unitOfMeasure: 'unidades',
-        dueDate: '2026-07-24',
-        notes: 'Revisión por muestreo aleatorio (5 unidades).',
-        createdAt: '2026-07-23T15:00:00.000Z',
-        updatedAt: '2026-07-24T09:00:00.000Z'
-    },
-    {
-        id: 'task-1004',
-        title: 'Limpieza y Sanitización de Contenedores de Harina',
-        description: 'Desinfección de tachos de almacenamiento a granel según protocolo sanitario.',
-        type: 'CLEANING',
-        status: 'COMPLETED',
-        priority: 'MEDIUM',
-        assignedTo: 'Equipo de Depósito',
-        dueDate: '2026-07-23',
-        completedAt: '2026-07-23T18:00:00.000Z',
-        notes: 'Sanitización con alcohol al 70% completada.',
-        createdAt: '2026-07-23T08:00:00.000Z',
-        updatedAt: '2026-07-23T18:00:00.000Z'
-    },
-    {
-        id: 'task-1005',
-        title: 'Revisión General de Insumos y Bolsas de Empaque',
-        description: 'Verificar stock de rollos térmicos para NIIMBOT B1 Pro y bolsas Kraft.',
-        type: 'GENERAL',
-        status: 'PENDING_FRACTIONING',
-        priority: 'LOW',
-        assignedTo: 'Sofía Gomez',
-        dueDate: '2026-07-26',
-        notes: 'Registrar faltantes para pedido a proveedor.',
-        createdAt: '2026-07-24T14:00:00.000Z',
-        updatedAt: '2026-07-24T14:00:00.000Z'
     }
 ];
 class TaskService {
     db;
+    saleService;
     inMemoryTasks = [...initialTasks];
     isTableInitialized = false;
-    constructor(db) {
+    fractioningService;
+    constructor(db, saleService) {
         this.db = db;
+        this.saleService = saleService;
     }
-    /**
-     * Asegura la existencia de la tabla operational_tasks en PostgreSQL
-     */
+    setFractioningService(fractioningService) {
+        this.fractioningService = fractioningService;
+    }
     async ensureTableExists() {
         if (this.isTableInitialized)
             return;
@@ -125,13 +80,9 @@ class TaskService {
             this.isTableInitialized = true;
         }
         catch (err) {
-            // Si la DB no está disponible, se operará en modo memoria
-            console.warn('⚠️ No se pudo verificar la tabla operational_tasks en DB. Usando almacenamiento en memoria fallback.');
+            // Fallback
         }
     }
-    /**
-     * Mapea una fila de la base de datos a la interfaz OperationalTask
-     */
     mapRowToTask(row) {
         return {
             id: row.id,
@@ -153,9 +104,6 @@ class TaskService {
             updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : new Date().toISOString()
         };
     }
-    /**
-     * Crea una nueva Tarea Operativa
-     */
     async createTask(dto) {
         await this.ensureTableExists();
         const now = new Date().toISOString();
@@ -189,7 +137,6 @@ class TaskService {
             return this.mapRowToTask(res.rows[0]);
         }
         catch (error) {
-            // Fallback a almacenamiento en memoria
             const newTask = {
                 id: `task-${(0, uuid_1.v4)().substring(0, 8)}`,
                 title: dto.title,
@@ -213,9 +160,6 @@ class TaskService {
             return newTask;
         }
     }
-    /**
-     * Obtiene el listado de tareas operativas filtradas
-     */
     async getTasks(filter = {}) {
         await this.ensureTableExists();
         try {
@@ -238,232 +182,82 @@ class TaskService {
                 query += ` AND assigned_to ILIKE $${valIdx++}`;
                 values.push(`%${filter.assignedTo}%`);
             }
-            if (filter.orderId) {
-                query += ` AND order_id = $${valIdx++}`;
-                values.push(filter.orderId);
-            }
-            if (filter.productId) {
-                query += ` AND product_id = $${valIdx++}`;
-                values.push(filter.productId);
-            }
-            if (filter.search) {
-                query += ` AND (title ILIKE $${valIdx} OR description ILIKE $${valIdx} OR product_name ILIKE $${valIdx} OR notes ILIKE $${valIdx})`;
-                values.push(`%${filter.search}%`);
-                valIdx++;
-            }
             query += ` ORDER BY created_at DESC`;
             const res = await this.db.query(query, values);
             const tasks = res.rows.map((row) => this.mapRowToTask(row));
-            return {
-                tasks,
-                total: tasks.length
-            };
+            return { tasks, total: tasks.length };
         }
         catch (error) {
-            // Fallback a filtrado en memoria
             let filtered = [...this.inMemoryTasks];
-            if (filter.type) {
+            if (filter.type)
                 filtered = filtered.filter((t) => t.type === filter.type);
-            }
-            if (filter.status) {
+            if (filter.status)
                 filtered = filtered.filter((t) => t.status === filter.status);
-            }
-            if (filter.priority) {
-                filtered = filtered.filter((t) => t.priority === filter.priority);
-            }
-            if (filter.assignedTo) {
-                filtered = filtered.filter((t) => t.assignedTo && t.assignedTo.toLowerCase().includes(filter.assignedTo.toLowerCase()));
-            }
-            if (filter.orderId) {
-                filtered = filtered.filter((t) => t.orderId === filter.orderId);
-            }
-            if (filter.productId) {
-                filtered = filtered.filter((t) => t.productId === filter.productId);
-            }
-            if (filter.search) {
-                const searchLower = filter.search.toLowerCase();
-                filtered = filtered.filter((t) => t.title.toLowerCase().includes(searchLower) ||
-                    (t.description && t.description.toLowerCase().includes(searchLower)) ||
-                    (t.productName && t.productName.toLowerCase().includes(searchLower)) ||
-                    (t.notes && t.notes.toLowerCase().includes(searchLower)));
-            }
-            const limit = filter.limit || 50;
-            const offset = filter.offset || 0;
-            const paginated = filtered.slice(offset, offset + limit);
-            return {
-                tasks: paginated,
-                total: filtered.length
-            };
+            return { tasks: filtered, total: filtered.length };
         }
     }
-    /**
-     * Obtiene una Tarea Operativa por su ID
-     */
     async getTaskById(id) {
-        await this.ensureTableExists();
-        try {
-            const res = await this.db.query(`SELECT * FROM operational_tasks WHERE id = $1`, [id]);
-            if (res.rows.length === 0) {
-                throw new Error(`Tarea operativa con ID ${id} no encontrada.`);
-            }
-            return this.mapRowToTask(res.rows[0]);
-        }
-        catch (error) {
-            const task = this.inMemoryTasks.find((t) => t.id === id);
-            if (!task) {
-                throw new Error(`Tarea operativa con ID ${id} no encontrada.`);
-            }
+        const task = this.inMemoryTasks.find((t) => t.id === id);
+        if (task)
             return task;
-        }
+        throw new Error(`Tarea operativa con ID ${id} no encontrada.`);
     }
-    /**
-     * Actualiza los datos generales de una Tarea Operativa
-     */
     async updateTask(id, dto) {
-        await this.ensureTableExists();
-        const existingTask = await this.getTaskById(id);
-        const now = new Date().toISOString();
-        const updatedStatus = dto.status || existingTask.status;
-        const completedAt = updatedStatus === 'COMPLETED'
-            ? existingTask.completedAt || now
-            : undefined;
-        try {
-            const query = `
-        UPDATE operational_tasks SET
-          title = COALESCE($1, title),
-          description = COALESCE($2, description),
-          type = COALESCE($3, type),
-          status = COALESCE($4, status),
-          priority = COALESCE($5, priority),
-          assigned_to = COALESCE($6, assigned_to),
-          order_id = COALESCE($7, order_id),
-          product_id = COALESCE($8, product_id),
-          product_name = COALESCE($9, product_name),
-          quantity = COALESCE($10, quantity),
-          unit_of_measure = COALESCE($11, unit_of_measure),
-          due_date = COALESCE($12, due_date),
-          notes = COALESCE($13, notes),
-          completed_at = $14,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = $15
-        RETURNING *
-      `;
-            const values = [
-                dto.title || null,
-                dto.description || null,
-                dto.type || null,
-                dto.status || null,
-                dto.priority || null,
-                dto.assignedTo || null,
-                dto.orderId || null,
-                dto.productId || null,
-                dto.productName || null,
-                dto.quantity || null,
-                dto.unitOfMeasure || null,
-                dto.dueDate || null,
-                dto.notes || null,
-                completedAt || null,
-                id
-            ];
-            const res = await this.db.query(query, values);
-            return this.mapRowToTask(res.rows[0]);
+        const index = this.inMemoryTasks.findIndex((t) => t.id === id);
+        if (index !== -1) {
+            this.inMemoryTasks[index] = { ...this.inMemoryTasks[index], ...dto };
+            return this.inMemoryTasks[index];
         }
-        catch (error) {
-            const index = this.inMemoryTasks.findIndex((t) => t.id === id);
-            if (index === -1) {
-                throw new Error(`Tarea operativa con ID ${id} no encontrada.`);
-            }
-            const updatedTask = {
-                ...this.inMemoryTasks[index],
-                title: dto.title !== undefined ? dto.title : this.inMemoryTasks[index].title,
-                description: dto.description !== undefined ? dto.description : this.inMemoryTasks[index].description,
-                type: dto.type !== undefined ? dto.type : this.inMemoryTasks[index].type,
-                status: updatedStatus,
-                priority: dto.priority !== undefined ? dto.priority : this.inMemoryTasks[index].priority,
-                assignedTo: dto.assignedTo !== undefined ? dto.assignedTo : this.inMemoryTasks[index].assignedTo,
-                orderId: dto.orderId !== undefined ? dto.orderId : this.inMemoryTasks[index].orderId,
-                productId: dto.productId !== undefined ? dto.productId : this.inMemoryTasks[index].productId,
-                productName: dto.productName !== undefined ? dto.productName : this.inMemoryTasks[index].productName,
-                quantity: dto.quantity !== undefined ? dto.quantity : this.inMemoryTasks[index].quantity,
-                unitOfMeasure: dto.unitOfMeasure !== undefined ? dto.unitOfMeasure : this.inMemoryTasks[index].unitOfMeasure,
-                dueDate: dto.dueDate !== undefined ? dto.dueDate : this.inMemoryTasks[index].dueDate,
-                completedAt,
-                notes: dto.notes !== undefined ? dto.notes : this.inMemoryTasks[index].notes,
-                updatedAt: now
-            };
-            this.inMemoryTasks[index] = updatedTask;
-            return updatedTask;
-        }
+        throw new Error(`Tarea con ID ${id} no encontrada.`);
     }
-    /**
-     * Actualiza el estado Kanban de una Tarea Operativa
-     */
     async updateTaskStatus(id, dto) {
-        await this.ensureTableExists();
-        const existingTask = await this.getTaskById(id);
+        const task = await this.getTaskById(id).catch(() => null);
+        if (task && dto.status === 'COMPLETED' && task.status !== 'COMPLETED' && task.type === 'FRACTIONING' && task.notes) {
+            try {
+                const payload = JSON.parse(task.notes);
+                if (payload.rawMaterialId && payload.finalProductId && payload.inputQtyKg) {
+                    if (this.fractioningService) {
+                        await this.fractioningService.finalizeStockIntegration(payload);
+                    }
+                }
+            }
+            catch {
+                // Notes text standard format
+            }
+        }
         const now = new Date().toISOString();
-        const completedAt = dto.status === 'COMPLETED' ? now : undefined;
-        try {
-            const query = `
-        UPDATE operational_tasks SET
-          status = $1,
-          notes = COALESCE($2, notes),
-          assigned_to = COALESCE($3, assigned_to),
-          completed_at = $4,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = $5
-        RETURNING *
-      `;
-            const values = [dto.status, dto.notes || null, dto.assignedTo || null, completedAt || null, id];
-            const res = await this.db.query(query, values);
-            return this.mapRowToTask(res.rows[0]);
-        }
-        catch (error) {
-            const index = this.inMemoryTasks.findIndex((t) => t.id === id);
-            if (index === -1) {
-                throw new Error(`Tarea operativa con ID ${id} no encontrada.`);
+        if (this.db) {
+            try {
+                const query = `
+          UPDATE operational_tasks 
+          SET status = $1, completed_at = CASE WHEN $1 = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE completed_at END, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $2
+          RETURNING *;
+        `;
+                const res = await this.db.query(query, [dto.status, id]);
+                if (res.rows[0])
+                    return this.mapRowToTask(res.rows[0]);
             }
-            const updatedTask = {
-                ...this.inMemoryTasks[index],
-                status: dto.status,
-                notes: dto.notes ? `${this.inMemoryTasks[index].notes || ''}\n${dto.notes}`.trim() : this.inMemoryTasks[index].notes,
-                assignedTo: dto.assignedTo || this.inMemoryTasks[index].assignedTo,
-                completedAt: dto.status === 'COMPLETED' ? now : undefined,
-                updatedAt: now
-            };
-            this.inMemoryTasks[index] = updatedTask;
-            return updatedTask;
+            catch { }
         }
+        const index = this.inMemoryTasks.findIndex((t) => t.id === id);
+        if (index !== -1) {
+            this.inMemoryTasks[index].status = dto.status;
+            if (dto.status === 'COMPLETED') {
+                this.inMemoryTasks[index].completedAt = now;
+            }
+            return this.inMemoryTasks[index];
+        }
+        throw new Error(`Tarea con ID ${id} no encontrada.`);
     }
-    /**
-     * Elimina una Tarea Operativa
-     */
     async deleteTask(id) {
-        await this.ensureTableExists();
-        try {
-            const res = await this.db.query(`DELETE FROM operational_tasks WHERE id = $1`, [id]);
-            if (res.rowCount === 0) {
-                throw new Error(`Tarea con ID ${id} no encontrada.`);
-            }
-            return true;
-        }
-        catch (error) {
-            const index = this.inMemoryTasks.findIndex((t) => t.id === id);
-            if (index === -1) {
-                throw new Error(`Tarea con ID ${id} no encontrada.`);
-            }
+        const index = this.inMemoryTasks.findIndex((t) => t.id === id);
+        if (index !== -1) {
             this.inMemoryTasks.splice(index, 1);
             return true;
         }
+        return false;
     }
-    /**
-     * Obtiene la estructura estructurada del Tablero Kanban Operativo
-     * Organizado en las 4 columnas principales:
-     * 1. PENDING_FRACTIONING (Pendiente de Fraccionado)
-     * 2. PACKAGING_IN_PROGRESS (Empaque en Proceso)
-     * 3. QUALITY_CONTROL (Control de Calidad)
-     * 4. COMPLETED (Completado)
-     */
     async getKanbanBoard() {
         const { tasks } = await this.getTasks({ limit: 500 });
         const board = {
@@ -483,13 +277,7 @@ class TaskService {
         return board;
     }
     /**
-     * Obtiene la estructura estructurada del Tablero Kanban de Ventas/Pedidos
-     * Organizado en los 5 estados especificados:
-     * 1. RECEIVED (Recibido)
-     * 2. IN_PREPARATION (En Preparación)
-     * 3. READY_FOR_DELIVERY (Listo para Entrega)
-     * 4. IN_DELIVERY (En Camino / En Reparto)
-     * 5. DELIVERED (Entregado / Completado)
+     * Obtiene el Tablero Kanban de Ventas/Pedidos
      */
     async getSalesKanbanBoard() {
         const salesBoard = {
@@ -499,28 +287,25 @@ class TaskService {
             IN_DELIVERY: [],
             DELIVERED: []
         };
-        try {
-            const res = await this.db.query(`SELECT o.*, c.first_name, c.last_name FROM orders o
-         LEFT JOIN customers c ON o.customer_id = c.id
-         ORDER BY o.created_at DESC`);
-            res.rows.forEach((row) => {
-                const statusMap = {
-                    RECEIVED: 'RECEIVED',
-                    PENDING: 'RECEIVED',
-                    IN_PREPARATION: 'IN_PREPARATION',
-                    PREPARING: 'IN_PREPARATION',
-                    READY_FOR_DELIVERY: 'READY_FOR_DELIVERY',
-                    READY: 'READY_FOR_DELIVERY',
-                    IN_DELIVERY: 'IN_DELIVERY',
-                    DELIVERED: 'DELIVERED'
-                };
-                const mappedStatus = statusMap[row.status] || 'RECEIVED';
-                const orderItem = {
+        let allOrders = [];
+        // Intenta obtener pedidos desde SaleService
+        if (this.saleService) {
+            try {
+                const result = await this.saleService.getOrders();
+                allOrders = result.orders || [];
+            }
+            catch { }
+        }
+        if (allOrders.length === 0) {
+            try {
+                const res = await this.db.query(`SELECT o.*, c.first_name, c.last_name FROM orders o
+           LEFT JOIN customers c ON o.customer_id = c.id
+           ORDER BY o.created_at DESC`);
+                allOrders = res.rows.map(row => ({
                     id: row.id,
                     orderNumber: row.order_number,
                     customerId: row.customer_id,
                     customerName: row.first_name ? `${row.first_name} ${row.last_name}` : 'Cliente Registrado',
-                    quoteId: row.quote_id,
                     channel: row.channel,
                     status: row.status,
                     paymentStatus: row.payment_status,
@@ -531,126 +316,31 @@ class TaskService {
                     paidAmount: parseFloat(row.paid_amount || 0),
                     balanceDue: parseFloat(row.balance_due || 0),
                     pointsEarned: row.points_earned || 0,
-                    deliveryAddress: row.delivery_address,
-                    notes: row.notes,
                     items: [],
                     createdAt: row.created_at,
                     updatedAt: row.updated_at
-                };
-                salesBoard[mappedStatus].push(orderItem);
-            });
+                }));
+            }
+            catch { }
         }
-        catch (err) {
-            // Fallback mock para tablero de ventas si DB no responde
-            const mockSalesOrders = [
-                {
-                    id: 'ord-001',
-                    orderNumber: 'PED-20260724-0001',
-                    customerId: 'c1000000-0000-0000-0000-000000000001',
-                    customerName: 'Martina Gómez',
-                    channel: customer_1.AcquisitionChannel.WHATSAPP,
-                    status: 'RECEIVED',
-                    paymentStatus: 'UNPAID',
-                    subtotal: 12500,
-                    discountAmount: 0,
-                    deliveryFee: 1500,
-                    totalAmount: 14000,
-                    paidAmount: 0,
-                    balanceDue: 14000,
-                    pointsEarned: 140,
-                    deliveryAddress: 'Av. Corrientes 3421, CABA',
-                    notes: 'Entregar preferentemente por la tarde.',
-                    items: [],
-                    createdAt: '2026-07-24T14:00:00Z',
-                    updatedAt: '2026-07-24T14:00:00Z'
-                },
-                {
-                    id: 'ord-002',
-                    orderNumber: 'PED-20260724-0002',
-                    customerId: 'c2000000-0000-0000-0000-000000000002',
-                    customerName: 'Lucas Benítez',
-                    channel: customer_1.AcquisitionChannel.LOCAL,
-                    status: 'IN_PREPARATION',
-                    paymentStatus: 'PAID',
-                    subtotal: 28500,
-                    discountAmount: 1000,
-                    deliveryFee: 0,
-                    totalAmount: 27500,
-                    paidAmount: 27500,
-                    balanceDue: 0,
-                    pointsEarned: 275,
-                    notes: 'Cliente retira por mostrador.',
-                    items: [],
-                    createdAt: '2026-07-24T12:30:00Z',
-                    updatedAt: '2026-07-24T13:00:00Z'
-                },
-                {
-                    id: 'ord-003',
-                    orderNumber: 'PED-20260723-0005',
-                    customerId: 'c1000000-0000-0000-0000-000000000001',
-                    customerName: 'Martina Gómez',
-                    channel: customer_1.AcquisitionChannel.ONLINE_STORE,
-                    status: 'READY_FOR_DELIVERY',
-                    paymentStatus: 'PAID',
-                    subtotal: 18000,
-                    discountAmount: 0,
-                    deliveryFee: 2000,
-                    totalAmount: 20000,
-                    paidAmount: 20000,
-                    balanceDue: 0,
-                    pointsEarned: 200,
-                    deliveryAddress: 'Av. Corrientes 3421, CABA',
-                    items: [],
-                    createdAt: '2026-07-23T16:00:00Z',
-                    updatedAt: '2026-07-24T09:00:00Z'
-                },
-                {
-                    id: 'ord-004',
-                    orderNumber: 'PED-20260723-0003',
-                    customerId: 'c2000000-0000-0000-0000-000000000002',
-                    customerName: 'Lucas Benítez',
-                    channel: customer_1.AcquisitionChannel.WHATSAPP,
-                    status: 'IN_DELIVERY',
-                    paymentStatus: 'PAID',
-                    subtotal: 9500,
-                    discountAmount: 0,
-                    deliveryFee: 1500,
-                    totalAmount: 11000,
-                    paidAmount: 11000,
-                    balanceDue: 0,
-                    pointsEarned: 110,
-                    deliveryAddress: 'Calle Florida 890, CABA',
-                    items: [],
-                    createdAt: '2026-07-23T11:00:00Z',
-                    updatedAt: '2026-07-24T10:15:00Z'
-                },
-                {
-                    id: 'ord-005',
-                    orderNumber: 'PED-20260722-0001',
-                    customerId: 'c1000000-0000-0000-0000-000000000001',
-                    customerName: 'Martina Gómez',
-                    channel: customer_1.AcquisitionChannel.INSTAGRAM,
-                    status: 'DELIVERED',
-                    paymentStatus: 'PAID',
-                    subtotal: 31000,
-                    discountAmount: 2000,
-                    deliveryFee: 0,
-                    totalAmount: 29000,
-                    paidAmount: 29000,
-                    balanceDue: 0,
-                    pointsEarned: 290,
-                    items: [],
-                    createdAt: '2026-07-22T10:00:00Z',
-                    updatedAt: '2026-07-22T17:30:00Z'
-                }
-            ];
-            mockSalesOrders.forEach((order) => {
-                const mappedStatus = order.status || 'RECEIVED';
-                if (salesBoard[mappedStatus]) {
-                    salesBoard[mappedStatus].push(order);
-                }
-            });
-        }
+        const statusMap = {
+            RECEIVED: 'RECEIVED',
+            PENDING: 'RECEIVED',
+            IN_PREPARATION: 'IN_PREPARATION',
+            PREPARING: 'IN_PREPARATION',
+            'EN PREPARACIÓN': 'IN_PREPARATION',
+            READY_FOR_DELIVERY: 'READY_FOR_DELIVERY',
+            READY: 'READY_FOR_DELIVERY',
+            LISTO: 'READY_FOR_DELIVERY',
+            IN_DELIVERY: 'IN_DELIVERY',
+            DELIVERED: 'DELIVERED',
+            ENTREGADO: 'DELIVERED',
+            COMPLETED: 'DELIVERED'
+        };
+        allOrders.forEach((order) => {
+            const mappedStatus = statusMap[order.status] || 'RECEIVED';
+            salesBoard[mappedStatus].push(order);
+        });
         return salesBoard;
     }
 }

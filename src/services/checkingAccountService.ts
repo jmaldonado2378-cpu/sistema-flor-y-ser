@@ -181,6 +181,72 @@ export class CheckingAccountService {
   }
 
   /**
+   * Obtiene la lista completa de cuentas corrientes de todos los clientes activos.
+   */
+  public async getAllAccounts(): Promise<CheckingAccountSummary[]> {
+    try {
+      const query = `
+        SELECT 
+          c.id as customer_id,
+          c.first_name,
+          c.last_name,
+          c.phone_whatsapp,
+          c.email,
+          c.credit_limit,
+          c.current_account_balance,
+          (SELECT MAX(created_at) FROM customer_account_movements WHERE customer_id = c.id) as last_movement_date
+        FROM customers c
+        WHERE c.is_active = true
+        ORDER BY c.current_account_balance DESC, c.last_name ASC;
+      `;
+      const res = await this.db.query(query);
+      if (res.rows.length > 0) {
+        return res.rows.map(row => {
+          const creditLimit = parseFloat(row.credit_limit || '50000');
+          const currentBalance = parseFloat(row.current_account_balance || '0');
+          return {
+            customerId: row.customer_id,
+            customerName: `${row.first_name} ${row.last_name}`,
+            phoneWhatsapp: row.phone_whatsapp,
+            email: row.email,
+            creditLimit,
+            currentBalance,
+            balance: currentBalance,
+            availableCredit: Math.max(0, creditLimit - currentBalance),
+            lastMovementDate: row.last_movement_date ? (row.last_movement_date.toISOString ? row.last_movement_date.toISOString() : row.last_movement_date) : undefined
+          };
+        });
+      }
+    } catch {}
+
+    // Fallback en memoria si la BD no responde
+    return [
+      {
+        customerId: 'c1000000-0000-0000-0000-000000000001',
+        customerName: 'Martina Gómez',
+        phoneWhatsapp: '+5491155439821',
+        email: 'martina.gomez@email.com',
+        creditLimit: 50000,
+        currentBalance: 8500,
+        balance: 8500,
+        availableCredit: 41500,
+        lastMovementDate: new Date().toISOString()
+      },
+      {
+        customerId: 'c2000000-0000-0000-0000-000000000002',
+        customerName: 'Lucas Benítez',
+        phoneWhatsapp: '+5491144321199',
+        email: 'lucas.benitez@email.com',
+        creditLimit: 100000,
+        currentBalance: 0,
+        balance: 0,
+        availableCredit: 100000,
+        lastMovementDate: undefined
+      }
+    ];
+  }
+
+  /**
    * Actualiza el límite de crédito de un cliente.
    */
   public async updateCreditLimit(customerId: string, creditLimit: number): Promise<CheckingAccountSummary> {

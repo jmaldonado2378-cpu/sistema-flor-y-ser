@@ -54,7 +54,7 @@ export class CustomerController {
 
       res.status(500).json({
         success: false,
-        error: 'Error interno del servidor al registrar el cliente.',
+        error: error.message || 'Error interno del servidor al registrar el cliente.',
         details: error.message
       });
     }

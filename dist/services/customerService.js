@@ -118,8 +118,9 @@ class CustomerService {
             throw new Error('Nombre, apellido y número de WhatsApp son obligatorios para registrar un cliente.');
         }
         const cleanPhone = dto.phoneWhatsapp.trim().replace(/\s+/g, '');
-        const client = await this.db.connect();
+        let client = null;
         try {
+            client = await this.db.connect();
             await client.query('BEGIN');
             const customerInsertQuery = `
         INSERT INTO customers (
@@ -150,15 +151,25 @@ class CustomerService {
             return await this.getUnifiedProfile(customerId);
         }
         catch (error) {
-            await client.query('ROLLBACK');
-            if (error.code === '23505') {
+            if (client) {
+                try {
+                    await client.query('ROLLBACK');
+                }
+                catch { }
+            }
+            if (error.code === '23505' || (error.message && error.message.includes('Ya existe un cliente'))) {
                 throw new Error(`Ya existe un cliente registrado con el número de teléfono o correo especificado.`);
             }
-            // Fallback a almacenamiento en memoria si no hay servidor BD activo
+            // Fallback a almacenamiento en memoria si no hay servidor BD activo o falla la BD
             return this.createCustomerInMemory(dto);
         }
         finally {
-            client.release();
+            if (client) {
+                try {
+                    client.release();
+                }
+                catch { }
+            }
         }
     }
     createCustomerInMemory(dto) {
@@ -296,6 +307,9 @@ class CustomerService {
             throw new Error(`Cliente con ID ${customerId} no encontrado.`);
         }
         return found;
+    }
+    async getById(customerId) {
+        return this.getUnifiedProfile(customerId);
     }
     /**
      * Búsqueda y filtrado de clientes para la tabla / catálogo CRM.

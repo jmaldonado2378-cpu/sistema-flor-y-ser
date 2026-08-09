@@ -5,6 +5,26 @@ export class CheckingAccountController {
   constructor(private checkingAccountService: CheckingAccountService) {}
 
   /**
+   * GET /api/v1/sales/checking-accounts
+   * Obtiene la lista completa de cuentas corrientes de todos los clientes.
+   */
+  public getAllAccounts = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const accounts = await this.checkingAccountService.getAllAccounts();
+      res.json({
+        status: 'SUCCESS',
+        count: accounts.length,
+        data: accounts
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        error: 'INTERNAL_SERVER_ERROR',
+        message: error.message || 'Error al obtener cuentas corrientes.'
+      });
+    }
+  };
+
+  /**
    * GET /api/v1/sales/customers/:customerId/checking-account
    * Obtiene el resumen del estado de cuenta corriente de un cliente.
    */

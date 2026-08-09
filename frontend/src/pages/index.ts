@@ -1,0 +1,16 @@
+export { DashboardPage } from './DashboardPage';
+export { CustomersPage } from './CustomersPage';
+export { SalesPage } from './SalesPage';
+export { StockPage } from './StockPage';
+export { SuppliersPage } from './SuppliersPage';
+export { ReceiptsPage } from './ReceiptsPage';
+export { FractioningPage } from './FractioningPage';
+export { OrdersKanbanPage } from './OrdersKanbanPage';
+export { CheckingAccountsPage } from './CheckingAccountsPage';
+export { AccountsPayablePage } from './AccountsPayablePage';
+export { ExpensesPage } from './ExpensesPage';
+export { PricingPage } from './PricingPage';
+export { TasksKanbanPage } from './TasksKanbanPage';
+export { LabelsPage } from './LabelsPage';
+export { SettingsPage } from './SettingsPage';
+export { ArticleFamiliesPage } from './ArticleFamiliesPage';

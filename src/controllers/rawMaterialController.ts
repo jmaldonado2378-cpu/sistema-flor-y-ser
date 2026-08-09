@@ -60,4 +60,19 @@ export class RawMaterialController {
       res.status(500).json({ status: 'ERROR', message: error.message });
     }
   };
+
+  update = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const updated = await this.rawMaterialService.update(id, req.body);
+      if (!updated) {
+        res.status(404).json({ status: 'ERROR', message: 'Materia prima no encontrada.' });
+        return;
+      }
+      res.json({ status: 'SUCCESS', data: updated });
+    } catch (error: any) {
+      res.status(500).json({ status: 'ERROR', message: error.message });
+    }
+  };
 }
+

@@ -127,9 +127,10 @@ export class CustomerService {
     }
 
     const cleanPhone = dto.phoneWhatsapp.trim().replace(/\s+/g, '');
-    const client = await this.db.connect();
+    let client: any = null;
 
     try {
+      client = await this.db.connect();
       await client.query('BEGIN');
 
       const customerInsertQuery = `
@@ -168,14 +169,18 @@ export class CustomerService {
       return await this.getUnifiedProfile(customerId);
 
     } catch (error: any) {
-      await client.query('ROLLBACK');
-      if (error.code === '23505') {
+      if (client) {
+        try { await client.query('ROLLBACK'); } catch {}
+      }
+      if (error.code === '23505' || (error.message && error.message.includes('Ya existe un cliente'))) {
         throw new Error(`Ya existe un cliente registrado con el número de teléfono o correo especificado.`);
       }
-      // Fallback a almacenamiento en memoria si no hay servidor BD activo
+      // Fallback a almacenamiento en memoria si no hay servidor BD activo o falla la BD
       return this.createCustomerInMemory(dto);
     } finally {
-      client.release();
+      if (client) {
+        try { client.release(); } catch {}
+      }
     }
   }
 
@@ -326,6 +331,10 @@ export class CustomerService {
       throw new Error(`Cliente con ID ${customerId} no encontrado.`);
     }
     return found;
+  }
+
+  async getById(customerId: string): Promise<UnifiedCustomerProfile> {
+    return this.getUnifiedProfile(customerId);
   }
 
   /**

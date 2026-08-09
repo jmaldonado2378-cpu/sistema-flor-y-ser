@@ -152,6 +152,7 @@ export interface CheckingAccountSummary {
   email?: string;
   creditLimit: number;
   currentBalance: number; // Saldo deudor positivo = debe dinero; negativo = saldo a favor
+  balance?: number;
   availableCredit: number;
   lastMovementDate?: string;
 }

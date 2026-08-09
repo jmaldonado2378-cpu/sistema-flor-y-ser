@@ -12,15 +12,16 @@ class SaleController {
      */
     create = async (req, res) => {
         try {
-            const { customerId, channel, items } = req.body;
-            if (!customerId || !channel || !items || !Array.isArray(items) || items.length === 0) {
+            const { customerId, items } = req.body;
+            const channel = req.body.channel || 'LOCAL';
+            if (!customerId || !items || !Array.isArray(items) || items.length === 0) {
                 res.status(400).json({
                     error: 'BAD_REQUEST',
-                    message: 'Debe especificar customerId, channel e items (un array no vacío con al menos un producto).'
+                    message: 'Debe especificar customerId e items (un array no vacío con al menos un producto).'
                 });
                 return;
             }
-            const order = await this.saleService.createOrder(req.body);
+            const order = await this.saleService.createOrder({ ...req.body, channel });
             res.status(201).json({
                 status: 'SUCCESS',
                 message: 'Pedido / Venta creado exitosamente.',

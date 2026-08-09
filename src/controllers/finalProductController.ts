@@ -17,7 +17,8 @@ export class FinalProductController {
     try {
       const { 
         rawMaterialId, code, barcode, name, unitWeightGrams, netContentLabel, 
-        currentStock, minStock, price, ingredients, dietaryBadgeCodes, defaultExpirationDays 
+        currentStock, minStock, price, ingredients, dietaryBadgeCodes, defaultExpirationDays,
+        familyId, isBlend, ingredientsList
       } = req.body;
 
       if (!code || !name || unitWeightGrams === undefined || currentStock === undefined) {
@@ -37,7 +38,10 @@ export class FinalProductController {
         price: price ? parseFloat(price) : 0,
         ingredients,
         dietaryBadgeCodes,
-        defaultExpirationDays: defaultExpirationDays ? parseInt(defaultExpirationDays, 10) : 180
+        defaultExpirationDays: defaultExpirationDays ? parseInt(defaultExpirationDays, 10) : 180,
+        familyId,
+        isBlend: Boolean(isBlend),
+        ingredientsList: Array.isArray(ingredientsList) ? ingredientsList : []
       });
 
       res.status(201).json({ status: 'SUCCESS', data: created });
@@ -67,4 +71,19 @@ export class FinalProductController {
       res.status(500).json({ status: 'ERROR', message: error.message });
     }
   };
+
+  update = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const updated = await this.finalProductService.update(id, req.body);
+      if (!updated) {
+        res.status(404).json({ status: 'ERROR', message: 'Producto final no encontrado.' });
+        return;
+      }
+      res.json({ status: 'SUCCESS', data: updated });
+    } catch (error: any) {
+      res.status(500).json({ status: 'ERROR', message: error.message });
+    }
+  };
 }
+

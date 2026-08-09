@@ -49,11 +49,13 @@ class FractioningService {
     db;
     rawMaterialService;
     finalProductService;
+    taskService;
     inMemoryOrders = [...initialFractioningOrders];
-    constructor(db, rawMaterialService, finalProductService) {
+    constructor(db, rawMaterialService, finalProductService, taskService) {
         this.db = db;
         this.rawMaterialService = rawMaterialService;
         this.finalProductService = finalProductService;
+        this.taskService = taskService;
     }
     async calculatePreview(dto) {
         const rawMaterial = await this.rawMaterialService.getById(dto.rawMaterialId);
@@ -66,14 +68,11 @@ class FractioningService {
         }
         const unitWeightGrams = finalProduct.unitWeightGrams || 250;
         const inputQtyKg = dto.inputQtyKg || 0;
-        // Unidades teóricas esperadas = (kg * 1000) / gramos_unitarios
         const targetUnits = Math.floor((inputQtyKg * 1000) / unitWeightGrams);
         const actualOutputUnits = dto.actualOutputUnits !== undefined ? dto.actualOutputUnits : targetUnits;
-        // Cálculo de output real y merma
         const expectedOutputKg = (actualOutputUnits * unitWeightGrams) / 1000;
         const wasteKg = Math.max(0, parseFloat((inputQtyKg - expectedOutputKg).toFixed(3)));
         const wastePercentage = inputQtyKg > 0 ? parseFloat(((wasteKg / inputQtyKg) * 100).toFixed(2)) : 0;
-        // Generar sugerencia de Lote y Fecha de Vencimiento
         const today = new Date();
         const dateStr = today.toISOString().split('T')[0].replace(/-/g, '');
         const suggestedBatch = `LOT-${dateStr}-${Math.floor(100 + Math.random() * 900)}`;
@@ -99,17 +98,17 @@ class FractioningService {
             hasSufficientStock
         };
     }
-    async executeFractioning(dto) {
+    /**
+     * Finaliza la integración de stock de una orden de fraccionamiento al completarse la tarea en el Kanban.
+     */
+    async finalizeStockIntegration(dto) {
         const rawMaterial = await this.rawMaterialService.getById(dto.rawMaterialId);
         if (!rawMaterial)
             throw new Error('Materia prima no encontrada.');
-        if (rawMaterial.currentStock < dto.inputQtyKg) {
-            throw new Error(`Stock insuficiente de materia prima "${rawMaterial.name}". Disponible: ${rawMaterial.currentStock} kg, Requerido: ${dto.inputQtyKg} kg.`);
-        }
         const finalProduct = await this.finalProductService.getById(dto.finalProductId);
         if (!finalProduct)
             throw new Error('Producto final no encontrado.');
-        const unitWeightGrams = finalProduct.unitWeightGrams;
+        const unitWeightGrams = finalProduct.unitWeightGrams || 250;
         const targetUnits = Math.floor((dto.inputQtyKg * 1000) / unitWeightGrams);
         const actualOutputUnits = dto.actualOutputUnits;
         const expectedOutputKg = (actualOutputUnits * unitWeightGrams) / 1000;
@@ -120,115 +119,165 @@ class FractioningService {
         const generatedBatch = dto.generatedBatch || `LOT-${dateStr}-${Math.floor(100 + Math.random() * 900)}`;
         const rawNewStock = parseFloat((rawMaterial.currentStock - dto.inputQtyKg).toFixed(3));
         const finalNewStock = finalProduct.currentStock + actualOutputUnits;
-        // Intentar transacción en DB PostgreSQL
-        try {
-            const client = await this.db.connect();
+        if (this.db) {
             try {
-                await client.query('BEGIN');
-                // 1. Descargar stock de materia prima
-                await client.query(`UPDATE raw_materials SET current_stock = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [rawNewStock, rawMaterial.id]);
-                // 2. Incrementar stock de producto final
-                await client.query(`UPDATE final_products SET current_stock = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [finalNewStock, finalProduct.id]);
-                // 3. Crear orden de fraccionado
-                const orderRes = await client.query(`
-          INSERT INTO fractioning_orders (
-            order_number, raw_material_id, final_product_id, input_qty_kg, target_units, actual_output_units,
-            waste_kg, waste_percentage, waste_reason, raw_material_batch, generated_batch,
-            expiration_date, operator_name, notes
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-          RETURNING id, order_number AS "orderNumber", fractioning_date AS "fractioningDate", created_at AS "createdAt";
-        `, [
-                    orderNumber,
-                    rawMaterial.id,
-                    finalProduct.id,
-                    dto.inputQtyKg,
-                    targetUnits,
-                    actualOutputUnits,
-                    wasteKg,
-                    wastePercentage,
-                    dto.wasteReason || 'Merma normal de fraccionado',
-                    dto.rawMaterialBatch,
-                    generatedBatch,
-                    dto.expirationDate,
-                    dto.operatorName,
-                    dto.notes || null
-                ]);
-                const orderId = orderRes.rows[0].id;
-                // 4. Registrar movimientos de auditoría
-                await client.query(`
-          INSERT INTO stock_movements (item_type, item_id, movement_type, quantity, previous_stock, new_stock, reference_id, notes)
-          VALUES ('RAW_MATERIAL', $1, 'FRACTIONING_OUT', $2, $3, $4, $5, $6);
-        `, [rawMaterial.id, dto.inputQtyKg, rawMaterial.currentStock, rawNewStock, orderId, `Fraccionado en ${actualOutputUnits} un. de ${finalProduct.name}`]);
-                await client.query(`
-          INSERT INTO stock_movements (item_type, item_id, movement_type, quantity, previous_stock, new_stock, reference_id, notes)
-          VALUES ('FINAL_PRODUCT', $1, 'FRACTIONING_IN', $2, $3, $4, $5, $6);
-        `, [finalProduct.id, actualOutputUnits, finalProduct.currentStock, finalNewStock, orderId, `Alta por fraccionado lote ${generatedBatch}`]);
-                if (wasteKg > 0) {
-                    await client.query(`
-            INSERT INTO stock_movements (item_type, item_id, movement_type, quantity, previous_stock, new_stock, reference_id, notes)
-            VALUES ('RAW_MATERIAL', $1, 'WASTE', $2, $3, $3, $4, $5);
-          `, [rawMaterial.id, wasteKg, rawNewStock, orderId, `Merma registrada (${wastePercentage}%): ${dto.wasteReason || 'Fraccionado'}`]);
+                const client = await this.db.connect();
+                try {
+                    await client.query('BEGIN');
+                    await client.query(`UPDATE raw_materials SET current_stock = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [rawNewStock, rawMaterial.id]);
+                    await client.query(`UPDATE final_products SET current_stock = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [finalNewStock, finalProduct.id]);
+                    const orderRes = await client.query(`
+            INSERT INTO fractioning_orders (
+              order_number, raw_material_id, final_product_id, input_qty_kg, target_units, actual_output_units,
+              waste_kg, waste_percentage, waste_reason, raw_material_batch, generated_batch,
+              expiration_date, operator_name, notes
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            RETURNING id, order_number AS "orderNumber", fractioning_date AS "fractioningDate", created_at AS "createdAt";
+          `, [
+                        orderNumber,
+                        rawMaterial.id,
+                        finalProduct.id,
+                        dto.inputQtyKg,
+                        targetUnits,
+                        actualOutputUnits,
+                        wasteKg,
+                        wastePercentage,
+                        dto.wasteReason || 'Merma normal de fraccionado',
+                        dto.rawMaterialBatch,
+                        generatedBatch,
+                        dto.expirationDate,
+                        dto.operatorName,
+                        dto.notes || null
+                    ]);
+                    await client.query('COMMIT');
+                    const createdOrder = {
+                        id: orderRes.rows[0].id,
+                        orderNumber,
+                        rawMaterialId: rawMaterial.id,
+                        rawMaterialName: rawMaterial.name,
+                        finalProductId: finalProduct.id,
+                        finalProductName: finalProduct.name,
+                        inputQtyKg: dto.inputQtyKg,
+                        targetUnits,
+                        actualOutputUnits,
+                        wasteKg,
+                        wastePercentage,
+                        wasteReason: dto.wasteReason || 'Merma normal de fraccionado',
+                        rawMaterialBatch: dto.rawMaterialBatch,
+                        generatedBatch,
+                        fractioningDate: orderRes.rows[0].fractioningDate ? new Date(orderRes.rows[0].fractioningDate).toISOString() : new Date().toISOString(),
+                        expirationDate: dto.expirationDate,
+                        operatorName: dto.operatorName,
+                        notes: dto.notes,
+                        createdAt: new Date().toISOString()
+                    };
+                    return { order: createdOrder, rawMaterialNewStock: rawNewStock, finalProductNewStock: finalNewStock };
                 }
-                await client.query('COMMIT');
-                const createdOrder = {
-                    id: orderId,
-                    orderNumber,
-                    rawMaterialId: rawMaterial.id,
-                    rawMaterialName: rawMaterial.name,
-                    finalProductId: finalProduct.id,
-                    finalProductName: finalProduct.name,
-                    inputQtyKg: dto.inputQtyKg,
-                    targetUnits,
-                    actualOutputUnits,
-                    wasteKg,
-                    wastePercentage,
-                    wasteReason: dto.wasteReason || 'Merma normal de fraccionado',
-                    rawMaterialBatch: dto.rawMaterialBatch,
-                    generatedBatch,
-                    fractioningDate: orderRes.rows[0].fractioningDate ? new Date(orderRes.rows[0].fractioningDate).toISOString() : new Date().toISOString(),
-                    expirationDate: dto.expirationDate,
-                    operatorName: dto.operatorName,
-                    notes: dto.notes,
-                    createdAt: new Date().toISOString()
-                };
-                return { order: createdOrder, rawMaterialNewStock: rawNewStock, finalProductNewStock: finalNewStock };
+                catch (err) {
+                    await client.query('ROLLBACK');
+                    throw err;
+                }
+                finally {
+                    client.release();
+                }
             }
-            catch (err) {
-                await client.query('ROLLBACK');
-                throw err;
-            }
-            finally {
-                client.release();
+            catch {
+                // Fallback
             }
         }
-        catch {
-            // Fallback in-memory
-            await this.rawMaterialService.updateStock(rawMaterial.id, rawNewStock);
-            await this.finalProductService.updateStock(finalProduct.id, finalNewStock);
-            const createdOrder = {
-                id: 'fo-' + Date.now(),
-                orderNumber,
-                rawMaterialId: rawMaterial.id,
-                rawMaterialName: rawMaterial.name,
-                finalProductId: finalProduct.id,
-                finalProductName: finalProduct.name,
-                inputQtyKg: dto.inputQtyKg,
-                targetUnits,
-                actualOutputUnits,
-                wasteKg,
-                wastePercentage,
-                wasteReason: dto.wasteReason || 'Merma normal de empaque',
-                rawMaterialBatch: dto.rawMaterialBatch,
-                generatedBatch,
-                fractioningDate: new Date().toISOString(),
-                expirationDate: dto.expirationDate,
-                operatorName: dto.operatorName,
-                notes: dto.notes,
-                createdAt: new Date().toISOString()
-            };
-            this.inMemoryOrders.unshift(createdOrder);
-            return { order: createdOrder, rawMaterialNewStock: rawNewStock, finalProductNewStock: finalNewStock };
+        // Fallback en memoria
+        await this.rawMaterialService.updateStock(rawMaterial.id, rawNewStock);
+        await this.finalProductService.updateStock(finalProduct.id, finalNewStock);
+        const createdOrder = {
+            id: 'fo-' + Date.now(),
+            orderNumber,
+            rawMaterialId: rawMaterial.id,
+            rawMaterialName: rawMaterial.name,
+            finalProductId: finalProduct.id,
+            finalProductName: finalProduct.name,
+            inputQtyKg: dto.inputQtyKg,
+            targetUnits,
+            actualOutputUnits,
+            wasteKg,
+            wastePercentage,
+            wasteReason: dto.wasteReason || 'Merma normal de empaque',
+            rawMaterialBatch: dto.rawMaterialBatch,
+            generatedBatch,
+            fractioningDate: new Date().toISOString(),
+            expirationDate: dto.expirationDate,
+            operatorName: dto.operatorName,
+            notes: dto.notes,
+            createdAt: new Date().toISOString()
+        };
+        this.inMemoryOrders.unshift(createdOrder);
+        return { order: createdOrder, rawMaterialNewStock: rawNewStock, finalProductNewStock: finalNewStock };
+    }
+    async executeFractioning(dto) {
+        const rawMaterial = await this.rawMaterialService.getById(dto.rawMaterialId);
+        if (!rawMaterial)
+            throw new Error('Materia prima no encontrada.');
+        const finalProduct = await this.finalProductService.getById(dto.finalProductId);
+        if (!finalProduct)
+            throw new Error('Producto final no encontrado.');
+        const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+        const generatedBatch = dto.generatedBatch || `LOT-${dateStr}-${Math.floor(100 + Math.random() * 900)}`;
+        const fractioningPayload = {
+            rawMaterialId: dto.rawMaterialId,
+            finalProductId: dto.finalProductId,
+            inputQtyKg: dto.inputQtyKg,
+            actualOutputUnits: dto.actualOutputUnits,
+            wasteReason: dto.wasteReason || 'Merma normal de fraccionado',
+            rawMaterialBatch: dto.rawMaterialBatch,
+            generatedBatch,
+            expirationDate: dto.expirationDate,
+            operatorName: dto.operatorName,
+            notes: dto.notes
+        };
+        // Registrar tarea pendiente en el Kanban Tareas Operativas sin actualizar stock todavía
+        if (this.taskService) {
+            try {
+                await this.taskService.createTask({
+                    title: `Fraccionado ${finalProduct.name}`,
+                    description: `Envasado de ${dto.inputQtyKg}kg de ${rawMaterial.name} en ${dto.actualOutputUnits} un. (${finalProduct.name}). Lote: ${generatedBatch}`,
+                    type: 'FRACTIONING',
+                    status: 'PENDING_FRACTIONING',
+                    priority: 'HIGH',
+                    assignedTo: dto.operatorName || 'María Clara (Empaque)',
+                    productId: finalProduct.id,
+                    productName: finalProduct.name,
+                    quantity: dto.actualOutputUnits,
+                    unitOfMeasure: 'unidades',
+                    notes: JSON.stringify(fractioningPayload)
+                });
+            }
+            catch { }
         }
+        const orderSimulada = {
+            id: 'fo-pending-' + Date.now(),
+            orderNumber: `FRAC-${dateStr}-PENDING`,
+            rawMaterialId: rawMaterial.id,
+            rawMaterialName: rawMaterial.name,
+            finalProductId: finalProduct.id,
+            finalProductName: finalProduct.name,
+            inputQtyKg: dto.inputQtyKg,
+            targetUnits: dto.actualOutputUnits,
+            actualOutputUnits: dto.actualOutputUnits,
+            wasteKg: 0,
+            wastePercentage: 0,
+            wasteReason: dto.wasteReason || 'Merma normal de fraccionado',
+            rawMaterialBatch: dto.rawMaterialBatch,
+            generatedBatch,
+            fractioningDate: new Date().toISOString(),
+            expirationDate: dto.expirationDate,
+            operatorName: dto.operatorName,
+            notes: dto.notes,
+            createdAt: new Date().toISOString()
+        };
+        return {
+            order: orderSimulada,
+            rawMaterialNewStock: rawMaterial.currentStock,
+            finalProductNewStock: finalProduct.currentStock
+        };
     }
     async getHistory() {
         try {
