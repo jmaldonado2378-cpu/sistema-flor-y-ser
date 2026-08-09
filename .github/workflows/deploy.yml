@@ -19,6 +19,7 @@ jobs:
           host: ${{ secrets.HOSTINGER_SSH_HOST }}
           username: ${{ secrets.HOSTINGER_SSH_USER }}
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          password: ${{ secrets.HOSTINGER_SSH_PASSWORD }}
           port: 22
           script: |
             cd /var/www/sistema-flor-y-ser
@@ -26,4 +27,4 @@ jobs:
             npm install
             cd frontend && npm install && cd ..
             npm run build
-            pm2 restart ecosystem.config.js
+            pm2 restart ecosystem.config.js || pm2 start ecosystem.config.js
