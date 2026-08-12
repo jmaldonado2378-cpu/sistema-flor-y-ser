@@ -186,9 +186,14 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenUsers, onTabChange }) => {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {dynamicNotifications.map(n => (
-                  <div 
+                  <button 
                     key={n.id} 
-                    onClick={() => handleNotificationClick(n.tab)}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleNotificationClick(n.tab);
+                    }}
                     style={{ 
                       display: 'flex', 
                       alignItems: 'center',
@@ -197,7 +202,10 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenUsers, onTabChange }) => {
                       padding: '10px', 
                       borderRadius: '8px', 
                       backgroundColor: n.type === 'warning' ? '#FEFCE8' : n.type === 'success' ? '#F0FDF4' : '#F0F9FF',
+                      border: 'none',
                       cursor: 'pointer',
+                      width: '100%',
+                      textAlign: 'left',
                       transition: 'background-color 0.2s'
                     }}
                   >
@@ -209,7 +217,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenUsers, onTabChange }) => {
                       </div>
                     </div>
                     <ChevronRight size={14} color="#94A3B8" />
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>

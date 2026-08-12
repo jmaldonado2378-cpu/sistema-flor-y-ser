@@ -55,6 +55,7 @@ export const TasksKanbanPage: React.FC<TasksKanbanPageProps> = () => {
       onSuccess: () => {
         setIsModalOpen(false);
         reset();
+        refetch();
       }
     });
   };
@@ -245,13 +246,13 @@ export const TasksKanbanPage: React.FC<TasksKanbanPageProps> = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="form-field">
-              <label className="text-sm font-medium text-text-dark mb-1 block">Operario Asignado *</label>
-              <input 
-                type="text" 
-                className={`input ${errors.assignedTo ? 'has-error' : ''}`} 
-                placeholder="Nombre del responsable"
-                {...register('assignedTo')} 
-              />
+              <label className="text-sm font-medium text-text-dark mb-1 block">Responsable *</label>
+              <select className={`input ${errors.assignedTo ? 'has-error' : ''}`} {...register('assignedTo')}>
+                <option value="Administrador General">Administrador General</option>
+                <option value="Juan Pablo">Juan Pablo</option>
+                <option value="Maria Emilia">Maria Emilia</option>
+                <option value="Rocio Quevedo">Rocio Quevedo</option>
+              </select>
               {errors.assignedTo && <span className="field-error">{errors.assignedTo.message}</span>}
             </div>
 

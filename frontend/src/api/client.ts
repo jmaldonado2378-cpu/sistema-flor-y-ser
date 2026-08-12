@@ -427,9 +427,47 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
       saveCollection('customers', [...current, newItem]);
       return { status: 'success', data: newItem } as unknown as T;
     }
+
+    if (cleanEndpoint === '/tasks' || cleanEndpoint.startsWith('/tasks')) {
+      const current = getCollection('tasks', MOCK_TASKS);
+      const newTask = {
+        id: `task-${Date.now()}`,
+        title: bodyData?.title || 'Nueva Tarea',
+        description: bodyData?.notes || bodyData?.description || '',
+        notes: bodyData?.notes || '',
+        type: bodyData?.type || 'GENERAL',
+        priority: bodyData?.priority || 'MEDIUM',
+        assignedTo: bodyData?.assignedTo || 'Responsable',
+        assignee: bodyData?.assignedTo || 'Responsable',
+        dueDate: bodyData?.dueDate || new Date().toISOString().split('T')[0],
+        status: bodyData?.status || 'PENDING_FRACTIONING',
+        createdAt: new Date().toISOString()
+      };
+      saveCollection('tasks', [newTask, ...current]);
+      return { status: 'success', data: newTask } as unknown as T;
+    }
   }
 
   if (method === 'PATCH' || method === 'PUT') {
+    if (cleanEndpoint.startsWith('/tasks/')) {
+      const parts = cleanEndpoint.split('/');
+      const taskId = parts[2];
+      const currentTasks = getCollection('tasks', MOCK_TASKS);
+      const updatedTasks = currentTasks.map((t: any) => {
+        if (t.id === taskId) {
+          return {
+            ...t,
+            status: bodyData?.status || t.status,
+            ...bodyData
+          };
+        }
+        return t;
+      });
+      saveCollection('tasks', updatedTasks);
+      const found = updatedTasks.find((t: any) => t.id === taskId);
+      return { status: 'success', data: found } as unknown as T;
+    }
+
     if (cleanEndpoint.startsWith('/sales/orders/') && cleanEndpoint.endsWith('/status')) {
       const parts = cleanEndpoint.split('/');
       const orderId = parts[3];
