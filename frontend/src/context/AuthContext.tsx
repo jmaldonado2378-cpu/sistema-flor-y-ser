@@ -56,32 +56,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return DEFAULT_USERS;
   });
 
-  // El usuario actual requiere inicio de sesión si no hay una sesión activa guardada
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('floryser_current_user_v2');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return null; // Requiere iniciar sesión en la pantalla de Login
-  });
+  // SIEMPRE requiere iniciar sesión al abrir o recargar la página (estado inicial null)
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
 
-  const [token, setToken] = useState<string | null>(() => {
-    return localStorage.getItem('floryser_jwt_token') || null;
-  });
+  // Al montar el componente, se asegura de limpiar cualquier sesión anterior guardada
+  useEffect(() => {
+    localStorage.removeItem('floryser_current_user_v2');
+    localStorage.removeItem('floryser_jwt_token');
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('floryser_users_v2', JSON.stringify(users));
   }, [users]);
-
-  useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('floryser_current_user_v2', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('floryser_current_user_v2');
-    }
-  }, [currentUser]);
 
   const login = async (emailInput: string, passwordInput: string): Promise<boolean> => {
     const cleanEmail = emailInput.trim().toLowerCase();
@@ -99,7 +86,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setCurrentUser(foundUser);
         const demoToken = `jwt-token-${foundUser.id}-${Date.now()}`;
         setToken(demoToken);
-        localStorage.setItem('floryser_jwt_token', demoToken);
         return true;
       }
     }
