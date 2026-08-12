@@ -9,6 +9,7 @@ export type ModuleKey =
   | 'fractioning'
   | 'new_sale'
   | 'kanban_orders'
+  | 'kanban_tasks'
   | 'suppliers'
   | 'checking_accounts'
   | 'finance'
@@ -24,6 +25,7 @@ export interface User {
   role: UserRole;
   allowedModules: ModuleKey[];
   avatarInitials: string;
+  avatarUrl?: string;
   active: boolean;
   createdAt: string;
 }

@@ -55,7 +55,7 @@ const navSections: NavSection[] = [
   {
     title: 'OPERACIONES',
     items: [
-      { id: 'tab-tasks', label: 'Kanban Tareas', icon: CheckSquare, moduleKey: 'kanban_orders' },
+      { id: 'tab-tasks', label: 'Kanban Tareas', icon: CheckSquare, moduleKey: 'kanban_tasks' },
       { id: 'tab-labels', label: 'Etiquetas', icon: Printer, moduleKey: 'stock' }
     ]
   },
@@ -86,20 +86,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, collap
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="brand-header">
-        <div className="brand-logo flex items-center justify-center overflow-hidden" style={{ width: '32px', height: '32px', borderRadius: '8px' }}>
-          {logoUrl ? (
-            <img 
-              src={logoUrl} 
-              alt="Logo Marca" 
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-              onError={(e) => {
-                // Fallback si la imagen falla al cargar
-                (e.target as HTMLElement).style.display = 'none';
-              }} 
-            />
-          ) : (
-            <Leaf size={20} color="#2E5339" />
-          )}
+        <div className="brand-logo flex items-center justify-center overflow-hidden" style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#2E5339' }}>
+          <img 
+            src={logoUrl || "/favicon.svg"} 
+            alt="Logo Marca" 
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = "/favicon.svg";
+            }} 
+          />
         </div>
         {!collapsed && (
           <div className="brand-title text-ellipsis overflow-hidden whitespace-nowrap" title={businessName}>
@@ -170,21 +165,36 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, collap
           }}>
             {!collapsed && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                <div style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '50%',
-                  backgroundColor: user.role === 'ADMIN' ? '#18261E' : '#D97706',
-                  color: '#FFFFFF',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 700,
-                  fontSize: '11px',
-                  flexShrink: 0
-                }}>
-                  {user.avatarInitials}
-                </div>
+                {user.avatarUrl ? (
+                  <img 
+                    src={user.avatarUrl} 
+                    alt={user.name} 
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '1.5px solid #2E5339',
+                      flexShrink: 0
+                    }} 
+                  />
+                ) : (
+                  <div style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    backgroundColor: user.role === 'ADMIN' ? '#18261E' : '#D97706',
+                    color: '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 700,
+                    fontSize: '11px',
+                    flexShrink: 0
+                  }}>
+                    {user.avatarInitials}
+                  </div>
+                )}
                 <div style={{ overflow: 'hidden' }}>
                   <div style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {user.name.split(' ')[0]}

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, ModuleKey, AuthState } from '../types/auth';
+import { addAuditLog } from '../api/client';
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<boolean>;
@@ -20,7 +21,7 @@ const DEFAULT_USERS: User[] = [
     role: 'ADMIN',
     allowedModules: [
       'dashboard', 'customers', 'stock', 'article_families',
-      'merchandise_receipt', 'fractioning', 'new_sale', 'kanban_orders',
+      'merchandise_receipt', 'fractioning', 'new_sale', 'kanban_orders', 'kanban_tasks',
       'suppliers', 'checking_accounts', 'finance', 'settings', 'marketing', 'users'
     ],
     avatarInitials: 'JP',
@@ -29,12 +30,12 @@ const DEFAULT_USERS: User[] = [
   },
   {
     id: 'usr-seller-1',
-    name: 'María Clara Fernández (Vendedora)',
-    email: 'vendedor@floryser.com',
+    name: 'Rocio Quevedo (Vendedora)',
+    email: 'rocioQ@floryser.com',
     password: 'vendedor123',
     role: 'SELLER',
-    allowedModules: ['new_sale', 'kanban_orders', 'customers', 'stock', 'fractioning'],
-    avatarInitials: 'MC',
+    allowedModules: ['new_sale', 'kanban_orders', 'kanban_tasks', 'customers', 'stock', 'fractioning'],
+    avatarInitials: 'RQ',
     active: true,
     createdAt: new Date().toISOString()
   }
@@ -56,11 +57,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return DEFAULT_USERS;
   });
 
-  // SIEMPRE requiere iniciar sesión al abrir o recargar la página (estado inicial null)
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
 
-  // Al montar el componente, se asegura de limpiar cualquier sesión anterior guardada
   useEffect(() => {
     localStorage.removeItem('floryser_current_user_v2');
     localStorage.removeItem('floryser_jwt_token');
@@ -74,7 +73,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cleanEmail = emailInput.trim().toLowerCase();
     const cleanPass = passwordInput.trim();
 
-    // Buscar usuario por email o alias rápido
     const foundUser = users.find(u => 
       (u.email.toLowerCase() === cleanEmail || 
        (cleanEmail === 'admin' && u.role === 'ADMIN') || 
@@ -86,6 +84,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setCurrentUser(foundUser);
         const demoToken = `jwt-token-${foundUser.id}-${Date.now()}`;
         setToken(demoToken);
+
+        addAuditLog({
+          userName: foundUser.name,
+          userEmail: foundUser.email,
+          userRole: foundUser.role,
+          action: 'INICIO_SESION',
+          module: 'Sistema',
+          details: `Inicio de sesión exitoso de ${foundUser.name}`
+        });
+
         return true;
       }
     }
@@ -94,6 +102,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    if (currentUser) {
+      addAuditLog({
+        userName: currentUser.name,
+        userEmail: currentUser.email,
+        userRole: currentUser.role,
+        action: 'CIERRE_SESION',
+        module: 'Sistema',
+        details: `Cierre de sesión de ${currentUser.name}`
+      });
+    }
     setCurrentUser(null);
     setToken(null);
     localStorage.removeItem('floryser_jwt_token');
@@ -113,6 +131,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createdAt: new Date().toISOString()
     };
     setUsers(prev => [...prev, newUser]);
+
+    if (currentUser) {
+      addAuditLog({
+        userName: currentUser.name,
+        userEmail: currentUser.email,
+        userRole: currentUser.role,
+        action: 'CREAR_USUARIO',
+        module: 'Usuarios & Permisos',
+        details: `Nuevo usuario creado: ${newUser.name} (${newUser.email}) con rol ${newUser.role}`
+      });
+    }
   };
 
   const updateUser = (userId: string, updates: Partial<User>) => {
@@ -120,10 +149,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (currentUser && currentUser.id === userId) {
       setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
     }
+
+    if (currentUser) {
+      addAuditLog({
+        userName: currentUser.name,
+        userEmail: currentUser.email,
+        userRole: currentUser.role,
+        action: 'ACTUALIZAR_USUARIO',
+        module: 'Usuarios & Permisos',
+        details: `Actualización de datos/permisos para usuario ID #${userId}`
+      });
+    }
   };
 
   const deleteUser = (userId: string) => {
+    const targetUser = users.find(u => u.id === userId);
     setUsers(prev => prev.filter(u => u.id !== userId));
+
+    if (currentUser) {
+      addAuditLog({
+        userName: currentUser.name,
+        userEmail: currentUser.email,
+        userRole: currentUser.role,
+        action: 'ELIMINAR_USUARIO',
+        module: 'Usuarios & Permisos',
+        details: `Eliminación de usuario ${targetUser?.name || userId}`
+      });
+    }
+
     if (currentUser && currentUser.id === userId) {
       logout();
     }

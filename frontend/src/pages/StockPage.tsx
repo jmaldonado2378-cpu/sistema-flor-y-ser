@@ -84,9 +84,22 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
     ? rawFamiliesData 
     : (rawFamiliesData && Array.isArray((rawFamiliesData as any).data) ? (rawFamiliesData as any).data : []);
 
-  const rawFamilies = articleFamilies.filter((f: any) => f.articleScope === 'RAW_MATERIAL' || f.articleScope === 'ALL');
-  const pkgFamilies = articleFamilies.filter((f: any) => f.articleScope === 'PACKAGING' || f.articleScope === 'ALL');
-  const finalFamilies = articleFamilies.filter((f: any) => f.articleScope === 'FINAL_PRODUCT' || f.articleScope === 'ALL');
+  const getScope = (f: any) => ((f.articleScope || f.scope || 'ALL') + '').toUpperCase();
+
+  const rawFamilies = articleFamilies.filter((f: any) => {
+    const sc = getScope(f);
+    return sc === 'RAW_MATERIAL' || sc === 'RAW' || sc === 'ALL';
+  });
+
+  const pkgFamilies = articleFamilies.filter((f: any) => {
+    const sc = getScope(f);
+    return sc === 'PACKAGING' || sc === 'PKG' || sc === 'ALL';
+  });
+
+  const finalFamilies = articleFamilies.filter((f: any) => {
+    const sc = getScope(f);
+    return sc === 'FINAL_PRODUCT' || sc === 'FINAL' || sc === 'ALL';
+  });
 
   const createRaw = useCreateRawMaterial();
   const updateRaw = useUpdateRawMaterial();

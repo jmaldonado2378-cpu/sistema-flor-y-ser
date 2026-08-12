@@ -83,7 +83,7 @@ export const AppShell: React.FC = () => {
         onToggleCollapse={() => setCollapsed(!collapsed)} 
       />
       <div className="main-content">
-        <TopBar onOpenUsers={() => setActiveTab('tab-users')} />
+        <TopBar onOpenUsers={() => setActiveTab('tab-users')} onTabChange={setActiveTab} />
         <main className="content-scrollable">
           {renderContent()}
         </main>

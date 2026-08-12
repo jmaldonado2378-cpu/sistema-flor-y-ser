@@ -41,6 +41,63 @@ const DEFAULT_SETTINGS = {
   }
 };
 
+// Interface y funciones para el Registro de Auditoría (Audit Log)
+export interface AuditLog {
+  id: string;
+  timestamp: string;
+  userName: string;
+  userEmail: string;
+  userRole: string;
+  action: string;
+  module: string;
+  details: string;
+}
+
+export function getAuditLogs(): AuditLog[] {
+  return getCollection<AuditLog>('audit_logs', [
+    {
+      id: 'log-1',
+      timestamp: new Date(Date.now() - 7200000).toISOString(),
+      userName: 'Juan Pablo',
+      userEmail: 'jmaldonado2378@gmail.com',
+      userRole: 'ADMIN',
+      action: 'INICIO_SESION',
+      module: 'Sistema',
+      details: 'Inicio de sesión exitoso como Administrador'
+    },
+    {
+      id: 'log-2',
+      timestamp: new Date(Date.now() - 3600000).toISOString(),
+      userName: 'Juan Pablo',
+      userEmail: 'jmaldonado2378@gmail.com',
+      userRole: 'ADMIN',
+      action: 'UPDATE_PERMISOS',
+      module: 'Usuarios & Permisos',
+      details: 'Actualización de permisos para Rocio Quevedo (Kanban Tareas habilitado)'
+    },
+    {
+      id: 'log-3',
+      timestamp: new Date(Date.now() - 1800000).toISOString(),
+      userName: 'Rocio Quevedo',
+      userEmail: 'rocioQ@floryser.com',
+      userRole: 'SELLER',
+      action: 'NUEVA_MATERIA_PRIMA',
+      module: 'Inventario',
+      details: 'Ingreso de lote de Ácido Ascórbico MP-ACI-01 en Depósito A'
+    }
+  ]);
+}
+
+export function addAuditLog(log: Omit<AuditLog, 'id' | 'timestamp'>) {
+  const logs = getAuditLogs();
+  const newEntry: AuditLog = {
+    id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    timestamp: new Date().toISOString(),
+    ...log
+  };
+  saveCollection('audit_logs', [newEntry, ...logs]);
+}
+
 // Helpers genéricos de persitencia local para modo Fallback estático
 function getCollection<T>(key: string, defaultData: T[]): T[] {
   const saved = localStorage.getItem(`floryser_${key}_v2`);
@@ -127,6 +184,26 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
       const data = getCollection('suppliers', MOCK_SUPPLIERS);
       return { status: 'success', data } as unknown as T;
     }
+    if (cleanEndpoint === '/sales/orders' || cleanEndpoint.startsWith('/sales/orders')) {
+      const data = getCollection('sales_orders', [
+        {
+          id: 'ord-101',
+          orderNumber: 'PED-20260812-0001',
+          customerId: 'cust-1',
+          customerName: 'María Clara Fernández',
+          totalAmount: 17500,
+          status: 'DELIVERED',
+          paymentMethod: 'Efectivo',
+          channel: 'LOCAL',
+          createdAt: new Date().toISOString(),
+          items: [
+            { productId: 'p1', productName: 'Almendras Nonpareil 1kg', quantity: 1, unitPrice: 8500 },
+            { productId: 'p3', productName: 'Mix Frutos Secos 1kg', quantity: 1, unitPrice: 9000 }
+          ]
+        }
+      ]);
+      return { status: 'success', data } as unknown as T;
+    }
     if (cleanEndpoint === '/settings') {
       return { status: 'success', data: getStoredSettings() } as unknown as T;
     }
@@ -134,6 +211,35 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
 
   // 2. PETICIONES POST / PUT / PATCH (PERSISTENCIA LOCAL DE NUEVOS REGISTROS)
   if (method === 'POST') {
+    if (cleanEndpoint === '/sales/orders' || cleanEndpoint.startsWith('/sales/orders')) {
+      const currentOrders = getCollection('sales_orders', []);
+      const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const seq = (currentOrders.length + 1).toString().padStart(4, '0');
+      const newOrder = {
+        id: `ord-${Date.now()}`,
+        orderNumber: `PED-${todayStr}-${seq}`,
+        customerId: bodyData?.customerId || '',
+        customerName: bodyData?.customerName || 'Cliente Registrado',
+        channel: bodyData?.channel || 'LOCAL',
+        status: 'DELIVERED',
+        paymentMethod: bodyData?.paymentMethod || 'Efectivo',
+        totalAmount: Number(bodyData?.totalAmount) || 0,
+        items: bodyData?.items || [],
+        createdAt: new Date().toISOString()
+      };
+      saveCollection('sales_orders', [newOrder, ...currentOrders]);
+
+      addAuditLog({
+        userName: bodyData?.customerName ? 'Usuario Venta' : 'Vendedor',
+        userEmail: 'vendedor@floryser.com',
+        userRole: 'SELLER',
+        action: 'NUEVA_VENTA',
+        module: 'Comercial / Ventas',
+        details: `Registro de venta #${newOrder.orderNumber} por un total de $${newOrder.totalAmount.toLocaleString('es-AR')}`
+      });
+
+      return { status: 'success', data: newOrder } as unknown as T;
+    }
     if (cleanEndpoint === '/merchandise-receipts' || cleanEndpoint === '/merchandise-receipts/raw') {
       const currentReceipts = getCollection('receipts', MOCK_RECEIPTS);
       const suppliers = getCollection('suppliers', MOCK_SUPPLIERS);

@@ -170,19 +170,21 @@ export const SalesPage: React.FC<SalesPageProps> = () => {
                     <div className="col-span-7">
                       <select 
                         className="input text-xs"
-                        {...register(`items.${index}.productId` as const)}
-                        onChange={(e) => {
-                          const product = catalogProducts.find(p => p.id === e.target.value);
-                          if (product) {
-                            setValue(`items.${index}.productId`, product.id);
-                            setValue(`items.${index}.productName`, product.name);
-                            setValue(`items.${index}.unitPrice`, product.price);
-                          } else {
-                            setValue(`items.${index}.productId`, '');
-                            setValue(`items.${index}.productName`, '');
-                            setValue(`items.${index}.unitPrice`, 0);
+                        {...register(`items.${index}.productId` as const, {
+                          onChange: (e) => {
+                            const val = e.target.value;
+                            const product = catalogProducts.find(p => p.id === val);
+                            if (product) {
+                              setValue(`items.${index}.productId`, product.id, { shouldValidate: true });
+                              setValue(`items.${index}.productName`, product.name, { shouldValidate: true });
+                              setValue(`items.${index}.unitPrice`, product.price, { shouldValidate: true });
+                            } else {
+                              setValue(`items.${index}.productId`, '', { shouldValidate: true });
+                              setValue(`items.${index}.productName`, '', { shouldValidate: true });
+                              setValue(`items.${index}.unitPrice`, 0, { shouldValidate: true });
+                            }
                           }
-                        }}
+                        })}
                       >
                         <option value="">Seleccionar producto del catálogo...</option>
                         {catalogProducts.map(p => (
