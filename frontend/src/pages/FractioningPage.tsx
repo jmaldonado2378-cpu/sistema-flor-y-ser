@@ -200,29 +200,27 @@ export const FractioningPage: React.FC<{ onTabChange?: (tab: string) => void }> 
             </div>
 
             {/* Sección 2: Cantidades y Rendimiento */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-3">
               <div className="form-field">
-                <label className="text-sm font-medium text-text-dark mb-1 block">Insumo a Fraccionar (Kg) *</label>
-                <div className="flex gap-2 items-center" style={{ width: '100%' }}>
-                  <input
-                    type="number"
-                    step="any"
-                    className={`input ${form.formState.errors.inputQtyKg ? 'has-error' : ''}`}
-                    style={{ flex: 1, minWidth: 0, width: '100%' }}
-                    {...form.register('inputQtyKg', { valueAsNumber: true })}
-                  />
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-sm font-medium text-text-dark">Insumo a Fraccionar (Kg) *</label>
                   <button
                     type="button"
-                    className="btn btn-secondary flex items-center gap-1 text-xs shrink-0"
-                    style={{ whiteSpace: 'nowrap' }}
+                    className="btn btn-secondary text-xs px-2.5 py-1 flex items-center gap-1 text-primary-sage font-medium hover:bg-slate-100"
                     onClick={handlePreview}
                     disabled={previewMutation.isPending}
                     title="Calcular unidades y merma sugerida"
                   >
-                    <Calculator size={15} />
-                    {previewMutation.isPending ? '...' : 'Simular'}
+                    <Calculator size={14} />
+                    {previewMutation.isPending ? 'Simulando...' : '⚡ Simular'}
                   </button>
                 </div>
+                <input
+                  type="number"
+                  step="any"
+                  className={`input w-full ${form.formState.errors.inputQtyKg ? 'has-error' : ''}`}
+                  {...form.register('inputQtyKg', { valueAsNumber: true })}
+                />
                 {form.formState.errors.inputQtyKg && (
                   <span className="field-error">{form.formState.errors.inputQtyKg.message}</span>
                 )}
@@ -232,18 +230,21 @@ export const FractioningPage: React.FC<{ onTabChange?: (tab: string) => void }> 
                 <label className="text-sm font-medium text-text-dark mb-1 block">Unidades Obtenidas *</label>
                 <input
                   type="number"
-                  className={`input ${form.formState.errors.actualOutputUnits ? 'has-error' : ''}`}
+                  className={`input w-full ${form.formState.errors.actualOutputUnits ? 'has-error' : ''}`}
                   {...form.register('actualOutputUnits', { valueAsNumber: true })}
                 />
                 {form.formState.errors.actualOutputUnits && (
                   <span className="field-error">{form.formState.errors.actualOutputUnits.message}</span>
                 )}
               </div>
+            </div>
 
+            {/* Operario Responsable y Fecha de Vencimiento */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-3">
               <div className="form-field">
                 <label className="text-sm font-medium text-text-dark mb-1 block">Operario Responsable *</label>
                 <select 
-                  className={`input ${form.formState.errors.operatorName ? 'has-error' : ''}`}
+                  className={`input w-full ${form.formState.errors.operatorName ? 'has-error' : ''}`}
                   {...form.register('operatorName')}
                 >
                   {users && users.length > 0 ? (
@@ -260,6 +261,18 @@ export const FractioningPage: React.FC<{ onTabChange?: (tab: string) => void }> 
                 </select>
                 {form.formState.errors.operatorName && (
                   <span className="field-error">{form.formState.errors.operatorName.message}</span>
+                )}
+              </div>
+
+              <div className="form-field">
+                <label className="text-sm font-medium text-text-dark mb-1 block">Fecha Vencimiento *</label>
+                <input 
+                  type="date" 
+                  className={`input w-full ${form.formState.errors.expirationDate ? 'has-error' : ''}`}
+                  {...form.register('expirationDate')}
+                />
+                {form.formState.errors.expirationDate && (
+                  <span className="field-error">{form.formState.errors.expirationDate.message}</span>
                 )}
               </div>
             </div>
@@ -283,13 +296,13 @@ export const FractioningPage: React.FC<{ onTabChange?: (tab: string) => void }> 
               </div>
             )}
 
-            {/* Sección 3: Lotes y Vencimiento */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-3">
+            {/* Sección 3: Lotes */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-3">
               <div className="form-field">
                 <label className="text-sm font-medium text-text-dark mb-1 block">Lote Origen (MP) *</label>
                 <input 
                   type="text"
-                  className={`input ${form.formState.errors.rawMaterialBatch ? 'has-error' : ''}`}
+                  className={`input w-full ${form.formState.errors.rawMaterialBatch ? 'has-error' : ''}`}
                   {...form.register('rawMaterialBatch')}
                   placeholder="Ej: LOT-MP-2026-06"
                 />
@@ -302,24 +315,12 @@ export const FractioningPage: React.FC<{ onTabChange?: (tab: string) => void }> 
                 <label className="text-sm font-medium text-text-dark mb-1 block">Lote Generado (PF) *</label>
                 <input 
                   type="text"
-                  className={`input ${form.formState.errors.generatedBatch ? 'has-error' : ''}`}
+                  className={`input w-full ${form.formState.errors.generatedBatch ? 'has-error' : ''}`}
                   {...form.register('generatedBatch')}
                   placeholder="Ej: LOT-202608-A"
                 />
                 {form.formState.errors.generatedBatch && (
                   <span className="field-error">{form.formState.errors.generatedBatch.message}</span>
-                )}
-              </div>
-
-              <div className="form-field">
-                <label className="text-sm font-medium text-text-dark mb-1 block">Fecha Vencimiento *</label>
-                <input 
-                  type="date" 
-                  className={`input ${form.formState.errors.expirationDate ? 'has-error' : ''}`}
-                  {...form.register('expirationDate')}
-                />
-                {form.formState.errors.expirationDate && (
-                  <span className="field-error">{form.formState.errors.expirationDate.message}</span>
                 )}
               </div>
             </div>
