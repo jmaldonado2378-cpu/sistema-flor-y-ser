@@ -86,19 +86,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, collap
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="brand-header">
-        <div className="brand-logo flex items-center justify-center" style={{ height: '36px', maxWidth: '36px', flexShrink: 0, padding: '2px' }}>
+        <div className="brand-logo flex items-center justify-center flex-shrink-0" style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#2E5339', overflow: 'hidden' }}>
           <img 
             src={logoUrl || "/favicon.svg"} 
             alt="Logo Marca" 
-            style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
             onError={(e) => {
               (e.target as HTMLImageElement).src = "/favicon.svg";
             }} 
           />
         </div>
         {!collapsed && (
-          <div className="brand-title text-ellipsis overflow-hidden whitespace-nowrap" title={businessName}>
-            {businessName.length > 16 ? `${businessName.substring(0, 15)}...` : businessName}
+          <div className="brand-title" title={businessName} style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1.2, color: 'var(--text-dark)', wordBreak: 'break-word' }}>
+            {businessName}
           </div>
         )}
         <button 

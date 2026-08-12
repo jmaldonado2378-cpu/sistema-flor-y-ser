@@ -161,10 +161,6 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
     if (cleanEndpoint === '/dietary-profiles' || cleanEndpoint.startsWith('/dietary-profiles/')) {
       return { status: 'success', data: MOCK_DIETARY_PROFILES } as unknown as T;
     }
-    if (cleanEndpoint === '/tasks' || cleanEndpoint.startsWith('/tasks/')) {
-      const data = getCollection('tasks', MOCK_TASKS);
-      return { status: 'success', data } as unknown as T;
-    }
     if (cleanEndpoint.includes('sales-kanban') || cleanEndpoint.includes('orders/kanban')) {
       const orders = getCollection('sales_orders', [
         {
@@ -195,6 +191,11 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
       } as unknown as T;
     }
 
+    if (cleanEndpoint === '/tasks' || cleanEndpoint.startsWith('/tasks/')) {
+      const data = getCollection('tasks', MOCK_TASKS);
+      return { status: 'success', data } as unknown as T;
+    }
+
     if (cleanEndpoint === '/sales/checking-accounts' || cleanEndpoint.includes('/checking-account')) {
       const customers: any[] = getCollection('customers', MOCK_CUSTOMERS);
       const orders: any[] = getCollection('sales_orders', []);
@@ -211,7 +212,7 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
         const custOrders = orders.filter((o: any) => o.customerId === c.id || o.customerName === c.fullName);
         const custMovements = movements.filter((m: any) => m.customerId === c.id);
         const totalPurchases = custOrders.reduce((sum: number, o: any) => sum + (Number(o.totalAmount) || 0), 0);
-        const calcBalance = c.currentBalance !== undefined ? c.currentBalance : -totalPurchases;
+        const calcBalance = c.currentBalance !== undefined ? Math.abs(c.currentBalance) : totalPurchases;
 
         return {
           customerId: c.id,
@@ -221,7 +222,7 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
           balance: calcBalance,
           currentBalance: calcBalance,
           creditLimit: c.creditLimit || 20000,
-          availableCredit: (c.creditLimit || 20000) + calcBalance,
+          availableCredit: Math.max(0, (c.creditLimit || 20000) - calcBalance),
           lastMovementDate: custOrders[0]?.createdAt || new Date().toISOString()
         };
       });
@@ -292,37 +293,42 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
       saveCollection('sales_orders', [newOrder, ...currentOrders]);
 
       // Impactar en Cta Cte del Cliente
-      if (bodyData?.customerId) {
-        const customers = getCollection('customers', MOCK_CUSTOMERS);
-        const updatedCusts = customers.map((c: any) => {
-          if (c.id === bodyData.customerId) {
-            const currentBal = c.currentBalance !== undefined ? c.currentBalance : 0;
-            return {
-              ...c,
-              currentBalance: currentBal - orderAmount
-            };
-          }
-          return c;
-        });
-        saveCollection('customers', updatedCusts);
-
-        const movements = getCollection('checking_account_movements', []);
-        const newMovement = {
-          id: `mov-${Date.now()}`,
-          customerId: bodyData.customerId,
-          date: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
-          type: 'VENTA',
-          movementType: 'DEBIT',
-          tipoMovimiento: 'DÉBITO',
-          description: `Venta Registrada #${newOrder.orderNumber}`,
-          descripcion: `Venta Registrada #${newOrder.orderNumber}`,
-          amount: orderAmount,
-          monto: orderAmount,
-          balanceAfter: -orderAmount
-        };
-        saveCollection('checking_account_movements', [newMovement, ...movements]);
+      const customers = getCollection('customers', MOCK_CUSTOMERS);
+      let targetCust = customers.find((c: any) => c.id === bodyData?.customerId || (c.firstName && bodyData?.customerName?.includes(c.firstName)));
+      if (!targetCust && customers.length > 0) {
+        targetCust = customers[0];
       }
+      const targetCustId = targetCust ? targetCust.id : (bodyData?.customerId || 'cust-1');
+
+      const updatedCusts = customers.map((c: any) => {
+        if (c.id === targetCustId) {
+          const currentBal = Math.abs(c.currentBalance || 0);
+          return {
+            ...c,
+            currentBalance: currentBal + orderAmount
+          };
+        }
+        return c;
+      });
+      saveCollection('customers', updatedCusts);
+
+      const movements = getCollection('checking_account_movements', []);
+      const newMovement = {
+        id: `mov-${Date.now()}`,
+        customerId: targetCustId,
+        customerName: newOrder.customerName,
+        date: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        type: 'VENTA',
+        movementType: 'DEBIT',
+        tipoMovimiento: 'DÉBITO',
+        description: `Venta Registrada #${newOrder.orderNumber}`,
+        descripcion: `Venta Registrada #${newOrder.orderNumber}`,
+        amount: orderAmount,
+        monto: orderAmount,
+        balanceAfter: Math.abs(targetCust?.currentBalance || 0) + orderAmount
+      };
+      saveCollection('checking_account_movements', [newMovement, ...movements]);
 
       addAuditLog({
         userName: bodyData?.customerName ? 'Usuario Venta' : 'Vendedor',
