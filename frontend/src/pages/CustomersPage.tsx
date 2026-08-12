@@ -80,15 +80,23 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
 
   const handleOpenEditModal = (customer: Customer) => {
     setEditingCustomer(customer);
+    let fName = customer.firstName || '';
+    let lName = customer.lastName || '';
+    if (!fName && (customer as any).fullName) {
+      const parts = (customer as any).fullName.split(' ');
+      fName = parts[0] || '';
+      lName = parts.slice(1).join(' ') || '';
+    }
+
     reset({
-      firstName: customer.firstName || '',
-      lastName: customer.lastName || '',
-      phoneWhatsapp: customer.phoneWhatsapp || '',
+      firstName: fName,
+      lastName: lName,
+      phoneWhatsapp: customer.phoneWhatsapp || (customer as any).whatsapp || '',
       email: customer.email || '',
       instagram: customer.instagram || '',
       address: customer.address || '',
       birthDate: customer.birthDate ? customer.birthDate.split('T')[0] : '',
-      preferredChannel: customer.preferredChannel || 'LOCAL',
+      preferredChannel: customer.preferredChannel || (customer as any).channelPreference || 'LOCAL',
       notes: (customer as any).notes || ''
     });
     const currentDietIds = (customer.dietaryProfiles || []).map((p: any) => typeof p === 'string' ? p : p.id || p.code);
@@ -269,7 +277,9 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
                 {filteredCustomers.map((customer: Customer) => (
                   <tr key={customer.id}>
                     <td className="font-semibold text-text-dark">
-                      {customer.firstName} {customer.lastName}
+                      {customer.firstName || customer.lastName 
+                        ? `${customer.firstName || ''} ${customer.lastName || ''}`.trim() 
+                        : ((customer as any).fullName || (customer as any).name || 'Cliente')}
                     </td>
                     <td>
                       <span className="badge gray">

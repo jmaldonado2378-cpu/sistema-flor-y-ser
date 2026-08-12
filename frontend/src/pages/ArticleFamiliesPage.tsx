@@ -64,10 +64,19 @@ export const ArticleFamiliesPage: React.FC<{onTabChange?: (tab: string) => void}
     reset();
   };
 
+  const generateCodeFromName = (nameStr: string) => {
+    if (!nameStr) return `FAM-${Math.floor(100 + Math.random() * 900)}`;
+    const clean = nameStr.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const prefix = clean.substring(0, 3) || 'FAM';
+    return `${prefix}-${Math.floor(100 + Math.random() * 900)}`;
+  };
+
   const onSubmit = (data: any) => {
+    const finalCode = data.code && data.code.trim() ? data.code.trim().toUpperCase() : generateCodeFromName(data.name);
+
     const payload = {
       parentId: data.isSubFamily === 'true' && data.parentId ? data.parentId : null,
-      code: data.code,
+      code: finalCode,
       name: data.name,
       description: data.description,
       articleScope: data.articleScope || 'ALL',
@@ -246,25 +255,45 @@ export const ArticleFamiliesPage: React.FC<{onTabChange?: (tab: string) => void}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px' }}>
             <div className="form-field">
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Código</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label style={{ fontWeight: '500' }}>Código</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentName = watch('name') || '';
+                    const generated = generateCodeFromName(currentName);
+                    reset({ ...watch(), code: generated });
+                  }}
+                  style={{ background: 'none', border: 'none', color: '#2E5339', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  ⚡ Auto-generar
+                </button>
+              </div>
               <input 
                 type="text" 
                 className="input" 
-                {...register('code', { required: true })} 
+                {...register('code')} 
                 style={{ width: '100%' }} 
-                placeholder="Ej. MAT-PRI"
+                placeholder="Auto-generado si se deja vacío"
               />
-              {errors.code && <span style={{ color: '#d93025', fontSize: '12px' }}>Este campo es requerido</span>}
             </div>
 
             <div className="form-field">
-              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Nombre</label>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Nombre *</label>
               <input 
                 type="text" 
                 className="input" 
                 {...register('name', { required: true })} 
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const currentCode = watch('code');
+                  if (!currentCode || currentCode.startsWith('FAM-') || currentCode.length <= 4) {
+                    const gen = generateCodeFromName(val);
+                    reset({ ...watch(), name: val, code: gen });
+                  }
+                }}
                 style={{ width: '100%' }} 
-                placeholder="Ej. Materias Primas"
+                placeholder="Ej. Ácido Ascórbico"
               />
               {errors.name && <span style={{ color: '#d93025', fontSize: '12px' }}>Este campo es requerido</span>}
             </div>

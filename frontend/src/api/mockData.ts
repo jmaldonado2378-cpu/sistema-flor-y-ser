@@ -30,9 +30,9 @@ export const MOCK_FINAL_PRODUCTS = [
 ];
 
 export const MOCK_CUSTOMERS = [
-  { id: 'cust-1', fullName: 'María Clara Fernández', whatsapp: '+5491155443322', email: 'maria.clara@email.com', address: 'Av. Corrientes 1234, CABA', dietaryProfiles: ['Sin TACC / Celíaco', 'Orgánico'], channelPreference: 'WhatsApp', currentBalance: -1500, creditLimit: 20000, totalPoints: 340 },
-  { id: 'cust-2', fullName: 'Gonzalo Benítez', whatsapp: '+5491144332211', email: 'g.benitez@email.com', address: 'Calle Belgrano 456, Córdoba', dietaryProfiles: ['Vegano', 'Keto'], channelPreference: 'Local', currentBalance: 0, creditLimit: 15000, totalPoints: 120 },
-  { id: 'cust-3', fullName: 'Lucía Albarracín', whatsapp: '+5491166778899', email: 'lucia.a@email.com', address: 'San Martín 789, Mendoza', dietaryProfiles: ['Apto Diabéticos'], channelPreference: 'Web', currentBalance: 3200, creditLimit: 10000, totalPoints: 510 }
+  { id: 'cust-1', firstName: 'María Clara', lastName: 'Fernández', fullName: 'María Clara Fernández', whatsapp: '+5491155443322', phoneWhatsapp: '+5491155443322', email: 'maria.clara@email.com', address: 'Av. Corrientes 1234, CABA', dietaryProfiles: ['Sin TACC / Celíaco', 'Orgánico'], channelPreference: 'WhatsApp', preferredChannel: 'WHATSAPP', currentBalance: -1500, creditLimit: 20000, totalPoints: 340 },
+  { id: 'cust-2', firstName: 'Gonzalo', lastName: 'Benítez', fullName: 'Gonzalo Benítez', whatsapp: '+5491144332211', phoneWhatsapp: '+5491144332211', email: 'g.benitez@email.com', address: 'Calle Belgrano 456, Córdoba', dietaryProfiles: ['Vegano', 'Keto'], channelPreference: 'Local', preferredChannel: 'LOCAL', currentBalance: 0, creditLimit: 15000, totalPoints: 120 },
+  { id: 'cust-3', firstName: 'Lucía', lastName: 'Albarracín', fullName: 'Lucía Albarracín', whatsapp: '+5491166778899', phoneWhatsapp: '+5491166778899', email: 'lucia.a@email.com', address: 'San Martín 789, Mendoza', dietaryProfiles: ['Apto Diabéticos'], channelPreference: 'Web', preferredChannel: 'ONLINE_STORE', currentBalance: 3200, creditLimit: 10000, totalPoints: 510 }
 ];
 
 export const MOCK_DIETARY_PROFILES = [

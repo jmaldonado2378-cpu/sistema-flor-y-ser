@@ -17,7 +17,7 @@ import { useArticleFamilies } from '../hooks/useArticleFamilies';
 import { Modal } from '../components/ui/Modal';
 
 const rawMaterialSchema = z.object({
-  code: z.string().min(1, 'El código es requerido'),
+  code: z.string().optional(),
   name: z.string().min(1, 'El nombre es requerido'),
   unit: z.string().min(1, 'La unidad es requerida'),
   currentStock: z.number().min(0, 'Debe ser >= 0'),
@@ -29,7 +29,7 @@ const rawMaterialSchema = z.object({
 });
 
 const packagingSchema = z.object({
-  code: z.string().min(1, 'El código es requerido'),
+  code: z.string().optional(),
   name: z.string().min(1, 'El nombre es requerido'),
   category: z.enum(['DOYPACK', 'JAR', 'LABEL', 'BOX', 'BAG', 'OTHER']),
   unit: z.string().min(1, 'Unidad requerida'),
@@ -43,7 +43,7 @@ const packagingSchema = z.object({
 
 const finalProductSchema = z.object({
   rawMaterialId: z.string().optional(),
-  code: z.string().min(1, 'El código es requerido'),
+  code: z.string().optional(),
   barcode: z.string().optional(),
   name: z.string().min(1, 'El nombre es requerido'),
   unitWeightGrams: z.number().min(0, 'Debe ser >= 0'),
@@ -275,8 +275,12 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   };
 
   const onRawSubmit = (data: any) => {
+    const finalData = {
+      ...data,
+      code: data.code && data.code.trim() ? data.code.trim().toUpperCase() : generateRawCode(data.name)
+    };
     if (editingRawItem) {
-      updateRaw.mutate({ id: editingRawItem.id, data }, {
+      updateRaw.mutate({ id: editingRawItem.id, data: finalData }, {
         onSuccess: () => {
           setIsRawModalOpen(false);
           setEditingRawItem(null);
@@ -284,7 +288,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
         }
       });
     } else {
-      createRaw.mutate(data, {
+      createRaw.mutate(finalData, {
         onSuccess: () => {
           setIsRawModalOpen(false);
           rawForm.reset();
@@ -295,8 +299,12 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   };
 
   const onPkgSubmit = (data: any) => {
+    const finalData = {
+      ...data,
+      code: data.code && data.code.trim() ? data.code.trim().toUpperCase() : generatePkgCode(data.name)
+    };
     if (editingPkgItem) {
-      updatePkg.mutate({ id: editingPkgItem.id, data }, {
+      updatePkg.mutate({ id: editingPkgItem.id, data: finalData }, {
         onSuccess: () => {
           setIsPkgModalOpen(false);
           setEditingPkgItem(null);
@@ -304,7 +312,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
         }
       });
     } else {
-      createPkg.mutate(data, {
+      createPkg.mutate(finalData, {
         onSuccess: () => {
           setIsPkgModalOpen(false);
           pkgForm.reset();
@@ -315,6 +323,8 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   };
 
   const onFinalSubmit = (data: any) => {
+    const finalCode = data.code && data.code.trim() ? data.code.trim().toUpperCase() : generateFinalCode(data.name);
+
     const badgeCodesArray = data.dietaryBadgeCodes 
       ? (typeof data.dietaryBadgeCodes === 'string' 
           ? data.dietaryBadgeCodes.split(',').map((s: string) => s.trim()).filter(Boolean)
@@ -338,9 +348,10 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       : data.ingredients;
 
     const payload = { 
-      ...data, 
+      ...data,
+      code: finalCode, 
       dietaryBadgeCodes: badgeCodesArray, 
-      barcode: data.barcode || data.code,
+      barcode: data.barcode || finalCode,
       isBlend: isBlendProduct,
       ingredientsList: formattedIngredientsList,
       ingredients: autoIngredientsText || data.ingredients
