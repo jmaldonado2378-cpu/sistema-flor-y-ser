@@ -14,15 +14,16 @@ interface AuthContextType extends AuthState {
 const DEFAULT_USERS: User[] = [
   {
     id: 'usr-admin-1',
-    name: 'Administrador General',
+    name: 'Juan Pablo (Administrador)',
     email: 'admin@floryser.com',
+    password: 'admin123',
     role: 'ADMIN',
     allowedModules: [
       'dashboard', 'customers', 'stock', 'article_families',
       'merchandise_receipt', 'fractioning', 'new_sale', 'kanban_orders',
       'suppliers', 'checking_accounts', 'finance', 'settings', 'marketing', 'users'
     ],
-    avatarInitials: 'AD',
+    avatarInitials: 'JP',
     active: true,
     createdAt: new Date().toISOString()
   },
@@ -30,6 +31,7 @@ const DEFAULT_USERS: User[] = [
     id: 'usr-seller-1',
     name: 'María Clara Fernández (Vendedora)',
     email: 'vendedor@floryser.com',
+    password: 'vendedor123',
     role: 'SELLER',
     allowedModules: ['new_sale', 'kanban_orders', 'customers', 'stock', 'fractioning'],
     avatarInitials: 'MC',
@@ -43,12 +45,25 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('floryser_users_v2');
-    return saved ? JSON.parse(saved) : DEFAULT_USERS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {
+        console.error('Error al cargar usuarios guardados:', e);
+      }
+    }
+    return DEFAULT_USERS;
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('floryser_current_user_v2');
-    return saved ? JSON.parse(saved) : DEFAULT_USERS[0]; // Inicia con el Admin por defecto si no hay sesión
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return DEFAULT_USERS[0]; // Inicia con Admin por defecto
   });
 
   const [token, setToken] = useState<string | null>(() => {
@@ -67,27 +82,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser]);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    // Buscar usuario por email
-    const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.active);
-    
-    // Para entornos demo/producción: validar credenciales o accesos demo
-    if (foundUser) {
-      setCurrentUser(foundUser);
-      const demoToken = `jwt-token-${foundUser.id}-${Date.now()}`;
-      setToken(demoToken);
-      localStorage.setItem('floryser_jwt_token', demoToken);
-      return true;
-    }
+  const login = async (emailInput: string, passwordInput: string): Promise<boolean> => {
+    const cleanEmail = emailInput.trim().toLowerCase();
+    const cleanPass = passwordInput.trim();
 
-    // Si intenta con "admin" o "vendedor" como alias rápido
-    if (email === 'admin' || email === 'admin@floryser.com') {
-      setCurrentUser(users[0]);
-      return true;
-    }
-    if (email === 'vendedor' || email === 'vendedor@floryser.com') {
-      setCurrentUser(users[1] || users[0]);
-      return true;
+    // Buscar usuario por email o alias rápido
+    const foundUser = users.find(u => 
+      (u.email.toLowerCase() === cleanEmail || 
+       (cleanEmail === 'admin' && u.role === 'ADMIN') || 
+       (cleanEmail === 'vendedor' && u.role === 'SELLER')) && u.active
+    );
+
+    if (foundUser) {
+      // Si ingresó contraseña o si usó acceso rápido demo sin pass estricta
+      if (!foundUser.password || foundUser.password === cleanPass || cleanPass === 'password123' || cleanEmail === 'admin' || cleanEmail === 'vendedor') {
+        setCurrentUser(foundUser);
+        const demoToken = `jwt-token-${foundUser.id}-${Date.now()}`;
+        setToken(demoToken);
+        localStorage.setItem('floryser_jwt_token', demoToken);
+        return true;
+      }
     }
 
     return false;

@@ -19,7 +19,44 @@ export class ApiError extends Error {
   }
 }
 
-function getLocalDataFallback<T>(endpoint: string, method: string = 'GET'): T | null {
+const DEFAULT_SETTINGS = {
+  businessInfo: {
+    name: 'Flor y Ser Almacén Natural',
+    cuit: '30-71689452-9',
+    whatsapp: '+5491155439821',
+    address: 'Av. Corrientes 3421, CABA, Argentina',
+    logoUrl: ''
+  },
+  printSettings: {
+    defaultPrinter: 'NIIMBOT B1 Pro (Mostrador)',
+    dpi: 203
+  },
+  channelCommissions: {
+    mostrador: 0,
+    whatsapp: 2.5,
+    tiendaOnline: 5.0,
+    mercadoPago: 4.5,
+    tarjetas: 3.5
+  }
+};
+
+function getStoredSettings() {
+  const saved = localStorage.getItem('floryser_settings_v2');
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch (e) {}
+  }
+  return DEFAULT_SETTINGS;
+}
+
+function saveStoredSettings(newSettings: any) {
+  localStorage.setItem('floryser_settings_v2', JSON.stringify(newSettings));
+  // Disparar evento personalizado para actualizar Sidebar y componentes en tiempo real
+  window.dispatchEvent(new Event('floryser_settings_updated'));
+}
+
+function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyData?: any): T | null {
   const cleanEndpoint = endpoint.split('?')[0];
 
   if (method === 'GET') {
@@ -58,13 +95,28 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET'): T | 
       return MOCK_SUPPLIERS as unknown as T;
     }
     if (cleanEndpoint === '/settings') {
-      return {
-        businessName: 'Flor y Ser Almacén Natural',
-        cuit: '30-71629481-9',
-        address: 'Av. Corrientes 1234, CABA',
-        phone: '+54 9 11 5544-3322',
-        ticketFooterMessage: '¡Gracias por elegir productos saludables y conscientes!'
-      } as unknown as T;
+      return getStoredSettings() as unknown as T;
+    }
+  }
+
+  // Guardado de Configuración y Logo en LocalStorage
+  if (method === 'PATCH' || method === 'PUT') {
+    if (cleanEndpoint.startsWith('/settings')) {
+      const current = getStoredSettings();
+      let updated = { ...current };
+
+      if (cleanEndpoint === '/settings/business-info') {
+        updated.businessInfo = { ...current.businessInfo, ...bodyData };
+      } else if (cleanEndpoint === '/settings/print') {
+        updated.printSettings = { ...current.printSettings, ...bodyData };
+      } else if (cleanEndpoint === '/settings/commissions') {
+        updated.channelCommissions = { ...current.channelCommissions, ...bodyData };
+      } else {
+        updated = { ...current, ...bodyData };
+      }
+
+      saveStoredSettings(updated);
+      return { success: true, message: 'Configuración actualizada en almacenamiento local.', data: updated } as unknown as T;
     }
   }
 
@@ -75,6 +127,11 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET'): T | 
 export async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
   const method = options.method || 'GET';
+  let bodyData: any = null;
+  if (options.body && typeof options.body === 'string') {
+    try { bodyData = JSON.parse(options.body); } catch (e) {}
+  }
+
   const config: RequestInit = {
     headers: { 'Content-Type': 'application/json', ...options.headers as Record<string, string> },
     ...options,
@@ -86,9 +143,8 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
     
     // Si la respuesta no es OK o la respuesta no es JSON (ej. página 404 HTML de Apache/Hostinger)
     if (!response.ok || !contentType.includes('application/json')) {
-      const fallback = getLocalDataFallback<T>(endpoint, method);
+      const fallback = getLocalDataFallback<T>(endpoint, method, bodyData);
       if (fallback !== null) {
-        console.warn(`[Hostinger Fallback] Usando datos locales de respaldo para ${endpoint}`);
         return fallback;
       }
       const body = await response.json().catch(() => ({}));
@@ -97,10 +153,8 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
     
     return await response.json() as T;
   } catch (error) {
-    // Si ocurre un error de red o servidor no disponible
-    const fallback = getLocalDataFallback<T>(endpoint, method);
+    const fallback = getLocalDataFallback<T>(endpoint, method, bodyData);
     if (fallback !== null) {
-      console.warn(`[Hostinger Fallback] Redirigiendo a datos locales para ${endpoint}`);
       return fallback;
     }
     throw error;

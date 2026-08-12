@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { 
   Menu, Leaf, LayoutDashboard, Users, Package, Download, Scale, 
   ShoppingCart, Kanban, Truck, Wallet, Building2, Receipt, Calculator, 
-  CheckSquare, Printer, Settings, FolderTree, Shield, LogOut, UserCheck
+  CheckSquare, Printer, Settings, FolderTree, Shield, LogOut
 } from 'lucide-react';
 import { useSettings } from '../../hooks/useSettings';
 import { useAuth } from '../../context/AuthContext';
@@ -69,19 +69,36 @@ const navSections: NavSection[] = [
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, collapsed, onToggleCollapse }) => {
-  const { data: settings } = useSettings();
+  const { data: settings, refetch } = useSettings();
   const { user, logout, hasPermission } = useAuth();
+
+  useEffect(() => {
+    const handleSettingsUpdate = () => {
+      refetch();
+    };
+    window.addEventListener('floryser_settings_updated', handleSettingsUpdate);
+    return () => window.removeEventListener('floryser_settings_updated', handleSettingsUpdate);
+  }, [refetch]);
+
   const logoUrl = settings?.businessInfo?.logoUrl;
   const businessName = settings?.businessInfo?.name || 'Flor y Ser';
 
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="brand-header">
-        <div className="brand-logo flex items-center justify-center overflow-hidden">
+        <div className="brand-logo flex items-center justify-center overflow-hidden" style={{ width: '32px', height: '32px', borderRadius: '8px' }}>
           {logoUrl ? (
-            <img src={logoUrl} alt="Logo" className="w-5 h-5 object-contain" />
+            <img 
+              src={logoUrl} 
+              alt="Logo Marca" 
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              onError={(e) => {
+                // Fallback si la imagen falla al cargar
+                (e.target as HTMLElement).style.display = 'none';
+              }} 
+            />
           ) : (
-            <Leaf size={20} />
+            <Leaf size={20} color="#2E5339" />
           )}
         </div>
         {!collapsed && (
@@ -100,7 +117,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, collap
 
       <div className="sidebar-content">
         {navSections.map((section, idx) => {
-          // Filtrar items según los permisos del usuario logueado
           const allowedItems = section.items.filter(item => hasPermission(item.moduleKey));
           if (allowedItems.length === 0) return null;
 
@@ -129,7 +145,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, collap
         })}
       </div>
 
-      {/* Pie de Sidebar con Información de Usuario y Nueva Venta */}
+      {/* Pie de Sidebar */}
       <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {hasPermission('new_sale') && (
           <button 

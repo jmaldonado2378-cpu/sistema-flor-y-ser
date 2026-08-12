@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { User, ModuleKey, UserRole } from '../types/auth';
-import { Users, UserPlus, Shield, CheckCircle, XCircle, Trash2, Key } from 'lucide-react';
+import { 
+  Users, UserPlus, Shield, CheckCircle, XCircle, Trash2, Key, Edit, Eye, EyeOff, Copy, Check, RefreshCw 
+} from 'lucide-react';
 
 const MODULE_LABELS: { key: ModuleKey; label: string; group: string }[] = [
   { key: 'new_sale', label: 'Nueva Venta / Punto de Venta', group: 'Comercial' },
@@ -20,11 +22,22 @@ const MODULE_LABELS: { key: ModuleKey; label: string; group: string }[] = [
 
 export const UserManagement: React.FC = () => {
   const { users, createUser, updateUser, deleteUser, user: currentUser } = useAuth();
-  const [showNewModal, setShowNewModal] = useState(false);
+  
+  // Estado Modales
+  const [showModal, setShowModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+
+  // Campos Formulario
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>('SELLER');
   const [selectedModules, setSelectedModules] = useState<ModuleKey[]>(['new_sale', 'kanban_orders', 'customers', 'stock']);
+  const [active, setActive] = useState(true);
+
+  // Estados visualización clave por tarjeta
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   if (currentUser?.role !== 'ADMIN') {
     return (
@@ -35,29 +48,72 @@ export const UserManagement: React.FC = () => {
     );
   }
 
-  const handleCreateUser = (e: React.FormEvent) => {
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$';
+    let result = '';
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setPassword(result);
+  };
+
+  const handleOpenCreateModal = () => {
+    setEditingUser(null);
+    setName('');
+    setEmail('');
+    setPassword('vendedor123');
+    setRole('SELLER');
+    setSelectedModules(['new_sale', 'kanban_orders', 'customers', 'stock']);
+    setActive(true);
+    setShowModal(true);
+  };
+
+  const handleOpenEditModal = (u: User) => {
+    setEditingUser(u);
+    setName(u.name);
+    setEmail(u.email);
+    setPassword(u.password || '123456');
+    setRole(u.role);
+    setSelectedModules(u.allowedModules || []);
+    setActive(u.active);
+    setShowModal(true);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email) return;
 
     const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'US';
 
-    createUser({
-      name,
-      email,
-      role,
-      allowedModules: role === 'ADMIN' ? MODULE_LABELS.map(m => m.key) : selectedModules,
-      avatarInitials: initials,
-      active: true
-    });
+    if (editingUser) {
+      // Editar usuario existente
+      updateUser(editingUser.id, {
+        name,
+        email,
+        password,
+        role,
+        allowedModules: role === 'ADMIN' ? MODULE_LABELS.map(m => m.key) : selectedModules,
+        avatarInitials: initials,
+        active
+      });
+    } else {
+      // Crear nuevo usuario
+      createUser({
+        name,
+        email,
+        password,
+        role,
+        allowedModules: role === 'ADMIN' ? MODULE_LABELS.map(m => m.key) : selectedModules,
+        avatarInitials: initials,
+        active
+      });
+    }
 
-    setName('');
-    setEmail('');
-    setRole('SELLER');
-    setShowNewModal(false);
+    setShowModal(false);
   };
 
   const toggleModuleForUser = (user: User, moduleKey: ModuleKey) => {
-    if (user.role === 'ADMIN') return; // Admin siempre tiene acceso total
+    if (user.role === 'ADMIN') return;
     const exists = user.allowedModules.includes(moduleKey);
     const updated = exists
       ? user.allowedModules.filter(m => m !== moduleKey)
@@ -66,21 +122,32 @@ export const UserManagement: React.FC = () => {
     updateUser(user.id, { allowedModules: updated });
   };
 
+  const toggleVisibility = (id: string) => {
+    setVisiblePasswords(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const copyPassword = (id: string, pass?: string) => {
+    if (!pass) return;
+    navigator.clipboard.writeText(pass);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   return (
     <div style={{ padding: '24px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       {/* Encabezado */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1E293B', margin: '0 0 6px 0', fontFamily: "'Libre Caslon Text', serif" }}>
-            Gestión de Usuarios y Permisos de Acceso
+            Gestión de Usuarios, Claves y Permisos
           </h1>
           <p style={{ fontSize: '14px', color: '#64748B', margin: 0 }}>
-            Configura qué vendedores tienen acceso a cada sección del sistema Flor y Ser
+            Administra credenciales, contraseñas de vendedores y asigna permisos por módulo
           </p>
         </div>
 
         <button
-          onClick={() => setShowNewModal(true)}
+          onClick={handleOpenCreateModal}
           style={{
             backgroundColor: '#2E5339',
             color: '#FFFFFF',
@@ -100,140 +167,200 @@ export const UserManagement: React.FC = () => {
         </button>
       </div>
 
-      {/* Lista de Usuarios */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '24px' }}>
-        {users.map(u => (
-          <div
-            key={u.id}
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '16px',
-              border: '1px solid #E2E8F0',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
-              padding: '24px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between'
-            }}
-          >
-            <div>
-              {/* Info de Perfil */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <div style={{
-                    width: '48px',
-                    height: '48px',
-                    borderRadius: '50%',
-                    backgroundColor: u.role === 'ADMIN' ? '#18261E' : '#D97706',
-                    color: '#FFFFFF',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 700,
-                    fontSize: '16px'
-                  }}>
-                    {u.avatarInitials}
+      {/* Tarjetas de Usuarios */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))', gap: '24px' }}>
+        {users.map(u => {
+          const isPassVisible = visiblePasswords[u.id] || false;
+          const userPassword = u.password || 'admin123';
+
+          return (
+            <div
+              key={u.id}
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '16px',
+                border: '1px solid #E2E8F0',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                padding: '24px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                opacity: u.active ? 1 : 0.65
+              }}
+            >
+              <div>
+                {/* Info de Perfil */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '50%',
+                      backgroundColor: u.role === 'ADMIN' ? '#18261E' : '#D97706',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 700,
+                      fontSize: '16px'
+                    }}>
+                      {u.avatarInitials}
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#1E293B' }}>{u.name}</h3>
+                        {!u.active && (
+                          <span style={{ fontSize: '10px', backgroundColor: '#FEE2E2', color: '#991B1B', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                            INACTIVO
+                          </span>
+                        )}
+                      </div>
+                      <p style={{ margin: '2px 0 0 0', fontSize: '13px', color: '#64748B' }}>{u.email}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#1E293B' }}>{u.name}</h3>
-                    <p style={{ margin: 0, fontSize: '13px', color: '#64748B' }}>{u.email}</p>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      padding: '4px 10px',
+                      borderRadius: '20px',
+                      backgroundColor: u.role === 'ADMIN' ? '#DCFCE7' : '#FEF3C7',
+                      color: u.role === 'ADMIN' ? '#166534' : '#92400E',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <Shield size={12} />
+                      {u.role === 'ADMIN' ? 'Administrador' : 'Vendedora'}
+                    </span>
+
+                    <button
+                      onClick={() => handleOpenEditModal(u)}
+                      title="Editar Usuario y Clave"
+                      style={{ border: 'none', background: '#F1F5F9', padding: '6px', borderRadius: '6px', cursor: 'pointer', color: '#334155' }}
+                    >
+                      <Edit size={16} />
+                    </button>
+
+                    {u.id !== currentUser.id && (
+                      <button
+                        onClick={() => deleteUser(u.id)}
+                        title="Eliminar Usuario"
+                        style={{ border: 'none', background: '#FEE2E2', padding: '6px', borderRadius: '6px', cursor: 'pointer', color: '#DC2626' }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    padding: '4px 10px',
-                    borderRadius: '20px',
-                    backgroundColor: u.role === 'ADMIN' ? '#DCFCE7' : '#FEF3C7',
-                    color: u.role === 'ADMIN' ? '#166534' : '#92400E',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}>
-                    <Shield size={12} />
-                    {u.role === 'ADMIN' ? 'Administrador' : 'Vendedor'}
-                  </span>
+                {/* Sección de Clave de Acceso */}
+                <div style={{
+                  backgroundColor: '#F8FAFC',
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  marginBottom: '16px',
+                  border: '1px solid #E2E8F0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Key size={16} color="#64748B" />
+                    <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>Contraseña:</span>
+                    <span style={{ fontFamily: 'monospace', fontSize: '14px', fontWeight: 700, color: '#0F172A', letterSpacing: isPassVisible ? 'normal' : '0.15em' }}>
+                      {isPassVisible ? userPassword : '••••••••'}
+                    </span>
+                  </div>
 
-                  {u.id !== currentUser.id && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <button
-                      onClick={() => deleteUser(u.id)}
-                      title="Eliminar Usuario"
-                      style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#EF4444' }}
+                      type="button"
+                      onClick={() => toggleVisibility(u.id)}
+                      title={isPassVisible ? 'Ocultar Clave' : 'Mostrar Clave'}
+                      style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#64748B' }}
                     >
-                      <Trash2 size={18} />
+                      {isPassVisible ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => copyPassword(u.id, userPassword)}
+                      title="Copiar Clave al Portapapeles"
+                      style={{ border: 'none', background: 'none', cursor: 'pointer', color: copiedId === u.id ? '#16A34A' : '#64748B' }}
+                    >
+                      {copiedId === u.id ? <Check size={16} /> : <Copy size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Permisos de Módulos */}
+                <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: '16px' }}>
+                  <h4 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#94A3B8', letterSpacing: '0.05em', margin: '0 0 10px 0' }}>
+                    Permisos de Módulos
+                  </h4>
+
+                  {u.role === 'ADMIN' ? (
+                    <p style={{ fontSize: '13px', color: '#166534', backgroundColor: '#F0FDF4', padding: '8px 12px', borderRadius: '8px', margin: 0 }}>
+                      ✨ El Administrador tiene acceso irrestricto a todos los módulos y ajustes.
+                    </p>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      {MODULE_LABELS.map(mod => {
+                        const isAllowed = u.allowedModules.includes(mod.key);
+                        return (
+                          <button
+                            key={mod.key}
+                            onClick={() => toggleModuleForUser(u, mod.key)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '8px 10px',
+                              borderRadius: '8px',
+                              border: `1px solid ${isAllowed ? '#BBF7D0' : '#E2E8F0'}`,
+                              backgroundColor: isAllowed ? '#F0FDF4' : '#F8FAFC',
+                              color: isAllowed ? '#166534' : '#64748B',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              textAlign: 'left'
+                            }}
+                          >
+                            {isAllowed ? <CheckCircle size={14} color="#16A34A" /> : <XCircle size={14} color="#94A3B8" />}
+                            <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {mod.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
               </div>
-
-              {/* Matriz de Permisos */}
-              <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: '16px' }}>
-                <h4 style={{ fontSize: '13px', textTransform: 'uppercase', color: '#94A3B8', letterSpacing: '0.05em', margin: '0 0 12px 0' }}>
-                  Permisos de Módulos
-                </h4>
-
-                {u.role === 'ADMIN' ? (
-                  <p style={{ fontSize: '13px', color: '#166534', backgroundColor: '#F0FDF4', padding: '10px 14px', borderRadius: '8px', margin: 0 }}>
-                    ✨ El Administrador tiene acceso irrestricto a todos los módulos y ajustes del sistema.
-                  </p>
-                ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                    {MODULE_LABELS.map(mod => {
-                      const isAllowed = u.allowedModules.includes(mod.key);
-                      return (
-                        <button
-                          key={mod.key}
-                          onClick={() => toggleModuleForUser(u, mod.key)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            padding: '8px 10px',
-                            borderRadius: '8px',
-                            border: `1px solid ${isAllowed ? '#BBF7D0' : '#E2E8F0'}`,
-                            backgroundColor: isAllowed ? '#F0FDF4' : '#F8FAFC',
-                            color: isAllowed ? '#166534' : '#64748B',
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            textAlign: 'left'
-                          }}
-                        >
-                          {isAllowed ? <CheckCircle size={14} color="#16A34A" /> : <XCircle size={14} color="#94A3B8" />}
-                          <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {mod.label}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Modal Nuevo Usuario */}
-      {showNewModal && (
+      {/* Modal Crear / Editar Usuario */}
+      {showModal && (
         <div style={{
           position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
           backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999
         }}>
           <div style={{
-            backgroundColor: '#FFFFFF', borderRadius: '20px', padding: '32px', width: '100%', maxWidth: '480px',
+            backgroundColor: '#FFFFFF', borderRadius: '20px', padding: '32px', width: '100%', maxWidth: '500px',
             boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
           }}>
             <h2 style={{ fontSize: '20px', fontWeight: 700, margin: '0 0 16px 0', fontFamily: "'Libre Caslon Text', serif" }}>
-              Crear Nuevo Vendedor / Usuario
+              {editingUser ? 'Editar Usuario / Cambiar Clave' : 'Crear Nuevo Vendedor / Usuario'}
             </h2>
 
-            <form onSubmit={handleCreateUser} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Nombre Completo</label>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Nombre Completo *</label>
                 <input
                   type="text"
                   placeholder="ej: Sofía Martínez"
@@ -245,13 +372,35 @@ export const UserManagement: React.FC = () => {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Correo Electrónico</label>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Correo Electrónico *</label>
                 <input
                   type="email"
                   placeholder="sofia@floryser.com"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #CBD5E1', boxSizing: 'border-box' }}
+                  required
+                />
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 600 }}>Contraseña de Acceso *</label>
+                  <button
+                    type="button"
+                    onClick={generateRandomPassword}
+                    style={{ background: 'none', border: 'none', color: '#2E5339', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <RefreshCw size={12} />
+                    Generar Clave Segura
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontFamily: 'monospace', fontWeight: 700, boxSizing: 'border-box' }}
                   required
                 />
               </div>
@@ -268,10 +417,24 @@ export const UserManagement: React.FC = () => {
                 </select>
               </div>
 
+              {editingUser && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="checkbox"
+                    id="chk-active"
+                    checked={active}
+                    onChange={e => setActive(e.target.checked)}
+                  />
+                  <label htmlFor="chk-active" style={{ fontSize: '13px', fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
+                    Usuario Activo (Permite iniciar sesión)
+                  </label>
+                </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
                 <button
                   type="button"
-                  onClick={() => setShowNewModal(false)}
+                  onClick={() => setShowModal(false)}
                   style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #CBD5E1', backgroundColor: '#FFFFFF', cursor: 'pointer' }}
                 >
                   Cancelar
@@ -280,7 +443,7 @@ export const UserManagement: React.FC = () => {
                   type="submit"
                   style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: '#2E5339', color: '#FFFFFF', fontWeight: 600, cursor: 'pointer' }}
                 >
-                  Guardar Usuario
+                  {editingUser ? 'Guardar Cambios' : 'Crear Usuario'}
                 </button>
               </div>
             </form>
