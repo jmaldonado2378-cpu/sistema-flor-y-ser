@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { Search, Shield, Bell, HelpCircle, LogOut, CheckCircle2, AlertTriangle, Info, X } from 'lucide-react';
+import { Search, Shield, Bell, HelpCircle, CheckCircle2, AlertTriangle, Info, X, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useRawMaterials, useFinalProducts } from '../../hooks/useInventory';
+import { useKanbanBoard } from '../../hooks/useTasks';
 
 interface TopBarProps {
   onOpenUsers?: () => void;
@@ -8,21 +10,78 @@ interface TopBarProps {
 }
 
 export const TopBar: React.FC<TopBarProps> = ({ onOpenUsers, onTabChange }) => {
-  const { user, logout, hasPermission } = useAuth();
-  const userName = user?.name || 'María Clara';
-  const userAvatar = user?.avatarInitials || 'MC';
-  const userRole = user?.role === 'ADMIN' ? 'Administrador' : 'Vendedora';
+  const { hasPermission } = useAuth();
+  const { data: rawMaterials } = useRawMaterials();
+  const { data: finalProducts } = useFinalProducts();
+  const { data: boardData } = useKanbanBoard();
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
 
-  const notifications = [
-    { id: '1', title: 'Alerta de Stock Mínimo', text: 'Semillas de Chía (MP-CHIA-01) llegó al límite de 8 KG.', type: 'warning' },
-    { id: '2', title: 'Tarea Kanban Pendiente', text: 'Fraccionar Lentejas Turcas 500g asignada a tu usuario.', type: 'info' },
-    { id: '3', title: 'Cobro Registrado', text: 'María Clara Fernández abonó $17.500 en mostrador.', type: 'success' }
-  ];
+  // Notificaciones dinámicas basadas en datos reales del sistema
+  const dynamicNotifications: { id: string; title: string; text: string; type: 'warning' | 'info' | 'success'; tab: string }[] = [];
+
+  // 1. Alertas de stock mínimo
+  if (Array.isArray(rawMaterials)) {
+    rawMaterials.filter(m => m.currentStock <= m.minStock).slice(0, 2).forEach(m => {
+      dynamicNotifications.push({
+        id: `raw-${m.id}`,
+        title: 'Alerta de Stock Mínimo',
+        text: `${m.name} (${m.code}) en ${m.currentStock} ${m.unit}`,
+        type: 'warning',
+        tab: 'tab-stock'
+      });
+    });
+  }
+
+  if (Array.isArray(finalProducts)) {
+    finalProducts.filter(p => p.currentStock <= p.minStock).slice(0, 2).forEach(p => {
+      dynamicNotifications.push({
+        id: `prod-${p.id}`,
+        title: 'Bajo Stock de Producto',
+        text: `${p.name} tiene ${p.currentStock} unidades disponibles`,
+        type: 'warning',
+        tab: 'tab-stock'
+      });
+    });
+  }
+
+  // 2. Alertas de tareas pendientes
+  const tasksList: any[] = Array.isArray(boardData) 
+    ? boardData 
+    : (boardData ? [...(boardData.todo || []), ...(boardData.inProgress || [])] : []);
+
+  if (Array.isArray(tasksList)) {
+    tasksList.filter((t: any) => t.status !== 'COMPLETED').slice(0, 2).forEach((t: any) => {
+      dynamicNotifications.push({
+        id: `task-${t.id || t.title}`,
+        title: 'Tarea Kanban Pendiente',
+        text: `${t.title} (${t.priority || 'Normal'})`,
+        type: 'info',
+        tab: 'tab-tasks'
+      });
+    });
+  }
+
+  // Fallback si no hay notificaciones críticas
+  if (dynamicNotifications.length === 0) {
+    dynamicNotifications.push({
+      id: 'system-ok',
+      title: 'Sistema Operativo',
+      text: 'Todos los niveles de stock y tareas están al día',
+      type: 'success',
+      tab: 'tab-dashboard'
+    });
+  }
+
+  const handleNotificationClick = (tab: string) => {
+    if (onTabChange) {
+      onTabChange(tab);
+    }
+    setShowNotifications(false);
+  };
 
   return (
     <header className="top-header-bar" style={{ position: 'relative' }}>
@@ -100,9 +159,11 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenUsers, onTabChange }) => {
             style={{ position: 'relative' }}
           >
             <Bell size={16} />
-            <span style={{
-              position: 'absolute', top: '-2px', right: '-2px', width: '8px', height: '8px', backgroundColor: '#EF4444', borderRadius: '50%'
-            }} />
+            {dynamicNotifications.some(n => n.type === 'warning') && (
+              <span style={{
+                position: 'absolute', top: '-2px', right: '-2px', width: '8px', height: '8px', backgroundColor: '#EF4444', borderRadius: '50%'
+              }} />
+            )}
           </button>
 
           {showNotifications && (
@@ -110,7 +171,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenUsers, onTabChange }) => {
               position: 'absolute',
               top: '40px',
               right: 0,
-              width: '320px',
+              width: '330px',
               backgroundColor: '#FFFFFF',
               borderRadius: '14px',
               boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)',
@@ -119,18 +180,35 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenUsers, onTabChange }) => {
               padding: '16px'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px' }}>
-                <h4 style={{ fontSize: '14px', fontWeight: 700, margin: 0 }}>Notificaciones ({notifications.length})</h4>
+                <h4 style={{ fontSize: '14px', fontWeight: 700, margin: 0 }}>Notificaciones ({dynamicNotifications.length})</h4>
                 <button onClick={() => setShowNotifications(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}><X size={14} /></button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {notifications.map(n => (
-                  <div key={n.id} style={{ display: 'flex', gap: '10px', padding: '10px', borderRadius: '8px', backgroundColor: n.type === 'warning' ? '#FEFCE8' : n.type === 'success' ? '#F0FDF4' : '#F0F9FF' }}>
-                    {n.type === 'warning' ? <AlertTriangle size={16} color="#D97706" /> : n.type === 'success' ? <CheckCircle2 size={16} color="#16A34A" /> : <Info size={16} color="#0284C7" />}
-                    <div>
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B' }}>{n.title}</div>
-                      <div style={{ fontSize: '11px', color: '#64748B' }}>{n.text}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {dynamicNotifications.map(n => (
+                  <div 
+                    key={n.id} 
+                    onClick={() => handleNotificationClick(n.tab)}
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '10px', 
+                      padding: '10px', 
+                      borderRadius: '8px', 
+                      backgroundColor: n.type === 'warning' ? '#FEFCE8' : n.type === 'success' ? '#F0FDF4' : '#F0F9FF',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {n.type === 'warning' ? <AlertTriangle size={16} color="#D97706" /> : n.type === 'success' ? <CheckCircle2 size={16} color="#16A34A" /> : <Info size={16} color="#0284C7" />}
+                      <div>
+                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B' }}>{n.title}</div>
+                        <div style={{ fontSize: '11px', color: '#64748B' }}>{n.text}</div>
+                      </div>
                     </div>
+                    <ChevronRight size={14} color="#94A3B8" />
                   </div>
                 ))}
               </div>
@@ -176,45 +254,6 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenUsers, onTabChange }) => {
               </div>
             </div>
           )}
-        </div>
-        
-        {/* Usuario en TopBar: Mantiene solo iniciales en texto (Foto reservada a Sidebar) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '12px' }}>
-          <div 
-            className="customer-avatar" 
-            style={{ 
-              width: '32px', 
-              height: '32px', 
-              fontSize: '12px',
-              backgroundColor: user?.role === 'ADMIN' ? '#18261E' : '#D97706',
-              color: '#FFFFFF',
-              fontWeight: 700
-            }}
-          >
-            {userAvatar}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-dark)' }}>{userName}</span>
-            <span style={{ fontSize: '10px', color: user?.role === 'ADMIN' ? '#166534' : '#92400E', fontWeight: 700 }}>
-              {userRole}
-            </span>
-          </div>
-
-          <button
-            onClick={logout}
-            title="Cerrar Sesión"
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: '#EF4444',
-              marginLeft: '6px',
-              display: 'flex',
-              alignItems: 'center'
-            }}
-          >
-            <LogOut size={16} />
-          </button>
         </div>
       </div>
     </header>

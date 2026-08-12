@@ -86,11 +86,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, collap
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="brand-header">
-        <div className="brand-logo flex items-center justify-center overflow-hidden" style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#2E5339' }}>
+        <div className="brand-logo flex items-center justify-center" style={{ height: '36px', maxWidth: '36px', flexShrink: 0, padding: '2px' }}>
           <img 
             src={logoUrl || "/favicon.svg"} 
             alt="Logo Marca" 
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
             onError={(e) => {
               (e.target as HTMLImageElement).src = "/favicon.svg";
             }} 

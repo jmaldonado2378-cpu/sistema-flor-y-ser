@@ -165,17 +165,77 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
       const data = getCollection('tasks', MOCK_TASKS);
       return { status: 'success', data } as unknown as T;
     }
-    if (cleanEndpoint.startsWith('/tasks/kanban/board')) {
-      const tasks = getCollection('tasks', MOCK_TASKS);
+    if (cleanEndpoint.includes('sales-kanban') || cleanEndpoint.includes('orders/kanban')) {
+      const orders = getCollection('sales_orders', [
+        {
+          id: 'ord-101',
+          orderNumber: 'PED-20260812-0001',
+          customerId: 'cust-1',
+          customerName: 'María Clara Fernández',
+          totalAmount: 17500,
+          status: 'RECEIVED',
+          paymentMethod: 'Efectivo',
+          channel: 'LOCAL',
+          createdAt: new Date().toISOString(),
+          items: [
+            { productId: 'p1', productName: 'Almendras Nonpareil 1kg', quantity: 1, unitPrice: 8500 }
+          ]
+        }
+      ]);
+
       return {
         status: 'success',
         data: {
-          todo: tasks.filter((t: any) => t.status === 'PENDING'),
-          inProgress: tasks.filter((t: any) => t.status === 'IN_PROGRESS'),
-          done: tasks.filter((t: any) => t.status === 'COMPLETED')
+          RECEIVED: orders.filter((o: any) => o.status === 'RECEIVED' || o.status === 'PENDING' || !o.status),
+          IN_PREPARATION: orders.filter((o: any) => o.status === 'IN_PREPARATION'),
+          READY_FOR_DELIVERY: orders.filter((o: any) => o.status === 'READY_FOR_DELIVERY'),
+          IN_DELIVERY: orders.filter((o: any) => o.status === 'IN_DELIVERY'),
+          DELIVERED: orders.filter((o: any) => o.status === 'DELIVERED')
         }
       } as unknown as T;
     }
+
+    if (cleanEndpoint === '/sales/checking-accounts' || cleanEndpoint.includes('/checking-account')) {
+      const customers: any[] = getCollection('customers', MOCK_CUSTOMERS);
+      const orders: any[] = getCollection('sales_orders', []);
+      const movements: any[] = getCollection('checking_account_movements', []);
+
+      if (cleanEndpoint.endsWith('/statement')) {
+        const parts = cleanEndpoint.split('/');
+        const custId = parts[3];
+        const custMovements = movements.filter((m: any) => m.customerId === custId);
+        return { status: 'success', data: custMovements } as unknown as T;
+      }
+
+      const summaries = customers.map((c: any) => {
+        const custOrders = orders.filter((o: any) => o.customerId === c.id || o.customerName === c.fullName);
+        const custMovements = movements.filter((m: any) => m.customerId === c.id);
+        const totalPurchases = custOrders.reduce((sum: number, o: any) => sum + (Number(o.totalAmount) || 0), 0);
+        const calcBalance = c.currentBalance !== undefined ? c.currentBalance : -totalPurchases;
+
+        return {
+          customerId: c.id,
+          customerName: c.fullName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Cliente Registrado',
+          phoneWhatsapp: c.phoneWhatsapp || c.whatsapp || '+5491155443322',
+          email: c.email || 'cliente@floryser.com',
+          balance: calcBalance,
+          currentBalance: calcBalance,
+          creditLimit: c.creditLimit || 20000,
+          availableCredit: (c.creditLimit || 20000) + calcBalance,
+          lastMovementDate: custOrders[0]?.createdAt || new Date().toISOString()
+        };
+      });
+
+      if (cleanEndpoint.startsWith('/sales/customers/')) {
+        const parts = cleanEndpoint.split('/');
+        const custId = parts[3];
+        const found = summaries.find(s => s.customerId === custId) || summaries[0];
+        return { status: 'success', data: found } as unknown as T;
+      }
+
+      return { status: 'success', data: summaries } as unknown as T;
+    }
+
     if (cleanEndpoint === '/finance/expenses' || cleanEndpoint.startsWith('/finance/expenses/')) {
       const data = getCollection('expenses', MOCK_EXPENSES);
       return { status: 'success', data } as unknown as T;
@@ -192,7 +252,7 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
           customerId: 'cust-1',
           customerName: 'María Clara Fernández',
           totalAmount: 17500,
-          status: 'DELIVERED',
+          status: 'RECEIVED',
           paymentMethod: 'Efectivo',
           channel: 'LOCAL',
           createdAt: new Date().toISOString(),
@@ -215,19 +275,54 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
       const currentOrders = getCollection('sales_orders', []);
       const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
       const seq = (currentOrders.length + 1).toString().padStart(4, '0');
+      const orderAmount = Number(bodyData?.totalAmount) || 0;
+
       const newOrder = {
         id: `ord-${Date.now()}`,
         orderNumber: `PED-${todayStr}-${seq}`,
-        customerId: bodyData?.customerId || '',
+        customerId: bodyData?.customerId || 'cust-1',
         customerName: bodyData?.customerName || 'Cliente Registrado',
         channel: bodyData?.channel || 'LOCAL',
-        status: 'DELIVERED',
+        status: 'RECEIVED', // Inicializa en Pendiente / Recibido para el Kanban de Pedidos
         paymentMethod: bodyData?.paymentMethod || 'Efectivo',
-        totalAmount: Number(bodyData?.totalAmount) || 0,
+        totalAmount: orderAmount,
         items: bodyData?.items || [],
         createdAt: new Date().toISOString()
       };
       saveCollection('sales_orders', [newOrder, ...currentOrders]);
+
+      // Impactar en Cta Cte del Cliente
+      if (bodyData?.customerId) {
+        const customers = getCollection('customers', MOCK_CUSTOMERS);
+        const updatedCusts = customers.map((c: any) => {
+          if (c.id === bodyData.customerId) {
+            const currentBal = c.currentBalance !== undefined ? c.currentBalance : 0;
+            return {
+              ...c,
+              currentBalance: currentBal - orderAmount
+            };
+          }
+          return c;
+        });
+        saveCollection('customers', updatedCusts);
+
+        const movements = getCollection('checking_account_movements', []);
+        const newMovement = {
+          id: `mov-${Date.now()}`,
+          customerId: bodyData.customerId,
+          date: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          type: 'VENTA',
+          movementType: 'DEBIT',
+          tipoMovimiento: 'DÉBITO',
+          description: `Venta Registrada #${newOrder.orderNumber}`,
+          descripcion: `Venta Registrada #${newOrder.orderNumber}`,
+          amount: orderAmount,
+          monto: orderAmount,
+          balanceAfter: -orderAmount
+        };
+        saveCollection('checking_account_movements', [newMovement, ...movements]);
+      }
 
       addAuditLog({
         userName: bodyData?.customerName ? 'Usuario Venta' : 'Vendedor',
@@ -329,6 +424,21 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
   }
 
   if (method === 'PATCH' || method === 'PUT') {
+    if (cleanEndpoint.startsWith('/sales/orders/') && cleanEndpoint.endsWith('/status')) {
+      const parts = cleanEndpoint.split('/');
+      const orderId = parts[3];
+      const orders = getCollection('sales_orders', []);
+      const updatedOrders = orders.map((o: any) => {
+        if (o.id === orderId) {
+          return { ...o, status: bodyData?.status || o.status };
+        }
+        return o;
+      });
+      saveCollection('sales_orders', updatedOrders);
+      const updatedOrder = updatedOrders.find((o: any) => o.id === orderId) || { id: orderId, status: bodyData?.status };
+      return { status: 'success', data: updatedOrder } as unknown as T;
+    }
+
     if (cleanEndpoint.startsWith('/settings')) {
       const current = getStoredSettings();
       let updated = { ...current };
