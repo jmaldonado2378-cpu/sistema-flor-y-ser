@@ -548,11 +548,24 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                         <td className="text-sm text-text-muted">{item.storageLocation || 'Depósito Principal'}</td>
                         <td style={{ textAlign: 'right' }}>
                           <button 
-                            className="btn btn-sm btn-secondary"
+                            type="button"
                             onClick={() => openEditRaw(item)}
                             title="Editar materia prima"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '8px',
+                              border: '1px solid #D1D5DB',
+                              backgroundColor: '#FFFFFF',
+                              cursor: 'pointer',
+                              padding: 0,
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                            }}
                           >
-                            <Pencil size={14} />
+                            <Pencil size={15} style={{ color: '#2563EB', strokeWidth: 2.2 }} />
                           </button>
                         </td>
                       </tr>
@@ -613,11 +626,24 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                         <td className="text-sm text-text-muted">{item.storageLocation || 'Depósito C'}</td>
                         <td style={{ textAlign: 'right' }}>
                           <button 
-                            className="btn btn-sm btn-secondary"
+                            type="button"
                             onClick={() => openEditPkg(item)}
                             title="Editar empaque"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '8px',
+                              border: '1px solid #D1D5DB',
+                              backgroundColor: '#FFFFFF',
+                              cursor: 'pointer',
+                              padding: 0,
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                            }}
                           >
-                            <Pencil size={14} />
+                            <Pencil size={15} style={{ color: '#2563EB', strokeWidth: 2.2 }} />
                           </button>
                         </td>
                       </tr>
@@ -674,11 +700,24 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                           <td><span className="badge gray">{baseRm ? baseRm.name : 'Insumo Base'}</span></td>
                           <td style={{ textAlign: 'right' }}>
                             <button 
-                              className="btn btn-sm btn-secondary"
+                              type="button"
                               onClick={() => openEditFinal(item)}
                               title="Editar producto final"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '8px',
+                                border: '1px solid #D1D5DB',
+                                backgroundColor: '#FFFFFF',
+                                cursor: 'pointer',
+                                padding: 0,
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                              }}
                             >
-                              <Pencil size={14} />
+                              <Pencil size={15} style={{ color: '#2563EB', strokeWidth: 2.2 }} />
                             </button>
                           </td>
                         </tr>

@@ -288,27 +288,66 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
                     </td>
                     <td><span className="badge green">{customer.segment || 'FRECUENTE'}</span></td>
                     <td className="text-center">
-                      <div className="flex gap-1 justify-center">
+                      <div className="flex gap-2 justify-center">
                         <button 
-                          className="btn btn-secondary btn-sm"
+                          type="button"
                           onClick={() => setViewingCustomer(customer)}
                           title="Ver Ficha Unificada"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            border: '1px solid #D1D5DB',
+                            backgroundColor: '#FFFFFF',
+                            cursor: 'pointer',
+                            padding: 0,
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                          }}
                         >
-                          <Eye size={15} />
+                          <Eye size={16} style={{ color: '#2E5339', strokeWidth: 2.2 }} />
                         </button>
                         <button 
-                          className="btn btn-secondary btn-sm"
+                          type="button"
                           onClick={() => handleOpenEditModal(customer)}
                           title="Editar Datos"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            border: '1px solid #D1D5DB',
+                            backgroundColor: '#FFFFFF',
+                            cursor: 'pointer',
+                            padding: 0,
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                          }}
                         >
-                          <Edit size={15} />
+                          <Edit size={16} style={{ color: '#2563EB', strokeWidth: 2.2 }} />
                         </button>
                         <button 
-                          className="btn btn-secondary btn-sm text-terracotta"
+                          type="button"
                           onClick={() => setDeletingCustomer(customer)}
                           title="Desactivar Cliente"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            border: '1px solid #FCA5A5',
+                            backgroundColor: '#FEF2F2',
+                            cursor: 'pointer',
+                            padding: 0,
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                          }}
                         >
-                          <Trash2 size={15} />
+                          <Trash2 size={16} style={{ color: '#DC2626', strokeWidth: 2.2 }} />
                         </button>
                       </div>
                     </td>

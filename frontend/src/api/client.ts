@@ -7,7 +7,8 @@ import {
   MOCK_DIETARY_PROFILES,
   MOCK_TASKS,
   MOCK_EXPENSES,
-  MOCK_SUPPLIERS
+  MOCK_SUPPLIERS,
+  MOCK_RECEIPTS
 } from './mockData';
 
 const API_BASE = '/api/v1';
@@ -40,6 +41,22 @@ const DEFAULT_SETTINGS = {
   }
 };
 
+// Helpers genéricos de persitencia local para modo Fallback estático
+function getCollection<T>(key: string, defaultData: T[]): T[] {
+  const saved = localStorage.getItem(`floryser_${key}_v2`);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (e) {}
+  }
+  return defaultData;
+}
+
+function saveCollection<T>(key: string, data: T[]) {
+  localStorage.setItem(`floryser_${key}_v2`, JSON.stringify(data));
+}
+
 function getStoredSettings() {
   const saved = localStorage.getItem('floryser_settings_v2');
   if (saved) {
@@ -52,54 +69,159 @@ function getStoredSettings() {
 
 function saveStoredSettings(newSettings: any) {
   localStorage.setItem('floryser_settings_v2', JSON.stringify(newSettings));
-  // Disparar evento personalizado para actualizar Sidebar y componentes en tiempo real
   window.dispatchEvent(new Event('floryser_settings_updated'));
 }
 
 function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyData?: any): T | null {
   const cleanEndpoint = endpoint.split('?')[0];
 
+  // 1. PETICIONES GET
   if (method === 'GET') {
     if (cleanEndpoint === '/article-families' || cleanEndpoint.startsWith('/article-families/')) {
-      return MOCK_ARTICLE_FAMILIES as unknown as T;
+      const data = getCollection('families', MOCK_ARTICLE_FAMILIES);
+      return { status: 'success', data } as unknown as T;
     }
     if (cleanEndpoint === '/raw-materials' || cleanEndpoint.startsWith('/raw-materials/')) {
-      return MOCK_RAW_MATERIALS as unknown as T;
+      const data = getCollection('raw_materials', MOCK_RAW_MATERIALS);
+      return { status: 'success', data } as unknown as T;
     }
     if (cleanEndpoint === '/packaging-materials' || cleanEndpoint.startsWith('/packaging-materials/')) {
-      return MOCK_PACKAGING_MATERIALS as unknown as T;
+      const data = getCollection('packaging', MOCK_PACKAGING_MATERIALS);
+      return { status: 'success', data } as unknown as T;
     }
     if (cleanEndpoint === '/final-products' || cleanEndpoint.startsWith('/final-products/')) {
-      return MOCK_FINAL_PRODUCTS as unknown as T;
+      const data = getCollection('final_products', MOCK_FINAL_PRODUCTS);
+      return { status: 'success', data } as unknown as T;
     }
     if (cleanEndpoint === '/customers' || cleanEndpoint.startsWith('/customers/')) {
-      return MOCK_CUSTOMERS as unknown as T;
+      const data = getCollection('customers', MOCK_CUSTOMERS);
+      return { status: 'success', data } as unknown as T;
+    }
+    if (cleanEndpoint === '/merchandise-receipts' || cleanEndpoint.startsWith('/merchandise-receipts/')) {
+      const data = getCollection('receipts', MOCK_RECEIPTS);
+      return { status: 'success', data } as unknown as T;
     }
     if (cleanEndpoint === '/dietary-profiles' || cleanEndpoint.startsWith('/dietary-profiles/')) {
-      return MOCK_DIETARY_PROFILES as unknown as T;
+      return { status: 'success', data: MOCK_DIETARY_PROFILES } as unknown as T;
     }
     if (cleanEndpoint === '/tasks' || cleanEndpoint.startsWith('/tasks/')) {
-      return MOCK_TASKS as unknown as T;
+      const data = getCollection('tasks', MOCK_TASKS);
+      return { status: 'success', data } as unknown as T;
     }
     if (cleanEndpoint.startsWith('/tasks/kanban/board')) {
+      const tasks = getCollection('tasks', MOCK_TASKS);
       return {
-        todo: MOCK_TASKS.filter(t => t.status === 'PENDING'),
-        inProgress: MOCK_TASKS.filter(t => t.status === 'IN_PROGRESS'),
-        done: MOCK_TASKS.filter(t => t.status === 'COMPLETED')
+        status: 'success',
+        data: {
+          todo: tasks.filter((t: any) => t.status === 'PENDING'),
+          inProgress: tasks.filter((t: any) => t.status === 'IN_PROGRESS'),
+          done: tasks.filter((t: any) => t.status === 'COMPLETED')
+        }
       } as unknown as T;
     }
     if (cleanEndpoint === '/finance/expenses' || cleanEndpoint.startsWith('/finance/expenses/')) {
-      return MOCK_EXPENSES as unknown as T;
+      const data = getCollection('expenses', MOCK_EXPENSES);
+      return { status: 'success', data } as unknown as T;
     }
     if (cleanEndpoint === '/suppliers' || cleanEndpoint.startsWith('/suppliers/')) {
-      return MOCK_SUPPLIERS as unknown as T;
+      const data = getCollection('suppliers', MOCK_SUPPLIERS);
+      return { status: 'success', data } as unknown as T;
     }
     if (cleanEndpoint === '/settings') {
-      return getStoredSettings() as unknown as T;
+      return { status: 'success', data: getStoredSettings() } as unknown as T;
     }
   }
 
-  // Guardado de Configuración y Logo en LocalStorage
+  // 2. PETICIONES POST / PUT / PATCH (PERSISTENCIA LOCAL DE NUEVOS REGISTROS)
+  if (method === 'POST') {
+    if (cleanEndpoint === '/merchandise-receipts' || cleanEndpoint === '/merchandise-receipts/raw') {
+      const currentReceipts = getCollection('receipts', MOCK_RECEIPTS);
+      const suppliers = getCollection('suppliers', MOCK_SUPPLIERS);
+      const foundSupplier = suppliers.find((s: any) => s.id === bodyData?.supplierId);
+
+      const newReceipt = {
+        id: `rec-${Date.now()}`,
+        receiptNumber: bodyData?.receiptNumber || `FC-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(100000 + Math.random() * 900000)}`,
+        supplierId: bodyData?.supplierId || 'supp-1',
+        supplierName: foundSupplier ? foundSupplier.name : 'Proveedor General',
+        receiptType: bodyData?.receiptType || 'FACTURA',
+        issueDate: bodyData?.receptionDate || new Date().toISOString().split('T')[0],
+        receptionDate: bodyData?.receptionDate || new Date().toISOString().split('T')[0],
+        totalAmount: bodyData?.totalAmount || bodyData?.totalCost || 0,
+        totalCost: bodyData?.totalAmount || bodyData?.totalCost || 0,
+        paidAmount: bodyData?.totalAmount || bodyData?.totalCost || 0,
+        pendingBalance: 0,
+        paymentStatus: 'PAID',
+        items: bodyData?.items || [],
+        notes: bodyData?.notes || '',
+        createdAt: new Date().toISOString()
+      };
+
+      const updatedReceipts = [newReceipt, ...currentReceipts];
+      saveCollection('receipts', updatedReceipts);
+      return { status: 'success', data: newReceipt } as unknown as T;
+    }
+
+    if (cleanEndpoint === '/packaging-materials') {
+      const current = getCollection('packaging', MOCK_PACKAGING_MATERIALS);
+      const newItem = {
+        id: `pack-${Date.now()}`,
+        code: bodyData?.code || `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
+        name: bodyData?.name || 'Empaque',
+        category: bodyData?.category || 'DOYPACK',
+        unit: bodyData?.unit || 'unidades',
+        currentStock: Number(bodyData?.currentStock) || 0,
+        minStock: Number(bodyData?.minStock) || 10,
+        costPerUnit: Number(bodyData?.costPerUnit) || 0,
+        supplierName: bodyData?.supplierName || 'Proveedor',
+        storageLocation: bodyData?.storageLocation || 'Depósito C',
+        isActive: true,
+        createdAt: new Date().toISOString()
+      };
+      saveCollection('packaging', [...current, newItem]);
+      return { status: 'success', data: newItem } as unknown as T;
+    }
+
+    if (cleanEndpoint === '/raw-materials') {
+      const current = getCollection('raw_materials', MOCK_RAW_MATERIALS);
+      const newItem = {
+        id: `raw-${Date.now()}`,
+        code: bodyData?.code || `MP-${Math.floor(1000 + Math.random() * 9000)}`,
+        name: bodyData?.name || 'Materia Prima',
+        unit: bodyData?.unit || 'kg',
+        currentStock: Number(bodyData?.currentStock) || 0,
+        minStock: Number(bodyData?.minStock) || 10,
+        costPerUnit: Number(bodyData?.costPerUnit) || 0,
+        supplierName: bodyData?.supplierName || 'Proveedor',
+        storageLocation: bodyData?.storageLocation || 'Depósito A',
+        createdAt: new Date().toISOString()
+      };
+      saveCollection('raw_materials', [...current, newItem]);
+      return { status: 'success', data: newItem } as unknown as T;
+    }
+
+    if (cleanEndpoint === '/customers') {
+      const current = getCollection('customers', MOCK_CUSTOMERS);
+      const newItem = {
+        id: `cust-${Date.now()}`,
+        firstName: bodyData?.firstName || 'Cliente',
+        lastName: bodyData?.lastName || '',
+        fullName: `${bodyData?.firstName || ''} ${bodyData?.lastName || ''}`.trim(),
+        phoneWhatsapp: bodyData?.phoneWhatsapp || '',
+        email: bodyData?.email || '',
+        address: bodyData?.address || '',
+        dietaryProfiles: bodyData?.dietaryProfiles || [],
+        preferredChannel: bodyData?.preferredChannel || 'LOCAL',
+        currentBalance: 0,
+        creditLimit: 15000,
+        totalPoints: 0,
+        segment: 'NUEVO'
+      };
+      saveCollection('customers', [...current, newItem]);
+      return { status: 'success', data: newItem } as unknown as T;
+    }
+  }
+
   if (method === 'PATCH' || method === 'PUT') {
     if (cleanEndpoint.startsWith('/settings')) {
       const current = getStoredSettings();
@@ -116,12 +238,11 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
       }
 
       saveStoredSettings(updated);
-      return { success: true, message: 'Configuración actualizada en almacenamiento local.', data: updated } as unknown as T;
+      return { status: 'success', message: 'Configuración actualizada.', data: updated } as unknown as T;
     }
   }
 
-  // Fallback genérico para llamadas POST/PUT en modo demostrativo estático
-  return { success: true, message: 'Operación realizada en modo local/demostrativo.' } as unknown as T;
+  return { status: 'success', message: 'Operación realizada en modo local.' } as unknown as T;
 }
 
 export async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -141,7 +262,6 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
     const response = await fetch(url, config);
     const contentType = response.headers.get('content-type') || '';
     
-    // Si la respuesta no es OK o la respuesta no es JSON (ej. página 404 HTML de Apache/Hostinger)
     if (!response.ok || !contentType.includes('application/json')) {
       const fallback = getLocalDataFallback<T>(endpoint, method, bodyData);
       if (fallback !== null) {

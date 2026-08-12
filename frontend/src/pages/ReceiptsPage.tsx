@@ -155,11 +155,24 @@ export const ReceiptsPage: React.FC<{ onTabChange?: (tab: string) => void }> = (
                       </td>
                       <td className="text-center">
                         <button 
-                          className="btn btn-secondary btn-sm"
+                          type="button"
                           onClick={() => setViewingReceipt(receipt)}
                           title="Ver Detalle de Recepción"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            border: '1px solid #D1D5DB',
+                            backgroundColor: '#FFFFFF',
+                            cursor: 'pointer',
+                            padding: 0,
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                          }}
                         >
-                          <Eye size={15} />
+                          <Eye size={16} style={{ color: '#2E5339', strokeWidth: 2.2 }} />
                         </button>
                       </td>
                     </tr>
