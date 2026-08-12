@@ -64,8 +64,12 @@ import { FidelizationController } from './controllers/fidelizationController';
 import { AutomationService } from './services/automationService';
 import { AutomationController } from './controllers/automationController';
 
+import { AuthService } from './services/authService';
+import { AuthController } from './controllers/authController';
+
 const app = express();
 const PORT: number = Number(process.env.PORT) || 3000;
+
 
 // Configuración de PostgreSQL Pool
 const db = new Pool({
@@ -156,8 +160,17 @@ const fidelizationController = new FidelizationController(fidelizationService);
 const automationService = new AutomationService(db, customerService);
 const automationController = new AutomationController(automationService);
 
+// Inicialización Módulo Autenticación & Usuarios
+const authService = new AuthService(db);
+const authController = new AuthController(authService);
+
+// Rutas API REST v1 - Autenticación
+app.post('/api/v1/auth/login', authController.login);
+
+
 // Rutas API REST v1 - CRM & Clientes
 app.get('/api/v1/customers', customerController.getAll);
+
 app.post('/api/v1/customers', customerController.create);
 app.get('/api/v1/customers/:id', customerController.getUnifiedProfile);
 app.get('/api/v1/customers/:id/unified-profile', customerController.getUnifiedProfile);

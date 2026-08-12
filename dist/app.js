@@ -48,6 +48,8 @@ const fidelizationService_1 = require("./services/fidelizationService");
 const fidelizationController_1 = require("./controllers/fidelizationController");
 const automationService_1 = require("./services/automationService");
 const automationController_1 = require("./controllers/automationController");
+const authService_1 = require("./services/authService");
+const authController_1 = require("./controllers/authController");
 const app = (0, express_1.default)();
 const PORT = Number(process.env.PORT) || 3000;
 // Configuración de PostgreSQL Pool
@@ -116,6 +118,11 @@ const fidelizationController = new fidelizationController_1.FidelizationControll
 // Inicialización Módulo Automatizaciones WhatsApp
 const automationService = new automationService_1.AutomationService(db, customerService);
 const automationController = new automationController_1.AutomationController(automationService);
+// Inicialización Módulo Autenticación & Usuarios
+const authService = new authService_1.AuthService(db);
+const authController = new authController_1.AuthController(authService);
+// Rutas API REST v1 - Autenticación
+app.post('/api/v1/auth/login', authController.login);
 // Rutas API REST v1 - CRM & Clientes
 app.get('/api/v1/customers', customerController.getAll);
 app.post('/api/v1/customers', customerController.create);

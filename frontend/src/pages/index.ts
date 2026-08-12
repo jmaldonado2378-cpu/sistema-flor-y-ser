@@ -14,3 +14,5 @@ export { TasksKanbanPage } from './TasksKanbanPage';
 export { LabelsPage } from './LabelsPage';
 export { SettingsPage } from './SettingsPage';
 export { ArticleFamiliesPage } from './ArticleFamiliesPage';
+export { UserManagement } from './UserManagement';
+export { Login } from './Login';
