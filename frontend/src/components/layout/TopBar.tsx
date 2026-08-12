@@ -185,40 +185,47 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenUsers, onTabChange }) => {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {dynamicNotifications.map(n => (
-                  <button 
-                    key={n.id} 
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleNotificationClick(n.tab);
-                    }}
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '10px', 
-                      padding: '10px', 
-                      borderRadius: '8px', 
-                      backgroundColor: n.type === 'warning' ? '#FEFCE8' : n.type === 'success' ? '#F0FDF4' : '#F0F9FF',
-                      border: 'none',
-                      cursor: 'pointer',
-                      width: '100%',
-                      textAlign: 'left',
-                      transition: 'background-color 0.2s'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {n.type === 'warning' ? <AlertTriangle size={16} color="#D97706" /> : n.type === 'success' ? <CheckCircle2 size={16} color="#16A34A" /> : <Info size={16} color="#0284C7" />}
-                      <div>
-                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B' }}>{n.title}</div>
-                        <div style={{ fontSize: '11px', color: '#64748B' }}>{n.text}</div>
+                {dynamicNotifications.map(n => {
+                  const bgColor = n.type === 'warning' ? '#FEF3C7' : n.type === 'success' ? '#DCFCE7' : '#E0F2FE';
+                  const borderColor = n.type === 'warning' ? '#FCD34D' : n.type === 'success' ? '#86EFAC' : '#BAE6FD';
+                  const iconColor = n.type === 'warning' ? '#B45309' : n.type === 'success' ? '#15803D' : '#0284C7';
+                  const textColor = n.type === 'warning' ? '#78350F' : n.type === 'success' ? '#14532D' : '#0C4A6E';
+
+                  return (
+                    <button 
+                      key={n.id} 
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleNotificationClick(n.tab);
+                      }}
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '10px', 
+                        padding: '10px 12px', 
+                        borderRadius: '8px', 
+                        backgroundColor: bgColor,
+                        border: `1px solid ${borderColor}`,
+                        cursor: 'pointer',
+                        width: '100%',
+                        textAlign: 'left',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {n.type === 'warning' ? <AlertTriangle size={18} color={iconColor} /> : n.type === 'success' ? <CheckCircle2 size={18} color={iconColor} /> : <Info size={18} color={iconColor} />}
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A', marginBottom: '2px' }}>{n.title}</div>
+                          <div style={{ fontSize: '12px', fontWeight: 600, color: textColor }}>{n.text}</div>
+                        </div>
                       </div>
-                    </div>
-                    <ChevronRight size={14} color="#94A3B8" />
-                  </button>
-                ))}
+                      <ChevronRight size={16} color={iconColor} />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
