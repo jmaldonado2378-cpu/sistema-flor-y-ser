@@ -382,6 +382,8 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
         costPerUnit: Number(bodyData?.costPerUnit) || 0,
         supplierName: bodyData?.supplierName || 'Proveedor',
         storageLocation: bodyData?.storageLocation || 'Depósito C',
+        familyId: bodyData?.familyId || bodyData?.articleFamilyId || '',
+        articleFamilyId: bodyData?.familyId || bodyData?.articleFamilyId || '',
         isActive: true,
         createdAt: new Date().toISOString()
       };
@@ -401,9 +403,29 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
         costPerUnit: Number(bodyData?.costPerUnit) || 0,
         supplierName: bodyData?.supplierName || 'Proveedor',
         storageLocation: bodyData?.storageLocation || 'Depósito A',
+        familyId: bodyData?.familyId || bodyData?.articleFamilyId || '',
+        articleFamilyId: bodyData?.familyId || bodyData?.articleFamilyId || '',
         createdAt: new Date().toISOString()
       };
       saveCollection('raw_materials', [...current, newItem]);
+      return { status: 'success', data: newItem } as unknown as T;
+    }
+
+    if (cleanEndpoint === '/final-products') {
+      const current = getCollection('final_products', MOCK_FINAL_PRODUCTS);
+      const newItem = {
+        id: `final-${Date.now()}`,
+        code: bodyData?.code || `PF-${Math.floor(1000 + Math.random() * 9000)}`,
+        name: bodyData?.name || 'Producto Final',
+        unitWeightGrams: Number(bodyData?.unitWeightGrams) || 500,
+        currentStock: Number(bodyData?.currentStock) || 0,
+        minStock: Number(bodyData?.minStock) || 10,
+        price: Number(bodyData?.price) || 0,
+        familyId: bodyData?.familyId || bodyData?.articleFamilyId || '',
+        articleFamilyId: bodyData?.familyId || bodyData?.articleFamilyId || '',
+        createdAt: new Date().toISOString()
+      };
+      saveCollection('final_products', [...current, newItem]);
       return { status: 'success', data: newItem } as unknown as T;
     }
 
@@ -449,6 +471,66 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
   }
 
   if (method === 'PATCH' || method === 'PUT') {
+    if (cleanEndpoint.startsWith('/raw-materials/')) {
+      const parts = cleanEndpoint.split('/');
+      const id = parts[2];
+      const current = getCollection('raw_materials', MOCK_RAW_MATERIALS);
+      const updated = current.map((item: any) => {
+        if (item.id === id) {
+          return {
+            ...item,
+            ...bodyData,
+            familyId: bodyData?.familyId !== undefined ? bodyData.familyId : item.familyId,
+            articleFamilyId: bodyData?.familyId !== undefined ? bodyData.familyId : item.articleFamilyId
+          };
+        }
+        return item;
+      });
+      saveCollection('raw_materials', updated);
+      const found = updated.find((i: any) => i.id === id);
+      return { status: 'success', data: found } as unknown as T;
+    }
+
+    if (cleanEndpoint.startsWith('/packaging-materials/')) {
+      const parts = cleanEndpoint.split('/');
+      const id = parts[2];
+      const current = getCollection('packaging', MOCK_PACKAGING_MATERIALS);
+      const updated = current.map((item: any) => {
+        if (item.id === id) {
+          return {
+            ...item,
+            ...bodyData,
+            familyId: bodyData?.familyId !== undefined ? bodyData.familyId : item.familyId,
+            articleFamilyId: bodyData?.familyId !== undefined ? bodyData.familyId : item.articleFamilyId
+          };
+        }
+        return item;
+      });
+      saveCollection('packaging', updated);
+      const found = updated.find((i: any) => i.id === id);
+      return { status: 'success', data: found } as unknown as T;
+    }
+
+    if (cleanEndpoint.startsWith('/final-products/')) {
+      const parts = cleanEndpoint.split('/');
+      const id = parts[2];
+      const current = getCollection('final_products', MOCK_FINAL_PRODUCTS);
+      const updated = current.map((item: any) => {
+        if (item.id === id) {
+          return {
+            ...item,
+            ...bodyData,
+            familyId: bodyData?.familyId !== undefined ? bodyData.familyId : item.familyId,
+            articleFamilyId: bodyData?.familyId !== undefined ? bodyData.familyId : item.articleFamilyId
+          };
+        }
+        return item;
+      });
+      saveCollection('final_products', updated);
+      const found = updated.find((i: any) => i.id === id);
+      return { status: 'success', data: found } as unknown as T;
+    }
+
     if (cleanEndpoint.startsWith('/tasks/')) {
       const parts = cleanEndpoint.split('/');
       const taskId = parts[2];

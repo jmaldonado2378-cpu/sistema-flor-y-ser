@@ -88,17 +88,17 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
 
   const rawFamilies = articleFamilies.filter((f: any) => {
     const sc = getScope(f);
-    return sc === 'RAW_MATERIAL' || sc === 'RAW' || sc === 'ALL';
+    return sc === 'RAW_MATERIAL' || sc === 'RAW' || sc === 'MATERIA PRIMA' || sc === 'ALL';
   });
 
   const pkgFamilies = articleFamilies.filter((f: any) => {
     const sc = getScope(f);
-    return sc === 'PACKAGING' || sc === 'PKG' || sc === 'ALL';
+    return sc === 'PACKAGING' || sc === 'PKG' || sc === 'EMPAQUE' || sc === 'EMP' || sc === 'ALL';
   });
 
   const finalFamilies = articleFamilies.filter((f: any) => {
     const sc = getScope(f);
-    return sc === 'FINAL_PRODUCT' || sc === 'FINAL' || sc === 'ALL';
+    return sc === 'FINAL_PRODUCT' || sc === 'FINAL' || sc === 'PRODUCTO FINAL' || sc === 'ALL';
   });
 
   const createRaw = useCreateRawMaterial();
@@ -233,7 +233,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       costPerUnit: item.costPerUnit,
       supplierName: item.supplierName || '',
       storageLocation: item.storageLocation || 'Depósito A',
-      familyId: item.familyId || '',
+      familyId: item.familyId || item.articleFamilyId || '',
     });
     setIsRawModalOpen(true);
   };
@@ -250,7 +250,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       costPerUnit: item.costPerUnit,
       supplierName: item.supplierName || '',
       storageLocation: item.storageLocation || 'Depósito C',
-      familyId: item.familyId || '',
+      familyId: item.familyId || item.articleFamilyId || '',
     });
     setIsPkgModalOpen(true);
   };
@@ -282,7 +282,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       ingredients: item.ingredients || '',
       dietaryBadgeCodes: Array.isArray(item.dietaryBadgeCodes) ? item.dietaryBadgeCodes.join(', ') : '',
       defaultExpirationDays: item.defaultExpirationDays || 180,
-      familyId: item.familyId || '',
+      familyId: item.familyId || item.articleFamilyId || '',
     });
     setIsFinalModalOpen(true);
   };
@@ -550,7 +550,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       <tr key={item.id}>
                         <td className="font-semibold text-primary-sage">{item.code}</td>
                         <td className="font-medium">{item.name}</td>
-                        <td><span className="badge gray">{item.familyName || articleFamilies.find(f => f.id === item.familyId)?.name || 'Sin familia'}</span></td>
+                        <td><span className="badge gray">{item.familyName || articleFamilies.find(f => f.id === item.familyId || f.id === (item as any).articleFamilyId)?.name || 'Sin familia'}</span></td>
                         <td>
                           <span className={item.currentStock <= item.minStock ? 'text-terracotta font-bold' : ''}>
                             {item.currentStock} {item.unit}
@@ -626,7 +626,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                         <td>
                           <span className="badge gray text-xs">{getCategoryBadgeLabel(item.category)}</span>
                         </td>
-                        <td><span className="badge gray">{item.familyName || articleFamilies.find(f => f.id === item.familyId)?.name || 'Sin familia'}</span></td>
+                        <td><span className="badge gray">{item.familyName || articleFamilies.find(f => f.id === item.familyId || f.id === (item as any).articleFamilyId)?.name || 'Sin familia'}</span></td>
                         <td>
                           <span className={item.currentStock <= item.minStock ? 'text-terracotta font-bold' : ''}>
                             {item.currentStock} {item.unit || 'UN'}
@@ -702,7 +702,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                         <tr key={item.id}>
                           <td className="font-semibold text-primary-sage">{item.code}</td>
                           <td className="font-medium">{item.name}</td>
-                          <td><span className="badge gray">{item.familyName || articleFamilies.find(f => f.id === item.familyId)?.name || 'Sin familia'}</span></td>
+                          <td><span className="badge gray">{item.familyName || articleFamilies.find(f => f.id === item.familyId || f.id === (item as any).articleFamilyId)?.name || 'Sin familia'}</span></td>
                           <td>
                             <span className={item.currentStock <= item.minStock ? 'text-terracotta font-bold' : ''}>
                               {item.currentStock} un.
