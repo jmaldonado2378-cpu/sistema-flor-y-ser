@@ -9,6 +9,7 @@ import {
   useExecuteFractioning,
 } from '../hooks/useFractioning';
 import { useRawMaterials, useFinalProducts } from '../hooks/useInventory';
+import { useAuth } from '../context/AuthContext';
 import { FractioningHistory, FractioningPreviewResponse } from '../api/fractioning';
 
 const executeSchema = z.object({
@@ -27,6 +28,7 @@ const executeSchema = z.object({
 type FractioningFormValues = z.infer<typeof executeSchema>;
 
 export const FractioningPage: React.FC<{ onTabChange?: (tab: string) => void }> = () => {
+  const { users } = useAuth();
   const { data: history, isLoading: loadingHistory, refetch: refetchHistory } = useFractioningHistory();
   const { data: rawMaterials } = useRawMaterials();
   const { data: finalProducts } = useFinalProducts();
@@ -201,16 +203,18 @@ export const FractioningPage: React.FC<{ onTabChange?: (tab: string) => void }> 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-3">
               <div className="form-field">
                 <label className="text-sm font-medium text-text-dark mb-1 block">Insumo a Fraccionar (Kg) *</label>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center" style={{ width: '100%' }}>
                   <input
                     type="number"
                     step="any"
                     className={`input ${form.formState.errors.inputQtyKg ? 'has-error' : ''}`}
+                    style={{ flex: 1, minWidth: 0, width: '100%' }}
                     {...form.register('inputQtyKg', { valueAsNumber: true })}
                   />
                   <button
                     type="button"
-                    className="btn btn-secondary flex items-center gap-1 text-xs"
+                    className="btn btn-secondary flex items-center gap-1 text-xs shrink-0"
+                    style={{ whiteSpace: 'nowrap' }}
                     onClick={handlePreview}
                     disabled={previewMutation.isPending}
                     title="Calcular unidades y merma sugerida"
@@ -238,12 +242,22 @@ export const FractioningPage: React.FC<{ onTabChange?: (tab: string) => void }> 
 
               <div className="form-field">
                 <label className="text-sm font-medium text-text-dark mb-1 block">Operario Responsable *</label>
-                <input 
-                  type="text"
+                <select 
                   className={`input ${form.formState.errors.operatorName ? 'has-error' : ''}`}
                   {...form.register('operatorName')}
-                  placeholder="Operario responsable" 
-                />
+                >
+                  {users && users.length > 0 ? (
+                    users.map(u => (
+                      <option key={u.id} value={u.name}>{u.name}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="Rocio Quevedo (Vendedora)">Rocio Quevedo (Vendedora)</option>
+                      <option value="Juan Pablo (Administrador)">Juan Pablo (Administrador)</option>
+                      <option value="María Clara (Empaque)">María Clara (Empaque)</option>
+                    </>
+                  )}
+                </select>
                 {form.formState.errors.operatorName && (
                   <span className="field-error">{form.formState.errors.operatorName.message}</span>
                 )}
