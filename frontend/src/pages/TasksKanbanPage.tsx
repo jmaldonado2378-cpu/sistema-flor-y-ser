@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { CheckSquare, Plus, ChevronRight, Trash2, Calendar, User } from 'lucide-react';
+import { CheckSquare, Plus, ChevronRight, Trash2, Calendar, User as UserIcon, Lock } from 'lucide-react';
 import { useKanbanBoard, useCreateTask, useUpdateTaskStatus, useDeleteTask } from '../hooks/useTasks';
+import { useAuth } from '../context/AuthContext';
 import { Modal } from '../components/ui/Modal';
 
 interface TasksKanbanPageProps {
@@ -30,10 +31,19 @@ const KANBAN_COLUMNS = [
 
 export const TasksKanbanPage: React.FC<TasksKanbanPageProps> = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const { user } = useAuth();
   const { data: boardData, isLoading, isError, refetch } = useKanbanBoard();
   const createTask = useCreateTask();
   const updateStatus = useUpdateTaskStatus();
   const deleteTask = useDeleteTask();
+
+  const canUserMoveTask = (task: any) => {
+    if (!user) return false;
+    if (user.role === 'ADMIN') return true;
+    const assigned = (task.assignedTo || task.assignee || '').toLowerCase();
+    const userName = (user.name || '').toLowerCase();
+    return assigned.includes(userName) || userName.includes(assigned);
+  };
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<TaskFormValues>({
     resolver: zodResolver(taskSchema),
@@ -161,7 +171,7 @@ export const TasksKanbanPage: React.FC<TasksKanbanPageProps> = () => {
 
                       <div className="flex flex-col gap-1 text-xs text-text-muted border-t pt-2 mt-1">
                         <div className="flex items-center gap-1">
-                          <User size={13} className="text-primary-sage" />
+                          <UserIcon size={13} className="text-primary-sage" />
                           <span>{task.assignedTo || 'Sin asignar'}</span>
                         </div>
                         {task.dueDate && (
@@ -174,14 +184,26 @@ export const TasksKanbanPage: React.FC<TasksKanbanPageProps> = () => {
 
                       <div className="flex justify-between items-center pt-2 border-t mt-1 gap-2">
                         {col.nextStatus ? (
-                          <button
-                            onClick={() => updateStatus.mutate({ id: task.id, status: col.nextStatus! }, { onSuccess: () => refetch() })}
-                            disabled={updateStatus.isPending}
-                            className="btn btn-primary btn-sm flex-1 text-xs flex items-center justify-center gap-1"
-                          >
-                            <span>{col.nextLabel}</span>
-                            <ChevronRight size={14} />
-                          </button>
+                          canUserMoveTask(task) ? (
+                            <button
+                              onClick={() => updateStatus.mutate({ id: task.id, status: col.nextStatus! }, { onSuccess: () => refetch() })}
+                              disabled={updateStatus.isPending}
+                              className="btn btn-primary btn-sm flex-1 text-xs flex items-center justify-center gap-1"
+                            >
+                              <span>{col.nextLabel}</span>
+                              <ChevronRight size={14} />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled
+                              className="btn btn-secondary btn-sm flex-1 text-xs flex items-center justify-center gap-1 opacity-60 cursor-not-allowed"
+                              title={`Solo el responsable asignado (${task.assignedTo || 'Responsable'}) o Administrador puede cambiar el estado`}
+                            >
+                              <span>{col.nextLabel}</span>
+                              <Lock size={12} />
+                            </button>
+                          )
                         ) : (
                           <span className="text-xs text-primary-sage font-medium flex-1 text-center">✅ Finalizada</span>
                         )}

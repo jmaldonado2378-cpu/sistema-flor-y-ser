@@ -59,6 +59,14 @@ export async function createSupplier(data: CreateSupplierDTO): Promise<Supplier>
   return res.data || res;
 }
 
+export async function updateSupplier(id: string, data: Partial<CreateSupplierDTO>): Promise<Supplier> {
+  const res = await apiRequest<any>(`/suppliers/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  return res.data || res;
+}
+
 export async function getSupplierById(id: string): Promise<Supplier> {
   const res = await apiRequest<any>(`/suppliers/${id}`);
   const s = res.data || res;

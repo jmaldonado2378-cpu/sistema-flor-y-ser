@@ -38,6 +38,13 @@ const DEFAULT_SETTINGS = {
     tiendaOnline: 5.0,
     mercadoPago: 4.5,
     tarjetas: 3.5
+  },
+  helpSettings: {
+    supportEmail: 'soporte@floryser.com.ar',
+    supportPhone: '+54 9 11 5543-9821',
+    posGuide: 'Registre ventas en mostrador, aplique descuentos y gestione el ticket.',
+    rawGuide: 'Asigne la familia correspondiente a cada insumo o granel.',
+    permGuide: 'Configure el acceso a Kanban de Tareas por cada usuario vendedor.'
   }
 };
 
@@ -429,6 +436,22 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
       return { status: 'success', data: newItem } as unknown as T;
     }
 
+    if (cleanEndpoint === '/suppliers') {
+      const current = getCollection('suppliers', MOCK_SUPPLIERS);
+      const newItem = {
+        id: `supp-${Date.now()}`,
+        name: bodyData?.name || bodyData?.businessName || 'Proveedor',
+        businessName: bodyData?.businessName || bodyData?.name || 'Proveedor',
+        contactName: bodyData?.contactName || '',
+        phone: bodyData?.phone || '',
+        email: bodyData?.email || '',
+        taxId: bodyData?.taxId || '',
+        createdAt: new Date().toISOString()
+      };
+      saveCollection('suppliers', [...current, newItem]);
+      return { status: 'success', data: newItem } as unknown as T;
+    }
+
     if (cleanEndpoint === '/customers') {
       const current = getCollection('customers', MOCK_CUSTOMERS);
       const newItem = {
@@ -550,6 +573,26 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
       return { status: 'success', data: found } as unknown as T;
     }
 
+    if (cleanEndpoint.startsWith('/suppliers/')) {
+      const parts = cleanEndpoint.split('/');
+      const id = parts[2];
+      const current = getCollection('suppliers', MOCK_SUPPLIERS);
+      const updated = current.map((item: any) => {
+        if (item.id === id) {
+          return {
+            ...item,
+            ...bodyData,
+            name: bodyData?.name || bodyData?.businessName || item.name,
+            businessName: bodyData?.businessName || bodyData?.name || item.businessName
+          };
+        }
+        return item;
+      });
+      saveCollection('suppliers', updated);
+      const found = updated.find((i: any) => i.id === id);
+      return { status: 'success', data: found } as unknown as T;
+    }
+
     if (cleanEndpoint.startsWith('/sales/orders/') && cleanEndpoint.endsWith('/status')) {
       const parts = cleanEndpoint.split('/');
       const orderId = parts[3];
@@ -575,12 +618,25 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
         updated.printSettings = { ...current.printSettings, ...bodyData };
       } else if (cleanEndpoint === '/settings/commissions') {
         updated.channelCommissions = { ...current.channelCommissions, ...bodyData };
+      } else if (cleanEndpoint === '/settings/help') {
+        updated.helpSettings = { ...current.helpSettings, ...bodyData };
       } else {
         updated = { ...current, ...bodyData };
       }
 
       saveStoredSettings(updated);
       return { status: 'success', message: 'Configuración actualizada.', data: updated } as unknown as T;
+    }
+  }
+
+  if (method === 'DELETE') {
+    if (cleanEndpoint.startsWith('/tasks/')) {
+      const parts = cleanEndpoint.split('/');
+      const taskId = parts[2];
+      const currentTasks = getCollection('tasks', MOCK_TASKS);
+      const updatedTasks = currentTasks.filter((t: any) => t.id !== taskId);
+      saveCollection('tasks', updatedTasks);
+      return { status: 'success', message: 'Tarea eliminada' } as unknown as T;
     }
   }
 

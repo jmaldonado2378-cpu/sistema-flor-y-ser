@@ -4,9 +4,10 @@ import {
   useSettings, 
   useUpdateBusinessInfo, 
   useUpdatePrintSettings, 
-  useUpdateCommissions 
+  useUpdateCommissions,
+  useUpdateHelpSettings 
 } from '../hooks/useSettings';
-import { Settings, Save, Store, Printer, Percent, CheckCircle2, AlertCircle, Upload, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Settings, Save, Store, Printer, Percent, CheckCircle2, AlertCircle, Upload, Image as ImageIcon, Trash2, HelpCircle } from 'lucide-react';
 
 interface SettingsPageProps {
   onTabChange?: (tab: string) => void;
@@ -37,12 +38,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
   const updateBusiness = useUpdateBusinessInfo();
   const updatePrint = useUpdatePrintSettings();
   const updateComm = useUpdateCommissions();
+  const updateHelp = useUpdateHelpSettings();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [businessMsg, setBusinessMsg] = useState<string | null>(null);
   const [printMsg, setPrintMsg] = useState<string | null>(null);
   const [commMsg, setCommMsg] = useState<string | null>(null);
+  const [helpMsg, setHelpMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [logoLoadError, setLogoLoadError] = useState(false);
 
@@ -73,6 +76,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
     }
   });
 
+  const helpForm = useForm({
+    defaultValues: {
+      supportEmail: 'soporte@floryser.com.ar',
+      supportPhone: '+54 9 11 5543-9821',
+      posGuide: 'Registre ventas en mostrador, aplique descuentos y gestione el ticket.',
+      rawGuide: 'Asigne la familia correspondiente a cada insumo o granel.',
+      permGuide: 'Configure el acceso a Kanban de Tareas por cada usuario vendedor.'
+    }
+  });
+
   useEffect(() => {
     if (settings) {
       if (settings.businessInfo) {
@@ -97,6 +110,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
           tiendaOnline: settings.channelCommissions.tiendaOnline ?? 5.0,
           mercadoPago: settings.channelCommissions.mercadoPago ?? 4.5,
           tarjetas: settings.channelCommissions.tarjetas ?? 3.5
+        });
+      }
+      if (settings.helpSettings) {
+        helpForm.reset({
+          supportEmail: settings.helpSettings.supportEmail || 'soporte@floryser.com.ar',
+          supportPhone: settings.helpSettings.supportPhone || '+54 9 11 5543-9821',
+          posGuide: settings.helpSettings.posGuide || 'Registre ventas en mostrador, aplique descuentos y gestione el ticket.',
+          rawGuide: settings.helpSettings.rawGuide || 'Asigne la familia correspondiente a cada insumo o granel.',
+          permGuide: settings.helpSettings.permGuide || 'Configure el acceso a Kanban de Tareas por cada usuario vendedor.'
         });
       }
     }
@@ -205,6 +227,20 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
       },
       onError: (err: any) => {
         setErrorMsg(err.message || 'Error al guardar comisiones por canal.');
+      }
+    });
+  };
+
+  const onHelpSubmit = (data: any) => {
+    setHelpMsg(null);
+    setErrorMsg(null);
+    updateHelp.mutate(data, {
+      onSuccess: () => {
+        setHelpMsg('✅ Información del Centro de Ayuda & Soporte actualizada correctamente.');
+        refetch();
+      },
+      onError: (err: any) => {
+        setErrorMsg(err.message || 'Error al guardar datos del Centro de Ayuda.');
       }
     });
   };
@@ -439,6 +475,56 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
               <div className="form-field">
                 <label className="text-xs font-medium text-text-dark mb-1 block">Tarjetas Débito / Crédito (%)</label>
                 <input type="number" step="0.1" className="input" {...commForm.register('tarjetas')} />
+              </div>
+            </div>
+          </form>
+        </div>
+
+        {/* Card 4: Centro de Ayuda & Soporte Técnico */}
+        <div className="card p-5">
+          <form onSubmit={helpForm.handleSubmit(onHelpSubmit)}>
+            <div className="card-header flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-text-dark flex items-center gap-2">
+                <HelpCircle size={20} className="text-primary-sage" />
+                Centro de Ayuda & Soporte Técnico (Desplegable Barra Superior)
+              </h2>
+              <button type="submit" className="btn btn-sm btn-primary flex items-center gap-2" disabled={updateHelp.isPending}>
+                <Save size={16} /> {updateHelp.isPending ? 'Guardando...' : 'Guardar Datos de Ayuda'}
+              </button>
+            </div>
+
+            {helpMsg && (
+              <div className="p-2.5 bg-green-50 text-green-800 text-xs rounded mb-4 flex items-center gap-2">
+                <CheckCircle2 size={16} /> {helpMsg}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="form-field">
+                <label className="text-xs font-medium text-text-dark mb-1 block">Email de Soporte Técnico</label>
+                <input type="email" className="input" {...helpForm.register('supportEmail')} placeholder="soporte@floryser.com.ar" />
+              </div>
+
+              <div className="form-field">
+                <label className="text-xs font-medium text-text-dark mb-1 block">Teléfono / WhatsApp de Soporte</label>
+                <input className="input" {...helpForm.register('supportPhone')} placeholder="+54 9 11 5543-9821" />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <div className="form-field">
+                <label className="text-xs font-medium text-text-dark mb-1 block">🌿 Guía Rápida: Punto de Venta</label>
+                <input className="input" {...helpForm.register('posGuide')} />
+              </div>
+
+              <div className="form-field">
+                <label className="text-xs font-medium text-text-dark mb-1 block">📦 Guía Rápida: Materia Prima & Familias</label>
+                <input className="input" {...helpForm.register('rawGuide')} />
+              </div>
+
+              <div className="form-field">
+                <label className="text-xs font-medium text-text-dark mb-1 block">🔒 Guía Rápida: Permisos y Usuarios</label>
+                <input className="input" {...helpForm.register('permGuide')} />
               </div>
             </div>
           </form>

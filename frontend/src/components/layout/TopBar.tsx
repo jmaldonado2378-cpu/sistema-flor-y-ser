@@ -3,6 +3,7 @@ import { Search, Shield, Bell, HelpCircle, CheckCircle2, AlertTriangle, Info, X,
 import { useAuth } from '../../context/AuthContext';
 import { useRawMaterials, useFinalProducts } from '../../hooks/useInventory';
 import { useKanbanBoard } from '../../hooks/useTasks';
+import { useSettings } from '../../hooks/useSettings';
 
 interface TopBarProps {
   onOpenUsers?: () => void;
@@ -14,6 +15,15 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenUsers, onTabChange }) => {
   const { data: rawMaterials } = useRawMaterials();
   const { data: finalProducts } = useFinalProducts();
   const { data: boardData } = useKanbanBoard();
+  const { data: settings } = useSettings();
+
+  const helpSettings = settings?.helpSettings || {
+    supportEmail: 'soporte@floryser.com.ar',
+    supportPhone: '+54 9 11 5543-9821',
+    posGuide: 'Registre ventas en mostrador, aplique descuentos y gestione el ticket.',
+    rawGuide: 'Asigne la familia correspondiente a cada insumo o granel.',
+    permGuide: 'Configure el acceso a Kanban de Tareas por cada usuario vendedor.'
+  };
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -260,11 +270,11 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenUsers, onTabChange }) => {
               </div>
 
               <div style={{ fontSize: '12px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <p style={{ margin: 0 }}>🌿 <strong>Punto de Venta:</strong> Registre ventas en mostrador, aplique descuentos y gestione el ticket.</p>
-                <p style={{ margin: 0 }}>📦 <strong>Materia Prima & Familias:</strong> Asigne la familia correspondiente a cada insumo o granel.</p>
-                <p style={{ margin: 0 }}>🔒 <strong>Permisos:</strong> Configure el acceso a Kanban de Tareas por cada usuario vendedor.</p>
+                <p style={{ margin: 0 }}>🌿 <strong>Punto de Venta:</strong> {helpSettings.posGuide || 'Registre ventas en mostrador, aplique descuentos y gestione el ticket.'}</p>
+                <p style={{ margin: 0 }}>📦 <strong>Materia Prima & Familias:</strong> {helpSettings.rawGuide || 'Asigne la familia correspondiente a cada insumo o granel.'}</p>
+                <p style={{ margin: 0 }}>🔒 <strong>Permisos:</strong> {helpSettings.permGuide || 'Configure el acceso a Kanban de Tareas por cada usuario vendedor.'}</p>
                 <div style={{ backgroundColor: '#F8FAFC', padding: '8px', borderRadius: '6px', fontSize: '11px', marginTop: '6px' }}>
-                  📞 <strong>Soporte Técnico:</strong> soporte@floryser.com.ar | WhatsApp: +54 9 11 5543-9821
+                  📞 <strong>Soporte Técnico:</strong> {helpSettings.supportEmail || 'soporte@floryser.com.ar'} | WhatsApp: {helpSettings.supportPhone || '+54 9 11 5543-9821'}
                 </div>
               </div>
             </div>
