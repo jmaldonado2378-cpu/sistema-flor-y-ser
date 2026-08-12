@@ -31,7 +31,8 @@ const KANBAN_COLUMNS = [
 
 export const TasksKanbanPage: React.FC<TasksKanbanPageProps> = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, users } = useAuth();
+  const [adminBypass, setAdminBypass] = useState<boolean>(false);
   const { data: boardData, isLoading, isError, refetch } = useKanbanBoard();
   const createTask = useCreateTask();
   const updateStatus = useUpdateTaskStatus();
@@ -39,10 +40,23 @@ export const TasksKanbanPage: React.FC<TasksKanbanPageProps> = () => {
 
   const canUserMoveTask = (task: any) => {
     if (!user) return false;
-    if (user.role === 'ADMIN') return true;
-    const assigned = (task.assignedTo || task.assignee || '').toLowerCase();
-    const userName = (user.name || '').toLowerCase();
-    return assigned.includes(userName) || userName.includes(assigned);
+    
+    // Si la opción de Bypass de Admin está activa y el usuario es ADMIN
+    if (adminBypass && user.role === 'ADMIN') return true;
+
+    const assigned = (task.assignedTo || task.assignee || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const loggedUser = (user.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    if (!assigned || assigned === 'sin asignar') return true;
+
+    // Comparación por palabras (tokens)
+    const taskTokens = assigned.split(/[^a-z0-9]+/).filter((t: string) => t.length > 2);
+    const userTokens = loggedUser.split(/[^a-z0-9]+/).filter((t: string) => t.length > 2);
+
+    const isMatch = taskTokens.some((t: string) => userTokens.includes(t)) ||
+                    userTokens.some((t: string) => taskTokens.includes(t));
+
+    return isMatch;
   };
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<TaskFormValues>({
@@ -51,7 +65,7 @@ export const TasksKanbanPage: React.FC<TasksKanbanPageProps> = () => {
       title: '',
       type: 'FRACTIONING',
       priority: 'MEDIUM',
-      assignedTo: 'María Clara (Empaque)',
+      assignedTo: user?.name || 'Rocio Quevedo (Vendedora)',
       dueDate: new Date().toISOString().split('T')[0],
       notes: ''
     }
@@ -74,6 +88,14 @@ export const TasksKanbanPage: React.FC<TasksKanbanPageProps> = () => {
   const getTasksByColumn = (colId: string) => {
     if (!boardData) return [];
 
+    const normalizeStatus = (status: string) => {
+      if (status === 'IN_PROGRESS' || status === 'PACKAGING_IN_PROGRESS') return 'PACKAGING_IN_PROGRESS';
+      if (status === 'PENDING' || status === 'PENDING_FRACTIONING') return 'PENDING_FRACTIONING';
+      if (status === 'QUALITY_CONTROL') return 'QUALITY_CONTROL';
+      if (status === 'COMPLETED' || status === 'FINALIZADO') return 'COMPLETED';
+      return 'PENDING_FRACTIONING';
+    };
+
     // Case 1: Backend returns an Object { PENDING_FRACTIONING: [...], ... }
     if (!Array.isArray(boardData) && typeof boardData === 'object') {
       const list = boardData[colId] || [];
@@ -82,7 +104,7 @@ export const TasksKanbanPage: React.FC<TasksKanbanPageProps> = () => {
 
     // Case 2: Backend returns an Array of task items [ { id, status }, ... ]
     if (Array.isArray(boardData)) {
-      return boardData.filter((t: any) => t.status === colId);
+      return boardData.filter((t: any) => normalizeStatus(t.status) === colId);
     }
 
     return [];
@@ -128,10 +150,23 @@ export const TasksKanbanPage: React.FC<TasksKanbanPageProps> = () => {
             Planificación y seguimiento del trabajo en depósito, empaque y sanitización
           </p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn btn-primary flex items-center gap-2">
-          <Plus size={18} />
-          Nueva Tarea
-        </button>
+        <div className="flex items-center gap-3">
+          {user?.role === 'ADMIN' && (
+            <button
+              type="button"
+              onClick={() => setAdminBypass(!adminBypass)}
+              className={`btn btn-sm ${adminBypass ? 'btn-secondary text-amber-700 border-amber-300' : 'btn-secondary text-slate-700'}`}
+              title="Alternar entre modo responsable estricto y modo admin con acceso total"
+            >
+              {adminBypass ? '🔓 Permiso Admin (Mover Todo)' : '🔒 Control Estricto (Solo Responsable)'}
+            </button>
+          )}
+
+          <button onClick={() => setIsModalOpen(true)} className="btn btn-primary flex items-center gap-2">
+            <Plus size={18} />
+            Nueva Tarea
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -154,70 +189,81 @@ export const TasksKanbanPage: React.FC<TasksKanbanPageProps> = () => {
                 </div>
 
                 <div className="p-3 flex flex-col gap-3 flex-grow overflow-y-auto" style={{ minHeight: '380px', maxHeight: '650px' }}>
-                  {tasks.map((task: any) => (
-                    <div key={task.id} className="card p-3 border bg-white shadow-sm hover:shadow transition flex flex-col gap-2">
-                      <div className="flex justify-between items-start">
-                        <span className={`badge ${getPriorityBadgeClass(task.priority)} text-xs`}>
-                          {getPriorityLabel(task.priority)}
-                        </span>
-                        <span className="badge gray text-xs">{getTypeLabel(task.type)}</span>
-                      </div>
+                  {tasks.map((task: any) => {
+                    const isAllowedToMove = canUserMoveTask(task);
 
-                      <h4 className="font-semibold text-sm text-text-dark">{task.title}</h4>
-
-                      {task.description && (
-                        <p className="text-xs text-text-muted">{task.description}</p>
-                      )}
-
-                      <div className="flex flex-col gap-1 text-xs text-text-muted border-t pt-2 mt-1">
-                        <div className="flex items-center gap-1">
-                          <UserIcon size={13} className="text-primary-sage" />
-                          <span>{task.assignedTo || 'Sin asignar'}</span>
+                    return (
+                      <div key={task.id} className="card p-3 border bg-white shadow-sm hover:shadow transition flex flex-col gap-2">
+                        <div className="flex justify-between items-start">
+                          <span className={`badge ${getPriorityBadgeClass(task.priority)} text-xs`}>
+                            {getPriorityLabel(task.priority)}
+                          </span>
+                          <span className="badge gray text-xs">{getTypeLabel(task.type)}</span>
                         </div>
-                        {task.dueDate && (
+
+                        <h4 className="font-semibold text-sm text-text-dark">{task.title}</h4>
+
+                        {task.description && (
+                          <p className="text-xs text-text-muted">{task.description}</p>
+                        )}
+
+                        <div className="flex flex-col gap-1 text-xs text-text-muted border-t pt-2 mt-1">
                           <div className="flex items-center gap-1">
-                            <Calendar size={13} className="text-text-muted" />
-                            <span>Vence: {new Date(task.dueDate).toLocaleDateString('es-AR')}</span>
+                            <UserIcon size={13} className="text-primary-sage" />
+                            <span className="font-semibold text-text-dark">{task.assignedTo || 'Sin asignar'}</span>
+                            {isAllowedToMove ? (
+                              <span className="ml-auto text-[10px] bg-green-100 text-green-800 font-bold px-1.5 py-0.5 rounded">🟢 Tu Tarea</span>
+                            ) : (
+                              <span className="ml-auto text-[10px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                <Lock size={10} /> {task.assignedTo || 'Responsable'}
+                              </span>
+                            )}
                           </div>
-                        )}
-                      </div>
+                          {task.dueDate && (
+                            <div className="flex items-center gap-1">
+                              <Calendar size={13} className="text-text-muted" />
+                              <span>Vence: {new Date(task.dueDate).toLocaleDateString('es-AR')}</span>
+                            </div>
+                          )}
+                        </div>
 
-                      <div className="flex justify-between items-center pt-2 border-t mt-1 gap-2">
-                        {col.nextStatus ? (
-                          canUserMoveTask(task) ? (
-                            <button
-                              onClick={() => updateStatus.mutate({ id: task.id, status: col.nextStatus! }, { onSuccess: () => refetch() })}
-                              disabled={updateStatus.isPending}
-                              className="btn btn-primary btn-sm flex-1 text-xs flex items-center justify-center gap-1"
-                            >
-                              <span>{col.nextLabel}</span>
-                              <ChevronRight size={14} />
-                            </button>
+                        <div className="flex justify-between items-center pt-2 border-t mt-1 gap-2">
+                          {col.nextStatus ? (
+                            isAllowedToMove ? (
+                              <button
+                                onClick={() => updateStatus.mutate({ id: task.id, status: col.nextStatus! }, { onSuccess: () => refetch() })}
+                                disabled={updateStatus.isPending}
+                                className="btn btn-primary btn-sm flex-1 text-xs flex items-center justify-center gap-1"
+                              >
+                                <span>{col.nextLabel}</span>
+                                <ChevronRight size={14} />
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                className="btn btn-secondary btn-sm flex-1 text-xs flex items-center justify-center gap-1 opacity-50 cursor-not-allowed bg-gray-100 text-gray-500"
+                                title={`Solo el responsable asignado (${task.assignedTo || 'Responsable'}) puede cambiar el estado`}
+                              >
+                                <span>{col.nextLabel}</span>
+                                <Lock size={12} />
+                              </button>
+                            )
                           ) : (
-                            <button
-                              type="button"
-                              disabled
-                              className="btn btn-secondary btn-sm flex-1 text-xs flex items-center justify-center gap-1 opacity-60 cursor-not-allowed"
-                              title={`Solo el responsable asignado (${task.assignedTo || 'Responsable'}) o Administrador puede cambiar el estado`}
-                            >
-                              <span>{col.nextLabel}</span>
-                              <Lock size={12} />
-                            </button>
-                          )
-                        ) : (
-                          <span className="text-xs text-primary-sage font-medium flex-1 text-center">✅ Finalizada</span>
-                        )}
+                            <span className="text-xs text-primary-sage font-medium flex-1 text-center">✅ Finalizada</span>
+                          )}
 
-                        <button
-                          onClick={() => deleteTask.mutate(task.id, { onSuccess: () => refetch() })}
-                          className="btn btn-secondary btn-sm text-terracotta"
-                          title="Eliminar tarea"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                          <button
+                            onClick={() => deleteTask.mutate(task.id, { onSuccess: () => refetch() })}
+                            className="btn btn-secondary btn-sm text-terracotta"
+                            title="Eliminar tarea"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   {tasks.length === 0 && (
                     <div className="py-12 text-center text-xs text-text-muted">
@@ -270,10 +316,17 @@ export const TasksKanbanPage: React.FC<TasksKanbanPageProps> = () => {
             <div className="form-field">
               <label className="text-sm font-medium text-text-dark mb-1 block">Responsable *</label>
               <select className={`input ${errors.assignedTo ? 'has-error' : ''}`} {...register('assignedTo')}>
-                <option value="Administrador General">Administrador General</option>
-                <option value="Juan Pablo">Juan Pablo</option>
-                <option value="Maria Emilia">Maria Emilia</option>
-                <option value="Rocio Quevedo">Rocio Quevedo</option>
+                {users && users.length > 0 ? (
+                  users.map(u => (
+                    <option key={u.id} value={u.name}>{u.name}</option>
+                  ))
+                ) : (
+                  <>
+                    <option value="Rocio Quevedo (Vendedora)">Rocio Quevedo (Vendedora)</option>
+                    <option value="Juan Pablo (Administrador)">Juan Pablo (Administrador)</option>
+                    <option value="María Clara (Empaque)">María Clara (Empaque)</option>
+                  </>
+                )}
               </select>
               {errors.assignedTo && <span className="field-error">{errors.assignedTo.message}</span>}
             </div>

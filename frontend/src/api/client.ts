@@ -198,9 +198,37 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
       } as unknown as T;
     }
 
-    if (cleanEndpoint === '/tasks' || cleanEndpoint.startsWith('/tasks/')) {
-      const data = getCollection('tasks', MOCK_TASKS);
-      return { status: 'success', data } as unknown as T;
+    if (cleanEndpoint === '/tasks' || cleanEndpoint.startsWith('/tasks')) {
+      const rawTasks = getCollection('tasks', MOCK_TASKS);
+      const normalizedTasks = rawTasks.map((t: any) => {
+        let st = t.status || 'PENDING_FRACTIONING';
+        if (st === 'IN_PROGRESS') st = 'PACKAGING_IN_PROGRESS';
+        if (st === 'PENDING') st = 'PENDING_FRACTIONING';
+        if (st === 'CONTROL') st = 'QUALITY_CONTROL';
+        if (st === 'COMPLETED' || st === 'FINALIZADO') st = 'COMPLETED';
+
+        return {
+          ...t,
+          status: st,
+          assignedTo: t.assignedTo || t.assignee || 'Sin asignar',
+          assignee: t.assignedTo || t.assignee || 'Sin asignar'
+        };
+      });
+
+      // Si solicitan la estructura agrupada por columnas para el tablero kanban
+      if (cleanEndpoint.includes('/kanban/board') || cleanEndpoint.includes('/board')) {
+        return {
+          status: 'success',
+          data: {
+            PENDING_FRACTIONING: normalizedTasks.filter((t: any) => t.status === 'PENDING_FRACTIONING'),
+            PACKAGING_IN_PROGRESS: normalizedTasks.filter((t: any) => t.status === 'PACKAGING_IN_PROGRESS'),
+            QUALITY_CONTROL: normalizedTasks.filter((t: any) => t.status === 'QUALITY_CONTROL'),
+            COMPLETED: normalizedTasks.filter((t: any) => t.status === 'COMPLETED')
+          }
+        } as unknown as T;
+      }
+
+      return { status: 'success', data: normalizedTasks } as unknown as T;
     }
 
     if (cleanEndpoint === '/sales/checking-accounts' || cleanEndpoint.includes('/checking-account')) {

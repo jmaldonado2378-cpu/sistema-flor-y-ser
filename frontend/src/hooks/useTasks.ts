@@ -7,7 +7,10 @@ export const useCreateTask = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createTask,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['kanbanBoard'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kanbanBoard'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
   });
 };
 
@@ -17,6 +20,7 @@ export const useUpdateTask = () => {
     mutationFn: ({ id, data }: { id: string; data: any }) => updateTask(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['kanbanBoard'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['raw-materials'] });
       queryClient.invalidateQueries({ queryKey: ['final-products'] });
       queryClient.invalidateQueries({ queryKey: ['fractioning-history'] });
@@ -30,6 +34,7 @@ export const useUpdateTaskStatus = () => {
     mutationFn: ({ id, status }: { id: string; status: string }) => updateTaskStatus(id, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['kanbanBoard'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['raw-materials'] });
       queryClient.invalidateQueries({ queryKey: ['final-products'] });
       queryClient.invalidateQueries({ queryKey: ['fractioning-history'] });
@@ -41,6 +46,9 @@ export const useDeleteTask = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: deleteTask,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['kanbanBoard'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kanbanBoard'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
   });
 };

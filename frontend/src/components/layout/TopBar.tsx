@@ -59,21 +59,28 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenUsers, onTabChange }) => {
   }
 
   // 2. Alertas de tareas pendientes
-  const tasksList: any[] = Array.isArray(boardData) 
-    ? boardData 
-    : (boardData ? [...(boardData.todo || []), ...(boardData.inProgress || [])] : []);
-
-  if (Array.isArray(tasksList)) {
-    tasksList.filter((t: any) => t.status !== 'COMPLETED').slice(0, 2).forEach((t: any) => {
-      dynamicNotifications.push({
-        id: `task-${t.id || t.title}`,
-        title: 'Tarea Kanban Pendiente',
-        text: `${t.title} (${t.priority || 'Normal'})`,
-        type: 'info',
-        tab: 'tab-tasks'
-      });
-    });
+  let tasksList: any[] = [];
+  if (Array.isArray(boardData)) {
+    tasksList = boardData;
+  } else if (boardData && typeof boardData === 'object') {
+    tasksList = [
+      ...(boardData.PENDING_FRACTIONING || []),
+      ...(boardData.PACKAGING_IN_PROGRESS || []),
+      ...(boardData.QUALITY_CONTROL || []),
+      ...(boardData.todo || []),
+      ...(boardData.inProgress || [])
+    ];
   }
+
+  tasksList.filter((t: any) => t.status !== 'COMPLETED').slice(0, 3).forEach((t: any) => {
+    dynamicNotifications.push({
+      id: `task-${t.id || t.title}`,
+      title: 'Tarea Kanban Pendiente',
+      text: `${t.title} (${t.priority || 'Normal'})`,
+      type: 'info',
+      tab: 'tab-tasks'
+    });
+  });
 
   // Fallback si no hay notificaciones críticas
   if (dynamicNotifications.length === 0) {
