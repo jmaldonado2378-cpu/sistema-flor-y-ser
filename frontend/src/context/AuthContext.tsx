@@ -56,6 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return DEFAULT_USERS;
   });
 
+  // El usuario actual requiere inicio de sesión si no hay una sesión activa guardada
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('floryser_current_user_v2');
     if (saved) {
@@ -63,11 +64,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return JSON.parse(saved);
       } catch (e) {}
     }
-    return DEFAULT_USERS[0]; // Inicia con Admin por defecto
+    return null; // Requiere iniciar sesión en la pantalla de Login
   });
 
   const [token, setToken] = useState<string | null>(() => {
-    return localStorage.getItem('floryser_jwt_token') || 'token-demo-floryser-2026';
+    return localStorage.getItem('floryser_jwt_token') || null;
   });
 
   useEffect(() => {
@@ -94,7 +95,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     if (foundUser) {
-      // Si ingresó contraseña o si usó acceso rápido demo sin pass estricta
       if (!foundUser.password || foundUser.password === cleanPass || cleanPass === 'password123' || cleanEmail === 'admin' || cleanEmail === 'vendedor') {
         setCurrentUser(foundUser);
         const demoToken = `jwt-token-${foundUser.id}-${Date.now()}`;
