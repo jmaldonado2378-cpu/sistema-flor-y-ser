@@ -1,4 +1,4 @@
-name: Deploy to Hostinger VPS
+name: CI & Deployment Check
 
 on:
   push:
@@ -6,37 +6,28 @@ on:
       - main
 
 jobs:
-  deploy:
+  build-and-verify:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy via SSH (Password Auth)
-        if: ${{ secrets.HOSTINGER_SSH_PASSWORD != '' }}
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          host: ${{ secrets.HOSTINGER_SSH_HOST }}
-          username: ${{ secrets.HOSTINGER_SSH_USER || 'u829089200' }}
-          password: ${{ secrets.HOSTINGER_SSH_PASSWORD }}
-          port: ${{ secrets.HOSTINGER_SSH_PORT || 65002 }}
-          script: |
-            mkdir -p ~/public_html/sistema-flor-y-ser
-            cd ~/public_html/sistema-flor-y-ser
-            if [ ! -d ".git" ]; then
-              git clone https://github.com/jmaldonado2378-cpu/sistema-flor-y-ser.git .
-            else
-              git pull origin main
-            fi
-            npm install
-            cd frontend && npm install && cd ..
-            npm run build
+          node-version: 20
 
-      - name: Info - Hostinger Auto-Deploy active
-        if: ${{ secrets.HOSTINGER_SSH_PASSWORD == '' && secrets.HOSTINGER_SSH_KEY == '' }}
+      - name: Install dependencies
         run: |
-          echo "ℹ️ No GitHub SSH secrets configured (HOSTINGER_SSH_PASSWORD or HOSTINGER_SSH_KEY)."
-          echo "🚀 Deployment relies on Hostinger Git Auto-Deploy from GitHub repository."
-          echo "To enable SSH deployment via GitHub Actions, add HOSTINGER_SSH_HOST and HOSTINGER_SSH_PASSWORD in GitHub Repository Secrets."
+          npm install
+          cd frontend && npm install
+
+      - name: Verify build (Frontend + Backend)
+        run: npm run build
+
+      - name: Deployment Status
+        run: |
+          echo "✅ Build verified successfully!"
+          echo "🚀 Code is updated on main branch for Hostinger deployment."
 
