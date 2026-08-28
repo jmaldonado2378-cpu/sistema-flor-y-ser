@@ -1,4 +1,3 @@
-import { Pool } from 'pg';
 import {
   AutomationType,
   AutomationChannel,
@@ -39,7 +38,7 @@ export class AutomationService {
   ];
 
   constructor(
-    private db: Pool,
+    private db: any,
     private customerService: CustomerService
   ) {}
 
@@ -262,7 +261,7 @@ export class AutomationService {
     try {
       const res = await this.db.query(query, customerId ? [customerId] : []);
       if (res.rows.length > 0) {
-        return res.rows.map(row => ({
+        return res.rows.map((row: any) => ({
           id: row.id,
           customerId: row.customer_id,
           customerName: row.customer_name,

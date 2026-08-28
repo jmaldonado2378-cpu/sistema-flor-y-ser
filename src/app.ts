@@ -1,8 +1,12 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
-import { Pool } from 'pg';
+import { createDatabasePool } from './database';
+import { requireAuth, requireRole } from './middleware/auth';
 
 import { CustomerService } from './services/customerService';
 import { CustomerController } from './controllers/customerController';
@@ -70,12 +74,8 @@ import { AuthController } from './controllers/authController';
 const app = express();
 const PORT: number = Number(process.env.PORT) || 3000;
 
-
-// Configuración de PostgreSQL Pool
-const db = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/flor_y_ser',
-  idleTimeoutMillis: 30000,
-});
+// Configuración de MySQL Pool via adapter compatible con pg.Pool interface
+const db = createDatabasePool();
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -164,178 +164,19 @@ const automationController = new AutomationController(automationService);
 const authService = new AuthService(db);
 const authController = new AuthController(authService);
 
-// Rutas API REST v1 - Autenticación
+// =============================================
+// RUTAS PÚBLICAS (sin autenticación)
+// =============================================
+
+// Autenticación
 app.post('/api/v1/auth/login', authController.login);
 
-
-// Rutas API REST v1 - CRM & Clientes
-app.get('/api/v1/customers', customerController.getAll);
-
-app.post('/api/v1/customers', customerController.create);
-app.get('/api/v1/customers/:id', customerController.getUnifiedProfile);
-app.get('/api/v1/customers/:id/unified-profile', customerController.getUnifiedProfile);
-app.put('/api/v1/customers/:id', customerController.update);
-app.delete('/api/v1/customers/:id', customerController.delete);
-app.get('/api/v1/dietary-profiles', dietaryController.getAll);
-app.post('/api/v1/dietary-profiles', dietaryController.create);
-
-// Rutas API REST v1 - Módulo 3: Ventas, Cobros, Cuentas Corrientes y Presupuestos
-// 1. Ventas / Pedidos
-app.post('/api/v1/sales/orders', saleController.create);
-app.get('/api/v1/sales/orders', saleController.getAll);
-app.get('/api/v1/sales/orders/:id', saleController.getById);
-app.patch('/api/v1/sales/orders/:id/status', saleController.updateStatus);
-
-// 2. Cobros (Efectivo, Mercado Pago, Transferencia)
-app.post('/api/v1/sales/payments', paymentController.register);
-app.get('/api/v1/sales/payments/:id', paymentController.getById);
-app.get('/api/v1/sales/customers/:customerId/payments', paymentController.getByCustomer);
-app.get('/api/v1/sales/orders/:orderId/payments', paymentController.getByOrder);
-
-// 3. Cuentas Corrientes de Clientes & Extractos Detallados
-app.get('/api/v1/sales/checking-accounts', checkingAccountController.getAllAccounts);
-app.get('/api/v1/sales/customers/:customerId/checking-account', checkingAccountController.getSummary);
-app.get('/api/v1/sales/customers/:customerId/checking-account/statement', checkingAccountController.getStatement);
-app.post('/api/v1/sales/customers/:customerId/checking-account/collections', checkingAccountController.registerCollection);
-app.post('/api/v1/sales/customers/:customerId/checking-account/payments', checkingAccountController.registerCollection);
-app.post('/api/v1/sales/customers/:customerId/checking-account/adjustments', checkingAccountController.addManualAdjustment);
-app.patch('/api/v1/sales/customers/:customerId/checking-account/credit-limit', checkingAccountController.updateCreditLimit);
-
-// 4. Presupuestos Convertibles a Pedidos en 1 Clic
-app.post('/api/v1/sales/quotes', quoteController.create);
-app.get('/api/v1/sales/quotes', quoteController.getAll);
-app.get('/api/v1/sales/quotes/:id', quoteController.getById);
-app.patch('/api/v1/sales/quotes/:id', quoteController.update);
-app.post('/api/v1/sales/quotes/:id/convert-to-order', quoteController.convertToOrder);
-
-// Rutas API REST v1 - Módulo 4: Proveedores, Recepción de Mercadería y Cuentas por Pagar
-app.post('/api/v1/suppliers', supplierController.createSupplier);
-app.get('/api/v1/suppliers', supplierController.searchSuppliers);
-app.get('/api/v1/suppliers/:id', supplierController.getSupplierById);
-app.put('/api/v1/suppliers/:id', supplierController.updateSupplier);
-app.delete('/api/v1/suppliers/:id', supplierController.deleteSupplier);
-
-app.post('/api/v1/merchandise-receipts', supplierController.createMerchandiseReceipt);
-app.post('/api/v1/merchandise-receipts/raw', supplierController.createRawMaterialReceipt);
-app.get('/api/v1/merchandise-receipts', supplierController.searchMerchandiseReceipts);
-app.get('/api/v1/merchandise-receipts/:id', supplierController.getMerchandiseReceiptById);
-
-
-app.post('/api/v1/accounts-payable/payments', supplierController.registerPayment);
-app.get('/api/v1/accounts-payable/receipts/:id/payments', supplierController.getPaymentsByReceipt);
-app.get('/api/v1/accounts-payable/calendar', supplierController.getAccountsPayableCalendar);
-
-// 1. Gastos Operativos
-app.get('/api/v1/finance/expenses', financeController.getExpenses);
-app.get('/api/v1/finance/expenses/summary', financeController.getExpenseSummary);
-app.post('/api/v1/finance/expenses', financeController.createExpense);
-app.put('/api/v1/finance/expenses/:id', financeController.updateExpense);
-app.delete('/api/v1/finance/expenses/:id', financeController.deleteExpense);
-
-// 2. Estructura de Precios y Costos por Canal
-app.get('/api/v1/finance/pricing-structure', financeController.getAllPricingStructures);
-app.get('/api/v1/finance/pricing-structure/overview', financeController.getFinancialOverview);
-app.get('/api/v1/finance/pricing-structure/:productId', financeController.getPricingStructureByProductId);
-app.post('/api/v1/finance/pricing-structure/calculate-preview', financeController.calculatePreview);
-app.post('/api/v1/finance/pricing-structure', financeController.savePricingStructure);
-app.post('/api/v1/finance/pricing-structure/allocate-fixed-costs', financeController.allocateFixedCosts);
-
-// Rutas API REST v1 - Módulo de Tareas Operativas & Tableros Kanban
-app.post('/api/v1/tasks', taskController.create);
-app.get('/api/v1/tasks', taskController.getAll);
-app.get('/api/v1/tasks/kanban/board', taskController.getKanbanBoard);
-app.get('/api/v1/tasks/sales-kanban/board', taskController.getSalesKanbanBoard);
-app.get('/api/v1/tasks/:id', taskController.getById);
-app.put('/api/v1/tasks/:id', taskController.update);
-app.patch('/api/v1/tasks/:id/status', taskController.updateStatus);
-app.delete('/api/v1/tasks/:id', taskController.delete);
-
-// Rutas API REST v1 - Configuración del Sistema
-app.get('/api/v1/settings', settingsController.getSettings);
-app.put('/api/v1/settings', settingsController.updateSettings);
-app.patch('/api/v1/settings/business-info', settingsController.updateBusinessInfo);
-app.patch('/api/v1/settings/print', settingsController.updatePrintSettings);
-app.patch('/api/v1/settings/commissions', settingsController.updateChannelCommissions);
-
-// Rutas API REST v1 - WhatsApp Marketing (Plantillas & Campañas)
-app.get('/api/v1/marketing/templates', marketingController.getTemplates);
-app.get('/api/v1/marketing/templates/:id', marketingController.getTemplateById);
-app.post('/api/v1/marketing/templates', marketingController.createTemplate);
-app.put('/api/v1/marketing/templates/:id', marketingController.updateTemplate);
-app.delete('/api/v1/marketing/templates/:id', marketingController.deleteTemplate);
-
-app.get('/api/v1/marketing/campaigns', marketingController.getCampaigns);
-app.get('/api/v1/marketing/campaigns/:id', marketingController.getCampaignById);
-app.post('/api/v1/marketing/campaigns', marketingController.createCampaign);
-app.put('/api/v1/marketing/campaigns/:id', marketingController.updateCampaign);
-app.post('/api/v1/marketing/campaigns/audience-preview', marketingController.previewAudience);
-app.post('/api/v1/marketing/campaigns/:id/send', marketingController.sendCampaign);
-app.delete('/api/v1/marketing/campaigns/:id', marketingController.deleteCampaign);
-
-// Rutas API REST v1 - Módulo de Inventario: Materias Primas
-app.get('/api/v1/raw-materials', rawMaterialController.getAll);
-app.post('/api/v1/raw-materials', rawMaterialController.create);
-app.put('/api/v1/raw-materials/:id', rawMaterialController.update);
-app.patch('/api/v1/raw-materials/:id/stock', rawMaterialController.updateStock);
-
-// Rutas API REST v1 - Módulo de Inventario: Materiales de Empaque y Etiquetas
-app.get('/api/v1/packaging-materials', packagingController.getAll);
-app.post('/api/v1/packaging-materials', packagingController.create);
-app.put('/api/v1/packaging-materials/:id', packagingController.update);
-app.patch('/api/v1/packaging-materials/:id/stock', packagingController.updateStock);
-
-// Rutas API REST v1 - Módulo de Clasificación: Familias y Sub-Familias de Artículos
-app.get('/api/v1/article-families', articleFamilyController.getAll);
-app.get('/api/v1/article-families/scope/:scope', articleFamilyController.getByScope);
-app.get('/api/v1/article-families/:id', articleFamilyController.getById);
-app.post('/api/v1/article-families', articleFamilyController.create);
-app.put('/api/v1/article-families/:id', articleFamilyController.update);
-app.delete('/api/v1/article-families/:id', articleFamilyController.delete);
-
-// Rutas API REST v1 - Módulo de Inventario: Productos Finales
-app.get('/api/v1/final-products', finalProductController.getAll);
-app.post('/api/v1/final-products', finalProductController.create);
-app.put('/api/v1/final-products/:id', finalProductController.update);
-app.patch('/api/v1/final-products/:id/stock', finalProductController.updateStock);
-
-// Rutas API REST v1 - Módulo de Fraccionado
-app.post('/api/v1/fractioning/preview', fractioningController.preview);
-app.post('/api/v1/fractioning/execute', fractioningController.execute);
-app.get('/api/v1/fractioning/history', fractioningController.getHistory);
-
-// Rutas API REST v1 - Módulo de Etiquetas
-app.post('/api/v1/labels/product', labelPrintingController.printProductLabel);
-app.post('/api/v1/labels/shipping', labelPrintingController.printShippingLabel);
-
-// Rutas API REST v1 - Módulo de Reportes y KPIs
-app.get('/api/v1/reports/kpis', reportsController.getExecutiveSummary);
-app.get('/api/v1/reports/ticket-promedio', reportsController.getTicketPromedio);
-app.get('/api/v1/reports/productos-estrella', reportsController.getStarProductsByDiet);
-app.get('/api/v1/reports/tasa-recompra', reportsController.getRepurchaseRate);
-app.get('/api/v1/reports/clientes-inactivos', reportsController.getInactiveCustomers);
-app.get('/api/v1/reports/arqueo-caja', reportsController.getDailyCashAudit);
-app.post('/api/v1/reports/arqueo-caja/cerrar', reportsController.closeCashShift);
-app.get('/api/v1/reports/cuentas-corrientes', reportsController.getCurrentAccountsBalance);
-
-// Rutas API REST v1 - Módulo de Fidelización de Clientes
-app.post('/api/v1/customers/:id/points/accumulate', fidelizationController.accumulate);
-app.post('/api/v1/customers/:id/points/redeem', fidelizationController.redeem);
-app.post('/api/v1/customers/:id/points/adjust', fidelizationController.adjust);
-app.get('/api/v1/customers/:id/points/history', fidelizationController.getHistory);
-app.get('/api/v1/customers/:id/points/summary', fidelizationController.getSummary);
-
-// Rutas API REST v1 - Módulo de Automatizaciones
-app.post('/api/v1/automations/welcome', automationController.sendWelcome);
-app.post('/api/v1/automations/birthday/process', automationController.processBirthday);
-app.post('/api/v1/automations/replenishment/process', automationController.processReplenishment);
-app.post('/api/v1/automations/broadcast/dietary', automationController.broadcastDietary);
-app.get('/api/v1/automations/logs', automationController.getLogs);
-
-// Endpoint de prueba de conexión e información del sistema
+// Health check
 app.get('/api/v1/health', (req: Request, res: Response) => {
   res.json({
     status: 'ONLINE',
     system: 'Flor y Ser Almacén Natural ERP/CRM v2.0',
+    database: 'MySQL (Hostinger)',
     timestamp: new Date().toISOString(),
     modules: [
       'CRM & Clientes',
@@ -352,6 +193,181 @@ app.get('/api/v1/health', (req: Request, res: Response) => {
   });
 });
 
+// =============================================
+// RUTAS PROTEGIDAS (requieren JWT válido)
+// =============================================
+
+// Gestión de Usuarios (solo ADMIN)
+app.get('/api/v1/auth/users', requireAuth, requireRole('ADMIN'), authController.getUsers);
+app.post('/api/v1/auth/users', requireAuth, requireRole('ADMIN'), authController.createUser);
+app.put('/api/v1/auth/users/:id', requireAuth, requireRole('ADMIN'), authController.updateUser);
+app.delete('/api/v1/auth/users/:id', requireAuth, requireRole('ADMIN'), authController.deleteUser);
+
+// Rutas API REST v1 - CRM & Clientes
+app.get('/api/v1/customers', requireAuth, customerController.getAll);
+app.post('/api/v1/customers', requireAuth, customerController.create);
+app.get('/api/v1/customers/:id', requireAuth, customerController.getUnifiedProfile);
+app.get('/api/v1/customers/:id/unified-profile', requireAuth, customerController.getUnifiedProfile);
+app.put('/api/v1/customers/:id', requireAuth, customerController.update);
+app.delete('/api/v1/customers/:id', requireAuth, requireRole('ADMIN'), customerController.delete);
+app.get('/api/v1/dietary-profiles', requireAuth, dietaryController.getAll);
+app.post('/api/v1/dietary-profiles', requireAuth, dietaryController.create);
+
+// Rutas API REST v1 - Módulo 3: Ventas, Cobros, Cuentas Corrientes y Presupuestos
+app.post('/api/v1/sales/orders', requireAuth, saleController.create);
+app.get('/api/v1/sales/orders', requireAuth, saleController.getAll);
+app.get('/api/v1/sales/orders/:id', requireAuth, saleController.getById);
+app.patch('/api/v1/sales/orders/:id/status', requireAuth, saleController.updateStatus);
+
+app.post('/api/v1/sales/payments', requireAuth, paymentController.register);
+app.get('/api/v1/sales/payments/:id', requireAuth, paymentController.getById);
+app.get('/api/v1/sales/customers/:customerId/payments', requireAuth, paymentController.getByCustomer);
+app.get('/api/v1/sales/orders/:orderId/payments', requireAuth, paymentController.getByOrder);
+
+app.get('/api/v1/sales/checking-accounts', requireAuth, checkingAccountController.getAllAccounts);
+app.get('/api/v1/sales/customers/:customerId/checking-account', requireAuth, checkingAccountController.getSummary);
+app.get('/api/v1/sales/customers/:customerId/checking-account/statement', requireAuth, checkingAccountController.getStatement);
+app.post('/api/v1/sales/customers/:customerId/checking-account/collections', requireAuth, checkingAccountController.registerCollection);
+app.post('/api/v1/sales/customers/:customerId/checking-account/payments', requireAuth, checkingAccountController.registerCollection);
+app.post('/api/v1/sales/customers/:customerId/checking-account/adjustments', requireAuth, checkingAccountController.addManualAdjustment);
+app.patch('/api/v1/sales/customers/:customerId/checking-account/credit-limit', requireAuth, requireRole('ADMIN'), checkingAccountController.updateCreditLimit);
+
+app.post('/api/v1/sales/quotes', requireAuth, quoteController.create);
+app.get('/api/v1/sales/quotes', requireAuth, quoteController.getAll);
+app.get('/api/v1/sales/quotes/:id', requireAuth, quoteController.getById);
+app.patch('/api/v1/sales/quotes/:id', requireAuth, quoteController.update);
+app.post('/api/v1/sales/quotes/:id/convert-to-order', requireAuth, quoteController.convertToOrder);
+
+// Rutas API REST v1 - Módulo 4: Proveedores, Recepción de Mercadería y Cuentas por Pagar
+app.post('/api/v1/suppliers', requireAuth, supplierController.createSupplier);
+app.get('/api/v1/suppliers', requireAuth, supplierController.searchSuppliers);
+app.get('/api/v1/suppliers/:id', requireAuth, supplierController.getSupplierById);
+app.put('/api/v1/suppliers/:id', requireAuth, supplierController.updateSupplier);
+app.delete('/api/v1/suppliers/:id', requireAuth, requireRole('ADMIN'), supplierController.deleteSupplier);
+
+app.post('/api/v1/merchandise-receipts', requireAuth, supplierController.createMerchandiseReceipt);
+app.post('/api/v1/merchandise-receipts/raw', requireAuth, supplierController.createRawMaterialReceipt);
+app.get('/api/v1/merchandise-receipts', requireAuth, supplierController.searchMerchandiseReceipts);
+app.get('/api/v1/merchandise-receipts/:id', requireAuth, supplierController.getMerchandiseReceiptById);
+
+app.post('/api/v1/accounts-payable/payments', requireAuth, supplierController.registerPayment);
+app.get('/api/v1/accounts-payable/receipts/:id/payments', requireAuth, supplierController.getPaymentsByReceipt);
+app.get('/api/v1/accounts-payable/calendar', requireAuth, supplierController.getAccountsPayableCalendar);
+
+// Gastos Operativos
+app.get('/api/v1/finance/expenses', requireAuth, financeController.getExpenses);
+app.get('/api/v1/finance/expenses/summary', requireAuth, financeController.getExpenseSummary);
+app.post('/api/v1/finance/expenses', requireAuth, financeController.createExpense);
+app.put('/api/v1/finance/expenses/:id', requireAuth, financeController.updateExpense);
+app.delete('/api/v1/finance/expenses/:id', requireAuth, requireRole('ADMIN'), financeController.deleteExpense);
+
+// Estructura de Precios y Costos por Canal
+app.get('/api/v1/finance/pricing-structure', requireAuth, financeController.getAllPricingStructures);
+app.get('/api/v1/finance/pricing-structure/overview', requireAuth, financeController.getFinancialOverview);
+app.get('/api/v1/finance/pricing-structure/:productId', requireAuth, financeController.getPricingStructureByProductId);
+app.post('/api/v1/finance/pricing-structure/calculate-preview', requireAuth, financeController.calculatePreview);
+app.post('/api/v1/finance/pricing-structure', requireAuth, financeController.savePricingStructure);
+app.post('/api/v1/finance/pricing-structure/allocate-fixed-costs', requireAuth, requireRole('ADMIN'), financeController.allocateFixedCosts);
+
+// Comisiones de Vendedores & Tablero Monitor de Ganancias (P&L Real-Time)
+app.get('/api/v1/finance/commissions/rates/:userId', requireAuth, financeController.getSellerCommissionRates);
+app.put('/api/v1/finance/commissions/rates/:userId', requireAuth, requireRole('ADMIN'), financeController.setSellerCommissionRate);
+app.get('/api/v1/finance/commissions/pending', requireAuth, financeController.getPendingCommissions);
+app.post('/api/v1/finance/commissions/settle', requireAuth, requireRole('ADMIN'), financeController.settleCommissions);
+app.get('/api/v1/finance/commissions/settlements', requireAuth, financeController.getCommissionSettlements);
+app.get('/api/v1/finance/profitability-monitor', requireAuth, financeController.getProfitabilityMonitor);
+
+// Tareas Operativas & Tableros Kanban
+app.post('/api/v1/tasks', requireAuth, taskController.create);
+app.get('/api/v1/tasks', requireAuth, taskController.getAll);
+app.get('/api/v1/tasks/kanban/board', requireAuth, taskController.getKanbanBoard);
+app.get('/api/v1/tasks/sales-kanban/board', requireAuth, taskController.getSalesKanbanBoard);
+app.get('/api/v1/tasks/:id', requireAuth, taskController.getById);
+app.put('/api/v1/tasks/:id', requireAuth, taskController.update);
+app.patch('/api/v1/tasks/:id/status', requireAuth, taskController.updateStatus);
+app.delete('/api/v1/tasks/:id', requireAuth, requireRole('ADMIN'), taskController.delete);
+
+// Configuración del Sistema
+app.get('/api/v1/settings', requireAuth, settingsController.getSettings);
+app.put('/api/v1/settings', requireAuth, requireRole('ADMIN'), settingsController.updateSettings);
+app.patch('/api/v1/settings/business-info', requireAuth, requireRole('ADMIN'), settingsController.updateBusinessInfo);
+app.patch('/api/v1/settings/print', requireAuth, requireRole('ADMIN'), settingsController.updatePrintSettings);
+app.patch('/api/v1/settings/commissions', requireAuth, requireRole('ADMIN'), settingsController.updateChannelCommissions);
+
+// WhatsApp Marketing (Plantillas & Campañas)
+app.get('/api/v1/marketing/templates', requireAuth, marketingController.getTemplates);
+app.get('/api/v1/marketing/templates/:id', requireAuth, marketingController.getTemplateById);
+app.post('/api/v1/marketing/templates', requireAuth, marketingController.createTemplate);
+app.put('/api/v1/marketing/templates/:id', requireAuth, marketingController.updateTemplate);
+app.delete('/api/v1/marketing/templates/:id', requireAuth, marketingController.deleteTemplate);
+
+app.get('/api/v1/marketing/campaigns', requireAuth, marketingController.getCampaigns);
+app.get('/api/v1/marketing/campaigns/:id', requireAuth, marketingController.getCampaignById);
+app.post('/api/v1/marketing/campaigns', requireAuth, marketingController.createCampaign);
+app.put('/api/v1/marketing/campaigns/:id', requireAuth, marketingController.updateCampaign);
+app.post('/api/v1/marketing/campaigns/audience-preview', requireAuth, marketingController.previewAudience);
+app.post('/api/v1/marketing/campaigns/:id/send', requireAuth, marketingController.sendCampaign);
+app.delete('/api/v1/marketing/campaigns/:id', requireAuth, marketingController.deleteCampaign);
+
+// Módulo de Inventario: Materias Primas
+app.get('/api/v1/raw-materials', requireAuth, rawMaterialController.getAll);
+app.post('/api/v1/raw-materials', requireAuth, rawMaterialController.create);
+app.put('/api/v1/raw-materials/:id', requireAuth, rawMaterialController.update);
+app.patch('/api/v1/raw-materials/:id/stock', requireAuth, rawMaterialController.updateStock);
+
+// Módulo de Inventario: Materiales de Empaque y Etiquetas
+app.get('/api/v1/packaging-materials', requireAuth, packagingController.getAll);
+app.post('/api/v1/packaging-materials', requireAuth, packagingController.create);
+app.put('/api/v1/packaging-materials/:id', requireAuth, packagingController.update);
+app.patch('/api/v1/packaging-materials/:id/stock', requireAuth, packagingController.updateStock);
+
+// Módulo de Clasificación: Familias y Sub-Familias de Artículos
+app.get('/api/v1/article-families', requireAuth, articleFamilyController.getAll);
+app.get('/api/v1/article-families/scope/:scope', requireAuth, articleFamilyController.getByScope);
+app.get('/api/v1/article-families/:id', requireAuth, articleFamilyController.getById);
+app.post('/api/v1/article-families', requireAuth, articleFamilyController.create);
+app.put('/api/v1/article-families/:id', requireAuth, articleFamilyController.update);
+app.delete('/api/v1/article-families/:id', requireAuth, requireRole('ADMIN'), articleFamilyController.delete);
+
+// Módulo de Inventario: Productos Finales
+app.get('/api/v1/final-products', requireAuth, finalProductController.getAll);
+app.post('/api/v1/final-products', requireAuth, finalProductController.create);
+app.put('/api/v1/final-products/:id', requireAuth, finalProductController.update);
+app.patch('/api/v1/final-products/:id/stock', requireAuth, finalProductController.updateStock);
+
+// Módulo de Fraccionado
+app.post('/api/v1/fractioning/preview', requireAuth, fractioningController.preview);
+app.post('/api/v1/fractioning/execute', requireAuth, fractioningController.execute);
+app.get('/api/v1/fractioning/history', requireAuth, fractioningController.getHistory);
+
+// Módulo de Etiquetas
+app.post('/api/v1/labels/product', requireAuth, labelPrintingController.printProductLabel);
+app.post('/api/v1/labels/shipping', requireAuth, labelPrintingController.printShippingLabel);
+
+// Módulo de Reportes y KPIs
+app.get('/api/v1/reports/kpis', requireAuth, reportsController.getExecutiveSummary);
+app.get('/api/v1/reports/ticket-promedio', requireAuth, reportsController.getTicketPromedio);
+app.get('/api/v1/reports/productos-estrella', requireAuth, reportsController.getStarProductsByDiet);
+app.get('/api/v1/reports/tasa-recompra', requireAuth, reportsController.getRepurchaseRate);
+app.get('/api/v1/reports/clientes-inactivos', requireAuth, reportsController.getInactiveCustomers);
+app.get('/api/v1/reports/arqueo-caja', requireAuth, reportsController.getDailyCashAudit);
+app.post('/api/v1/reports/arqueo-caja/cerrar', requireAuth, requireRole('ADMIN'), reportsController.closeCashShift);
+app.get('/api/v1/reports/cuentas-corrientes', requireAuth, reportsController.getCurrentAccountsBalance);
+
+// Módulo de Fidelización de Clientes
+app.post('/api/v1/customers/:id/points/accumulate', requireAuth, fidelizationController.accumulate);
+app.post('/api/v1/customers/:id/points/redeem', requireAuth, fidelizationController.redeem);
+app.post('/api/v1/customers/:id/points/adjust', requireAuth, requireRole('ADMIN'), fidelizationController.adjust);
+app.get('/api/v1/customers/:id/points/history', requireAuth, fidelizationController.getHistory);
+app.get('/api/v1/customers/:id/points/summary', requireAuth, fidelizationController.getSummary);
+
+// Módulo de Automatizaciones
+app.post('/api/v1/automations/welcome', requireAuth, automationController.sendWelcome);
+app.post('/api/v1/automations/birthday/process', requireAuth, automationController.processBirthday);
+app.post('/api/v1/automations/replenishment/process', requireAuth, automationController.processReplenishment);
+app.post('/api/v1/automations/broadcast/dietary', requireAuth, automationController.broadcastDietary);
+app.get('/api/v1/automations/logs', requireAuth, automationController.getLogs);
+
 // Fallback para SPA / index.html
 app.get('*', (req: Request, res: Response) => {
   const distIndex = path.join(__dirname, '../frontend/dist/index.html');
@@ -361,7 +377,8 @@ app.get('*', (req: Request, res: Response) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌸 Sistema Flor y Ser Almacén Natural v2.0 ejecutándose en http://localhost:${PORT}`);
-  console.log(`📱 Acceso local desde Tablet en la red Wi-Fi: http://192.168.1.36:${PORT}`);
+  console.log(`🔐 Autenticación JWT activa`);
+  console.log(`🗄️  Base de datos: MySQL (${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || '3306'})`);
 });
 
 export default app;

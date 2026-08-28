@@ -172,11 +172,11 @@ class QuoteService {
             params.push(status);
         }
         if (startDate) {
-            conditions.push(`q.created_at >= $${paramIdx++}::timestamp`);
+            conditions.push(`q.created_at >= $${paramIdx++}`);
             params.push(`${startDate} 00:00:00`);
         }
         if (endDate) {
-            conditions.push(`q.created_at <= $${paramIdx++}::timestamp`);
+            conditions.push(`q.created_at <= $${paramIdx++}`);
             params.push(`${endDate} 23:59:59`);
         }
         if (search) {

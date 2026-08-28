@@ -51,6 +51,8 @@ export interface CreateOrderDTO {
   items: CreateOrderItemDTO[];
   discountAmount?: number;
   deliveryFee?: number;
+  sellerId?: string;
+  sellerName?: string;
   deliveryAddress?: string;
   notes?: string;
   initialPayment?: {
@@ -69,6 +71,7 @@ export interface UpdateOrderStatusDTO {
 
 export interface OrderFilterDTO {
   customerId?: string;
+  sellerId?: string;
   status?: OrderStatus;
   paymentStatus?: PaymentStatus;
   startDate?: string;
@@ -83,6 +86,8 @@ export interface Order {
   orderNumber: string;
   customerId: string;
   customerName?: string;
+  sellerId?: string;
+  sellerName?: string;
   quoteId?: string;
   channel: AcquisitionChannel;
   status: OrderStatus;
@@ -94,6 +99,9 @@ export interface Order {
   paidAmount: number;
   balanceDue: number;
   pointsEarned: number;
+  commissionAmount?: number;
+  commissionSettled?: boolean;
+  commissionSettlementId?: string;
   deliveryAddress?: string;
   notes?: string;
   items: OrderItem[];

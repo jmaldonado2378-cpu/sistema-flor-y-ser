@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, UserCheck, Lock, Mail, ArrowRight, Leaf } from 'lucide-react';
+import { Lock, Mail, ArrowRight, Leaf } from 'lucide-react';
 
 interface LoginProps {
   onLoginSuccess?: () => void;
@@ -30,16 +30,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleQuickLogin = async (targetEmail: string) => {
-    setError(null);
-    setLoading(true);
-    const success = await login(targetEmail, 'password123');
-    if (success && onLoginSuccess) {
-      onLoginSuccess();
-    }
-    setLoading(false);
   };
 
   return (
@@ -112,13 +102,13 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-              Correo Electrónico / Usuario
+              Correo Electrónico
             </label>
             <div style={{ position: 'relative' }}>
               <Mail size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
               <input
                 type="text"
-                placeholder="ej: admin@floryser.com"
+                placeholder="correo@ejemplo.com"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 style={{
@@ -178,7 +168,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               justifyContent: 'center',
               gap: '8px',
               marginTop: '8px',
-              transition: 'background-color 0.2s'
+              transition: 'background-color 0.2s',
+              opacity: loading ? 0.7 : 1,
             }}
           >
             {loading ? 'Ingresando...' : 'Iniciar Sesión'}
@@ -186,60 +177,11 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           </button>
         </form>
 
-        {/* Acceso Rápido Demo */}
-        <div style={{ marginTop: '28px', paddingTop: '24px', borderTop: '1px solid #E2E8F0' }}>
-          <p style={{ fontSize: '12px', fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center', marginBottom: '12px' }}>
-            Acceso Rápido para Pruebas (1 Clic)
+        {/* Pie */}
+        <div style={{ marginTop: '24px', textAlign: 'center' }}>
+          <p style={{ fontSize: '11px', color: '#94A3B8', margin: 0 }}>
+            Sistema protegido. Acceso solo para personal autorizado.
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <button
-              onClick={() => handleQuickLogin('admin@floryser.com')}
-              style={{
-                width: '100%',
-                backgroundColor: '#F8FAFC',
-                border: '1px solid #E2E8F0',
-                padding: '10px 14px',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: 600,
-                color: '#1E293B',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}
-            >
-              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <ShieldCheck size={16} color="#2E5339" />
-                Ingresar como Administrador
-              </span>
-              <span style={{ fontSize: '11px', backgroundColor: '#E2E8F0', padding: '2px 8px', borderRadius: '12px' }}>Admin</span>
-            </button>
-
-            <button
-              onClick={() => handleQuickLogin('vendedor@floryser.com')}
-              style={{
-                width: '100%',
-                backgroundColor: '#F8FAFC',
-                border: '1px solid #E2E8F0',
-                padding: '10px 14px',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: 600,
-                color: '#1E293B',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}
-            >
-              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <UserCheck size={16} color="#D97706" />
-                Ingresar como Vendedora
-              </span>
-              <span style={{ fontSize: '11px', backgroundColor: '#FEF3C7', color: '#92400E', padding: '2px 8px', borderRadius: '12px' }}>Vendedora</span>
-            </button>
-          </div>
         </div>
       </div>
     </div>

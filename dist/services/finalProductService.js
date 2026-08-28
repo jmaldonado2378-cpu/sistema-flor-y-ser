@@ -112,7 +112,7 @@ class FinalProductService {
         ORDER BY fp.name ASC;
       `);
             if (res.rows.length > 0) {
-                return res.rows.map(row => ({
+                return res.rows.map((row) => ({
                     ...row,
                     unitWeightGrams: parseFloat(row.unitWeightGrams),
                     price: parseFloat(row.price),

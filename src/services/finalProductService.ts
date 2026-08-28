@@ -1,4 +1,3 @@
-import { Pool } from 'pg';
 import { FinalProduct, CreateFinalProductDTO, UpdateFinalProductDTO } from '../types/inventory';
 
 const initialFinalProducts: FinalProduct[] = [
@@ -91,7 +90,7 @@ const initialFinalProducts: FinalProduct[] = [
 export class FinalProductService {
   private inMemoryProducts: FinalProduct[] = [...initialFinalProducts];
 
-  constructor(private db: Pool) {}
+  constructor(private db: any) {}
 
   async getAll(): Promise<FinalProduct[]> {
     try {
@@ -112,7 +111,7 @@ export class FinalProductService {
         ORDER BY fp.name ASC;
       `);
       if (res.rows.length > 0) {
-        return res.rows.map(row => ({
+        return res.rows.map((row: any) => ({
           ...row,
           unitWeightGrams: parseFloat(row.unitWeightGrams),
           price: parseFloat(row.price),

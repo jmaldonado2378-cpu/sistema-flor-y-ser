@@ -1,4 +1,3 @@
-import { Pool } from 'pg';
 import { DietaryProfile, CreateDietaryProfileDTO, UpdateDietaryProfileDTO, AssignDietaryProfileDTO } from '../types/dietary';
 
 export class DietaryService {
@@ -12,7 +11,7 @@ export class DietaryService {
     { id: '10000000-0000-0000-0000-000000000007', code: 'FODMAP', name: 'Bajo en FODMAP', description: 'Apto para colon irritable y digestión sensible', badgeColorHex: '#0EA5E9', isCustom: true, isActive: true }
   ];
 
-  constructor(private db: Pool) {}
+  constructor(private db: any) {}
 
   /**
    * Obtiene todos los perfiles dietéticos del catálogo.
@@ -28,7 +27,7 @@ export class DietaryService {
     try {
       const res = await this.db.query(query);
       if (res.rows.length > 0) {
-        return res.rows.map(row => ({
+        return res.rows.map((row: any) => ({
           id: row.id,
           code: row.code,
           name: row.name,

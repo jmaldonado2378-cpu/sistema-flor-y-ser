@@ -1,4 +1,3 @@
-import { Pool } from 'pg';
 import {
   CreateCustomerDTO,
   UpdateCustomerDTO,
@@ -100,7 +99,7 @@ export class CustomerService {
     }
   ];
 
-  constructor(private db: Pool) {}
+  constructor(private db: any) {}
 
   /**
    * Determina la segmentación del cliente según su volumen de compra y frecuencia.
@@ -255,7 +254,7 @@ export class CustomerService {
         `;
         const dietaryRes = await this.db.query(dietaryQuery, [customerId]);
 
-        const dietaryProfiles: DietaryProfileSummary[] = dietaryRes.rows.map(row => ({
+        const dietaryProfiles: DietaryProfileSummary[] = dietaryRes.rows.map((row: any) => ({
           id: row.id,
           code: row.code,
           name: row.name,
@@ -365,7 +364,7 @@ export class CustomerService {
       }
 
       const res = await this.db.query(sql, params);
-      const profiles = await Promise.all(res.rows.map(r => this.getUnifiedProfile(r.id)));
+      const profiles = await Promise.all(res.rows.map((r: any) => this.getUnifiedProfile(r.id)));
       return { customers: profiles, total: profiles.length };
 
     } catch {

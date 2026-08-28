@@ -1,4 +1,3 @@
-import { Pool } from 'pg';
 import { RawMaterial, CreateRawMaterialDTO, UpdateRawMaterialDTO } from '../types/inventory';
 
 const initialRawMaterials: RawMaterial[] = [
@@ -71,7 +70,7 @@ const initialRawMaterials: RawMaterial[] = [
 export class RawMaterialService {
   private inMemoryMaterials: RawMaterial[] = [...initialRawMaterials];
 
-  constructor(private db: Pool) {}
+  constructor(private db: any) {}
 
   async getAll(): Promise<RawMaterial[]> {
     try {
@@ -87,7 +86,7 @@ export class RawMaterialService {
         ORDER BY r.name ASC;
       `);
       if (res.rows.length > 0) {
-        return res.rows.map(row => ({
+        return res.rows.map((row: any) => ({
           ...row,
           currentStock: parseFloat(row.currentStock),
           minStock: parseFloat(row.minStock),

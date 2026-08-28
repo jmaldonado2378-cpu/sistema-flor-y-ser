@@ -345,4 +345,77 @@ export class FinanceController {
       res.status(400).json({ status: 'ERROR', message: error.message });
     }
   };
+
+  // =========================================================================
+  // ENDPOINTS DE COMISIONES Y MONITOR P&L
+  // =========================================================================
+
+  getSellerCommissionRates = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { userId } = req.params;
+      const rates = await this.financeService.getSellerCommissionRates(userId);
+      res.json({ status: 'SUCCESS', data: rates });
+    } catch (error: any) {
+      res.status(500).json({ status: 'ERROR', message: error.message });
+    }
+  };
+
+  setSellerCommissionRate = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { userId } = req.params;
+      const { channel, percentage } = req.body;
+      await this.financeService.setSellerCommissionRate(userId, channel, parseFloat(percentage));
+      res.json({ status: 'SUCCESS', message: 'Porcentaje de comisión actualizado' });
+    } catch (error: any) {
+      res.status(400).json({ status: 'ERROR', message: error.message });
+    }
+  };
+
+  getPendingCommissions = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { userId, startDate, endDate } = req.query;
+      const pending = await this.financeService.getPendingCommissions(
+        userId ? String(userId) : undefined,
+        startDate ? String(startDate) : undefined,
+        endDate ? String(endDate) : undefined
+      );
+      res.json({ status: 'SUCCESS', data: pending });
+    } catch (error: any) {
+      res.status(500).json({ status: 'ERROR', message: error.message });
+    }
+  };
+
+  settleCommissions = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { userId, userName, periodStart, periodEnd, paymentMethod, notes } = req.body;
+      const settlement = await this.financeService.settleCommissions(
+        userId, userName, periodStart, periodEnd, paymentMethod, notes
+      );
+      res.json({ status: 'SUCCESS', message: 'Comisiones liquidadas y gasto registrado', data: settlement });
+    } catch (error: any) {
+      res.status(400).json({ status: 'ERROR', message: error.message });
+    }
+  };
+
+  getCommissionSettlements = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const settlements = await this.financeService.getCommissionSettlements();
+      res.json({ status: 'SUCCESS', data: settlements });
+    } catch (error: any) {
+      res.status(500).json({ status: 'ERROR', message: error.message });
+    }
+  };
+
+  getProfitabilityMonitor = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { startDate, endDate } = req.query;
+      const report = await this.financeService.getProfitabilityMonitor(
+        startDate ? String(startDate) : undefined,
+        endDate ? String(endDate) : undefined
+      );
+      res.json({ status: 'SUCCESS', data: report });
+    } catch (error: any) {
+      res.status(500).json({ status: 'ERROR', message: error.message });
+    }
+  };
 }

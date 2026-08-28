@@ -1,4 +1,3 @@
-import { Pool } from 'pg';
 import {
   PointTransactionType,
   PointsHistoryEntry,
@@ -38,7 +37,7 @@ export class FidelizationService {
   ];
 
   constructor(
-    private db: Pool,
+    private db: any,
     private customerService: CustomerService
   ) {}
 
@@ -257,7 +256,7 @@ export class FidelizationService {
     try {
       const res = await this.db.query(query, [customerId]);
       if (res.rows.length > 0) {
-        return res.rows.map(row => ({
+        return res.rows.map((row: any) => ({
           id: row.id,
           customerId: row.customer_id,
           points: row.points,

@@ -1,4 +1,3 @@
-import { Pool } from 'pg';
 import {
   Supplier,
   CreateSupplierDTO,
@@ -30,7 +29,7 @@ export class SupplierService {
   private inMemoryPayments: SupplierPayment[] = [];
   private inMemoryRawReceipts: ComprobanteInsumoGranel[] = [];
 
-  constructor(private db: Pool) {
+  constructor(private db: any) {
     this.initMockData();
   }
 
@@ -184,7 +183,7 @@ export class SupplierService {
 
       if (filters.category) {
         params.push(filters.category.trim());
-        sql += ` AND $${params.length} = ANY(categories)`;
+        sql += ` AND JSON_CONTAINS(categories, CONCAT('"', $${params.length}, '"'))`;
       }
 
       if (filters.isActive !== undefined) {
@@ -195,7 +194,7 @@ export class SupplierService {
       sql += ` ORDER BY business_name ASC`;
 
       const res = await this.db.query(sql, params);
-      const suppliers = res.rows.map(r => this.mapSupplierRow(r));
+      const suppliers = res.rows.map((r: any) => this.mapSupplierRow(r));
       return { suppliers, total: suppliers.length };
     } catch {
       // Fallback en memoria
@@ -632,7 +631,7 @@ export class SupplierService {
         const row = res.rows[0];
         const itemsRes = await this.db.query(`SELECT * FROM merchandise_receipt_items WHERE receipt_id = $1;`, [receiptId]);
 
-        const items = itemsRes.rows.map(i => ({
+        const items = itemsRes.rows.map((i: any) => ({
           id: i.id,
           receiptId: i.receipt_id,
           productId: i.product_id,
@@ -712,7 +711,7 @@ export class SupplierService {
       sql += ` ORDER BY r.reception_date DESC`;
 
       const res = await this.db.query(sql, params);
-      const receipts = await Promise.all(res.rows.map(row => this.getMerchandiseReceiptById(row.id)));
+      const receipts = await Promise.all(res.rows.map((row: any) => this.getMerchandiseReceiptById(row.id)));
       return { receipts, total: receipts.length };
     } catch {
       // Fallback
@@ -846,7 +845,7 @@ export class SupplierService {
       `;
       const res = await this.db.query(query, [receiptId]);
       if (res.rows.length > 0) {
-        return res.rows.map(r => ({
+        return res.rows.map((r: any) => ({
           id: r.id,
           receiptId: r.receipt_id,
           supplierId: r.supplier_id,

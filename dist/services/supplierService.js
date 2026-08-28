@@ -147,7 +147,7 @@ class SupplierService {
             }
             if (filters.category) {
                 params.push(filters.category.trim());
-                sql += ` AND $${params.length} = ANY(categories)`;
+                sql += ` AND JSON_CONTAINS(categories, CONCAT('"', $${params.length}, '"'))`;
             }
             if (filters.isActive !== undefined) {
                 params.push(filters.isActive);
@@ -155,7 +155,7 @@ class SupplierService {
             }
             sql += ` ORDER BY business_name ASC`;
             const res = await this.db.query(sql, params);
-            const suppliers = res.rows.map(r => this.mapSupplierRow(r));
+            const suppliers = res.rows.map((r) => this.mapSupplierRow(r));
             return { suppliers, total: suppliers.length };
         }
         catch {
@@ -530,7 +530,7 @@ class SupplierService {
             if (res.rows.length > 0) {
                 const row = res.rows[0];
                 const itemsRes = await this.db.query(`SELECT * FROM merchandise_receipt_items WHERE receipt_id = $1;`, [receiptId]);
-                const items = itemsRes.rows.map(i => ({
+                const items = itemsRes.rows.map((i) => ({
                     id: i.id,
                     receiptId: i.receipt_id,
                     productId: i.product_id,
@@ -602,7 +602,7 @@ class SupplierService {
             }
             sql += ` ORDER BY r.reception_date DESC`;
             const res = await this.db.query(sql, params);
-            const receipts = await Promise.all(res.rows.map(row => this.getMerchandiseReceiptById(row.id)));
+            const receipts = await Promise.all(res.rows.map((row) => this.getMerchandiseReceiptById(row.id)));
             return { receipts, total: receipts.length };
         }
         catch {
@@ -717,7 +717,7 @@ class SupplierService {
       `;
             const res = await this.db.query(query, [receiptId]);
             if (res.rows.length > 0) {
-                return res.rows.map(r => ({
+                return res.rows.map((r) => ({
                     id: r.id,
                     receiptId: r.receipt_id,
                     supplierId: r.supplier_id,

@@ -142,11 +142,10 @@ class SettingsService {
             const upsertQuery = `
         INSERT INTO system_settings (key_name, setting_value, updated_at)
         VALUES 
-          ('businessInfo', $1::jsonb, CURRENT_TIMESTAMP),
-          ('printSettings', $2::jsonb, CURRENT_TIMESTAMP),
-          ('channelCommissions', $3::jsonb, CURRENT_TIMESTAMP)
-        ON CONFLICT (key_name) 
-        DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = CURRENT_TIMESTAMP;
+          ('businessInfo', $1, CURRENT_TIMESTAMP),
+          ('printSettings', $2, CURRENT_TIMESTAMP),
+          ('channelCommissions', $3, CURRENT_TIMESTAMP)
+        ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = CURRENT_TIMESTAMP;
       `;
             await this.db.query(upsertQuery, [
                 JSON.stringify(this.currentSettings.businessInfo),

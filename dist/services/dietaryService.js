@@ -28,7 +28,7 @@ class DietaryService {
         try {
             const res = await this.db.query(query);
             if (res.rows.length > 0) {
-                return res.rows.map(row => ({
+                return res.rows.map((row) => ({
                     id: row.id,
                     code: row.code,
                     name: row.name,

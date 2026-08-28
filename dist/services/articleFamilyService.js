@@ -44,30 +44,38 @@ class ArticleFamilyService {
         try {
             await this.db.query(`
         CREATE TABLE IF NOT EXISTS article_families (
-          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-          parent_id UUID REFERENCES article_families(id),
+          id VARCHAR(64) NOT NULL PRIMARY KEY,
+          parent_id VARCHAR(64),
           code VARCHAR(100) NOT NULL UNIQUE,
           name VARCHAR(255) NOT NULL,
           description TEXT,
           article_scope VARCHAR(50) NOT NULL DEFAULT 'ALL',
           icon VARCHAR(100),
           sort_order INTEGER NOT NULL DEFAULT 0,
-          is_active BOOLEAN DEFAULT TRUE,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+          is_active TINYINT(1) DEFAULT 1,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
       `);
-            await this.db.query(`ALTER TABLE raw_materials ADD COLUMN IF NOT EXISTS family_id UUID;`);
-            await this.db.query(`ALTER TABLE final_products ADD COLUMN IF NOT EXISTS family_id UUID;`);
-            await this.db.query(`ALTER TABLE packaging_materials ADD COLUMN IF NOT EXISTS family_id UUID;`);
+            try {
+                await this.db.query(`ALTER TABLE raw_materials ADD COLUMN family_id VARCHAR(64);`);
+            }
+            catch { }
+            try {
+                await this.db.query(`ALTER TABLE final_products ADD COLUMN family_id VARCHAR(64);`);
+            }
+            catch { }
+            try {
+                await this.db.query(`ALTER TABLE packaging_materials ADD COLUMN family_id VARCHAR(64);`);
+            }
+            catch { }
             // Check if table is empty, seed initial families if so
-            const countRes = await this.db.query(`SELECT COUNT(*) FROM article_families;`);
+            const countRes = await this.db.query(`SELECT COUNT(*) as count FROM article_families;`);
             if (parseInt(countRes.rows[0].count) === 0) {
                 for (const fam of initialFamilies) {
                     await this.db.query(`
-            INSERT INTO article_families (id, parent_id, code, name, article_scope, sort_order)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (code) DO NOTHING;
+            INSERT IGNORE INTO article_families (id, parent_id, code, name, article_scope, sort_order)
+            VALUES ($1, $2, $3, $4, $5, $6);
           `, [fam.id, fam.parentId, fam.code, fam.name, fam.articleScope, fam.sortOrder]);
                 }
             }

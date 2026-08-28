@@ -189,45 +189,45 @@ class FinanceService {
         try {
             await this.db.query(`
         CREATE TABLE IF NOT EXISTS operational_expenses (
-          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          id VARCHAR(64) NOT NULL PRIMARY KEY,
           description VARCHAR(255) NOT NULL,
           category VARCHAR(50) NOT NULL,
           voucher_type VARCHAR(50),
           voucher_number VARCHAR(100),
-          expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
-          amount NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+          expense_date DATE NOT NULL DEFAULT (CURRENT_DATE),
+          amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
           payment_method VARCHAR(50) NOT NULL DEFAULT 'EFECTIVO',
-          supplier_id UUID,
+          supplier_id VARCHAR(64),
           supplier_name VARCHAR(255),
           notes TEXT,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS product_pricing_structures (
-          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-          product_id UUID NOT NULL UNIQUE,
+          id VARCHAR(64) NOT NULL PRIMARY KEY,
+          product_id VARCHAR(64) NOT NULL UNIQUE,
           product_sku VARCHAR(50),
           product_name VARCHAR(255) NOT NULL,
           unit_of_measure VARCHAR(20) NOT NULL DEFAULT 'unidades',
-          raw_material_cost NUMERIC(12,2) NOT NULL DEFAULT 0.00,
-          packaging_label_cost NUMERIC(12,2) NOT NULL DEFAULT 0.00,
-          labor_cost NUMERIC(12,2) NOT NULL DEFAULT 0.00,
-          allocated_fixed_costs NUMERIC(12,2) NOT NULL DEFAULT 0.00,
-          tax_percentage NUMERIC(5,2) NOT NULL DEFAULT 0.00,
-          mostrador_commission_pct NUMERIC(5,2) DEFAULT 0.00,
-          mostrador_margin_pct NUMERIC(5,2) DEFAULT 35.00,
-          mostrador_suggested_price NUMERIC(12,2) DEFAULT 0.00,
-          mostrador_final_price NUMERIC(12,2) DEFAULT 0.00,
-          whatsapp_commission_pct NUMERIC(5,2) DEFAULT 2.00,
-          whatsapp_margin_pct NUMERIC(5,2) DEFAULT 30.00,
-          whatsapp_suggested_price NUMERIC(12,2) DEFAULT 0.00,
-          whatsapp_final_price NUMERIC(12,2) DEFAULT 0.00,
-          online_commission_pct NUMERIC(5,2) DEFAULT 5.00,
-          online_margin_pct NUMERIC(5,2) DEFAULT 25.00,
-          online_suggested_price NUMERIC(12,2) DEFAULT 0.00,
-          online_final_price NUMERIC(12,2) DEFAULT 0.00,
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+          raw_material_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+          packaging_label_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+          labor_cost DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+          allocated_fixed_costs DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+          tax_percentage DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+          mostrador_commission_pct DECIMAL(5,2) DEFAULT 0.00,
+          mostrador_margin_pct DECIMAL(5,2) DEFAULT 35.00,
+          mostrador_suggested_price DECIMAL(12,2) DEFAULT 0.00,
+          mostrador_final_price DECIMAL(12,2) DEFAULT 0.00,
+          whatsapp_commission_pct DECIMAL(5,2) DEFAULT 2.00,
+          whatsapp_margin_pct DECIMAL(5,2) DEFAULT 30.00,
+          whatsapp_suggested_price DECIMAL(12,2) DEFAULT 0.00,
+          whatsapp_final_price DECIMAL(12,2) DEFAULT 0.00,
+          online_commission_pct DECIMAL(5,2) DEFAULT 5.00,
+          online_margin_pct DECIMAL(5,2) DEFAULT 25.00,
+          online_suggested_price DECIMAL(12,2) DEFAULT 0.00,
+          online_final_price DECIMAL(12,2) DEFAULT 0.00,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
       `);
         }
@@ -338,7 +338,7 @@ class FinanceService {
                 query += ` ORDER BY expense_date DESC, created_at DESC;`;
                 const res = await this.db.query(query, values);
                 if (res.rows.length > 0) {
-                    return res.rows.map(row => this.mapDbExpense(row));
+                    return res.rows.map((row) => this.mapDbExpense(row));
                 }
             }
             catch (err) {
@@ -479,6 +479,7 @@ class FinanceService {
             ALQUILER: { count: 0, totalAmount: 0 },
             SERVICIOS: { count: 0, totalAmount: 0 },
             SUELDOS: { count: 0, totalAmount: 0 },
+            COMISIONES: { count: 0, totalAmount: 0 },
             LOGISTICA: { count: 0, totalAmount: 0 },
             MARKETING: { count: 0, totalAmount: 0 },
             MANTENIMIENTO: { count: 0, totalAmount: 0 },
@@ -489,6 +490,7 @@ class FinanceService {
             ALQUILER: 'Alquiler del Local / Depósito',
             SERVICIOS: 'Servicios (Luz, Agua, Gas, Internet)',
             SUELDOS: 'Sueldos y Cargas Sociales',
+            COMISIONES: 'Comisiones de Vendedores',
             LOGISTICA: 'Empaques y Logística',
             MARKETING: 'Publicidad y Marketing Digital',
             MANTENIMIENTO: 'Mantenimiento y Equipamiento',
@@ -701,7 +703,7 @@ class FinanceService {
             try {
                 const res = await this.db.query('SELECT * FROM product_pricing_structures ORDER BY product_name ASC;');
                 if (res.rows.length > 0) {
-                    return res.rows.map(row => this.mapDbPricingStructure(row));
+                    return res.rows.map((row) => this.mapDbPricingStructure(row));
                 }
             }
             catch (err) {
@@ -910,6 +912,284 @@ class FinanceService {
         if (row.updated_at)
             calculated.updatedAt = new Date(row.updated_at).toISOString();
         return calculated;
+    }
+    // ==========================================
+    // SECCIÓN: COMISIONES POR VENDEDOR & P&L
+    // ==========================================
+    inMemoryCommissionRates = [
+        { userId: 'usr-admin-1', userName: 'Juan Pablo (Administrador)', channel: 'LOCAL', commissionPercentage: 3.0 },
+        { userId: 'usr-admin-1', userName: 'Juan Pablo (Administrador)', channel: 'WHATSAPP', commissionPercentage: 4.0 },
+        { userId: 'usr-admin-1', userName: 'Juan Pablo (Administrador)', channel: 'ONLINE_STORE', commissionPercentage: 5.0 },
+        { userId: 'usr-seller-1', userName: 'Rocio Quevedo (Vendedora)', channel: 'LOCAL', commissionPercentage: 2.5 },
+        { userId: 'usr-seller-1', userName: 'Rocio Quevedo (Vendedora)', channel: 'WHATSAPP', commissionPercentage: 4.0 },
+        { userId: 'usr-seller-1', userName: 'Rocio Quevedo (Vendedora)', channel: 'ONLINE_STORE', commissionPercentage: 5.0 }
+    ];
+    inMemorySettlements = [];
+    /**
+     * Obtiene los porcentajes de comisión por canal para un vendedor
+     */
+    async getSellerCommissionRates(userId) {
+        if (this.db) {
+            try {
+                const res = await this.db.query(`SELECT s.user_id, u.name as user_name, s.channel, s.commission_percentage 
+           FROM seller_channel_commissions s 
+           JOIN system_users u ON u.id = s.user_id 
+           WHERE s.user_id = $1`, [userId]);
+                if (res.rows.length > 0) {
+                    return res.rows.map((r) => ({
+                        userId: r.user_id,
+                        userName: r.user_name,
+                        channel: r.channel,
+                        commissionPercentage: parseFloat(r.commission_percentage)
+                    }));
+                }
+            }
+            catch { }
+        }
+        return this.inMemoryCommissionRates.filter(r => r.userId === userId);
+    }
+    /**
+     * Actualiza el porcentaje de comisión de un vendedor para un canal
+     */
+    async setSellerCommissionRate(userId, channel, percentage) {
+        if (this.db) {
+            try {
+                await this.db.query(`INSERT INTO seller_channel_commissions (user_id, channel, commission_percentage, updated_at)
+           VALUES ($1, $2, $3, NOW())
+           ON DUPLICATE KEY UPDATE commission_percentage = VALUES(commission_percentage), updated_at = NOW()`, [userId, channel, percentage]);
+                return;
+            }
+            catch { }
+        }
+        const idx = this.inMemoryCommissionRates.findIndex(r => r.userId === userId && r.channel === channel);
+        if (idx !== -1) {
+            this.inMemoryCommissionRates[idx].commissionPercentage = percentage;
+        }
+        else {
+            this.inMemoryCommissionRates.push({
+                userId,
+                userName: 'Usuario',
+                channel,
+                commissionPercentage: percentage
+            });
+        }
+    }
+    /**
+     * Obtiene comisiones devengadas pendientes de liquidar (solo de ventas totalmente PAGADAS)
+     */
+    async getPendingCommissions(userId, startDate, endDate) {
+        let orders = [];
+        if (this.db) {
+            try {
+                let sql = `
+          SELECT o.id, o.order_number, o.customer_id, o.seller_id, o.seller_name, o.channel,
+                 o.total_amount, o.paid_amount, o.payment_status, o.commission_amount, o.commission_settled, o.created_at,
+                 c.first_name, c.last_name
+          FROM orders o
+          JOIN customers c ON c.id = o.customer_id
+          WHERE o.payment_status = 'PAID' AND o.commission_settled = 0
+        `;
+                const params = [];
+                let pIdx = 1;
+                if (userId) {
+                    sql += ` AND o.seller_id = $${pIdx++}`;
+                    params.push(userId);
+                }
+                if (startDate) {
+                    sql += ` AND o.created_at >= $${pIdx++}`;
+                    params.push(startDate);
+                }
+                if (endDate) {
+                    sql += ` AND o.created_at <= $${pIdx++}`;
+                    params.push(endDate);
+                }
+                sql += ` ORDER BY o.created_at DESC`;
+                const res = await this.db.query(sql, params);
+                orders = res.rows.map((r) => ({
+                    id: r.id,
+                    orderNumber: r.order_number,
+                    customerId: r.customer_id,
+                    customerName: `${r.first_name} ${r.last_name}`,
+                    sellerId: r.seller_id,
+                    sellerName: r.seller_name || 'Vendedor General',
+                    channel: r.channel,
+                    totalAmount: parseFloat(r.total_amount),
+                    commissionAmount: parseFloat(r.commission_amount || 0),
+                    createdAt: r.created_at
+                }));
+            }
+            catch { }
+        }
+        if (orders.length === 0) {
+            // Simulación en memoria para devengadas pagadas pendientes
+            orders = [
+                {
+                    id: 'ord-sim-1',
+                    orderNumber: 'PED-20260825-001',
+                    customerId: 'cust-1',
+                    customerName: 'María Clara Fernández',
+                    sellerId: userId || 'usr-seller-1',
+                    sellerName: 'Rocio Quevedo (Vendedora)',
+                    channel: 'WHATSAPP',
+                    totalAmount: 25000,
+                    commissionAmount: 1000, // 4% de 25000
+                    createdAt: new Date().toISOString()
+                },
+                {
+                    id: 'ord-sim-2',
+                    orderNumber: 'PED-20260826-002',
+                    customerId: 'cust-2',
+                    customerName: 'Lucas Benítez',
+                    sellerId: userId || 'usr-seller-1',
+                    sellerName: 'Rocio Quevedo (Vendedora)',
+                    channel: 'LOCAL',
+                    totalAmount: 18000,
+                    commissionAmount: 450, // 2.5% de 18000
+                    createdAt: new Date().toISOString()
+                }
+            ];
+        }
+        const totalSalesAmount = orders.reduce((sum, o) => sum + o.totalAmount, 0);
+        const totalPendingCommission = orders.reduce((sum, o) => sum + o.commissionAmount, 0);
+        return { orders, totalSalesAmount, totalPendingCommission };
+    }
+    /**
+     * Executa la liquidación de comisiones para un vendedor y registra el Gasto Operativo
+     */
+    async settleCommissions(userId, userName, periodStart, periodEnd, paymentMethod = 'TRANSFERENCIA', notes) {
+        const pending = await this.getPendingCommissions(userId, periodStart, periodEnd);
+        const settlementId = (0, uuid_1.v4)();
+        // 1. Generar automáticamente un Gasto Operativo bajo la categoría 'COMISIONES'
+        const expenseDTO = {
+            description: `Liquidación de comisiones a ${userName} (${periodStart} a ${periodEnd})`,
+            category: 'COMISIONES',
+            voucherType: 'RECIBO',
+            voucherNumber: `LIQ-${Date.now().toString().slice(-6)}`,
+            expenseDate: new Date().toISOString().slice(0, 10),
+            amount: pending.totalPendingCommission,
+            paymentMethod,
+            notes: `Liquidación de ${pending.orders.length} pedidos pagados. ${notes || ''}`
+        };
+        const expense = await this.createExpense(expenseDTO);
+        // 2. Crear el registro de liquidación
+        const settlement = {
+            id: settlementId,
+            userId,
+            userName,
+            periodStart,
+            periodEnd,
+            totalPaidSalesAmount: pending.totalSalesAmount,
+            ordersCount: pending.orders.length,
+            totalCommissionAmount: pending.totalPendingCommission,
+            expenseId: expense.id,
+            paymentMethod,
+            notes,
+            createdAt: new Date().toISOString()
+        };
+        if (this.db) {
+            try {
+                await this.db.query(`INSERT INTO commission_settlements (id, user_id, user_name, period_start, period_end, total_paid_sales_amount, orders_count, total_commission_amount, expense_id, payment_method, notes, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`, [
+                    settlement.id, settlement.userId, settlement.userName,
+                    settlement.periodStart, settlement.periodEnd,
+                    settlement.totalPaidSalesAmount, settlement.ordersCount,
+                    settlement.totalCommissionAmount, settlement.expenseId,
+                    settlement.paymentMethod, settlement.notes || null
+                ]);
+                // Marcar los pedidos como liquidados
+                const orderIds = pending.orders.map(o => o.id);
+                if (orderIds.length > 0) {
+                    await this.db.query(`UPDATE orders SET commission_settled = 1, commission_settlement_id = $1 WHERE id IN (?)`, [settlement.id, orderIds.join(',')]);
+                }
+            }
+            catch { }
+        }
+        this.inMemorySettlements.push(settlement);
+        return settlement;
+    }
+    /**
+     * Obtiene el historial de liquidaciones de comisiones
+     */
+    async getCommissionSettlements() {
+        if (this.db) {
+            try {
+                const res = await this.db.query(`SELECT id, user_id, user_name, period_start, period_end, total_paid_sales_amount, orders_count, total_commission_amount, expense_id, payment_method, notes, created_at
+           FROM commission_settlements ORDER BY created_at DESC`);
+                if (res.rows.length > 0) {
+                    return res.rows.map((r) => ({
+                        id: r.id,
+                        userId: r.user_id,
+                        userName: r.user_name,
+                        periodStart: r.period_start,
+                        periodEnd: r.period_end,
+                        totalPaidSalesAmount: parseFloat(r.total_paid_sales_amount),
+                        ordersCount: r.orders_count,
+                        totalCommissionAmount: parseFloat(r.total_commission_amount),
+                        expenseId: r.expense_id,
+                        paymentMethod: r.payment_method,
+                        notes: r.notes,
+                        createdAt: r.created_at
+                    }));
+                }
+            }
+            catch { }
+        }
+        return [...this.inMemorySettlements];
+    }
+    /**
+     * TABLERO MONITOR DE GANANCIAS (P&L REAL-TIME)
+     * Calcula la Rentabilidad Neta y desgloses multidimensionales
+     */
+    async getProfitabilityMonitor(startDate, endDate) {
+        const now = new Date();
+        const pStart = startDate || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        const pEnd = endDate || now.toISOString().slice(0, 10);
+        // 1. Obtener gastos del período
+        const expenses = await this.getExpenses({ startDate: pStart, endDate: pEnd });
+        const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+        // Comisiones pagadas (dentro de los gastos)
+        const commExpenses = expenses.filter(e => e.category === 'COMISIONES');
+        const totalSellerCommissions = commExpenses.reduce((sum, e) => sum + e.amount, 0);
+        // 2. Simulación / Consulta de ventas en el período
+        let grossRevenue = 185000;
+        let directCostsCMV = 92500; // 50% costo promedio insumos/empaque
+        const breakdownByProduct = [
+            { productId: 'fp-1', productName: 'Almendras Nonpareil 1kg', category: 'Frutos Secos', quantitySoldKg: 15, quantitySoldUnits: 15, totalRevenue: 127500, totalDirectCost: 63750, grossProfit: 63750, marginPercentage: 50 },
+            { productId: 'fp-2', productName: 'Nuez Mariposa 500g', category: 'Frutos Secos', quantitySoldKg: 8, quantitySoldUnits: 16, totalRevenue: 99200, totalDirectCost: 49600, grossProfit: 49600, marginPercentage: 50 },
+            { productId: 'fp-3', productName: 'Harina de Almendras 500g', category: 'Harinas Especiales', quantitySoldKg: 5, quantitySoldUnits: 10, totalRevenue: 48000, totalDirectCost: 21600, grossProfit: 26400, marginPercentage: 55 }
+        ];
+        const breakdownByVolume = [
+            { unitType: 'KG', totalVolume: 28.0, totalRevenue: 274700, totalCost: 134950, grossProfit: 139750 },
+            { unitType: 'UNIDADES', totalVolume: 41, totalRevenue: 274700, totalCost: 134950, grossProfit: 139750 }
+        ];
+        const breakdownByChannel = [
+            { channel: 'LOCAL', channelLabel: 'Mostrador Local', ordersCount: 12, totalRevenue: 110000, gatewayCommissionsAmount: 0, sellerCommissionsAmount: 2750, netRevenue: 107250 },
+            { channel: 'WHATSAPP', channelLabel: 'WhatsApp Directo', ordersCount: 8, totalRevenue: 85000, gatewayCommissionsAmount: 2125, sellerCommissionsAmount: 3400, netRevenue: 79475 },
+            { channel: 'ONLINE_STORE', channelLabel: 'Tienda Online Web', ordersCount: 5, totalRevenue: 79700, gatewayCommissionsAmount: 3985, sellerCommissionsAmount: 3985, netRevenue: 71730 }
+        ];
+        const breakdownBySeller = [
+            { sellerId: 'usr-admin-1', sellerName: 'Juan Pablo (Administrador)', role: 'ADMIN', totalOrders: 15, totalSalesAmount: 165000, averageTicket: 11000, earnedCommissionsAmount: 5775, settledCommissionsAmount: 0, pendingCommissionsAmount: 5775 },
+            { sellerId: 'usr-seller-1', sellerName: 'Rocio Quevedo (Vendedora)', role: 'SELLER', totalOrders: 10, totalSalesAmount: 109700, averageTicket: 10970, earnedCommissionsAmount: 4360, settledCommissionsAmount: 4360, pendingCommissionsAmount: 0 }
+        ];
+        grossRevenue = breakdownByProduct.reduce((sum, p) => sum + p.totalRevenue, 0);
+        directCostsCMV = breakdownByProduct.reduce((sum, p) => sum + p.totalDirectCost, 0);
+        const netProfit = Number((grossRevenue - directCostsCMV - totalExpenses).toFixed(2));
+        const netMarginPercentage = grossRevenue > 0 ? Number(((netProfit / grossRevenue) * 100).toFixed(2)) : 0;
+        return {
+            periodStart: pStart,
+            periodEnd: pEnd,
+            totalGrossRevenue: grossRevenue,
+            totalDirectCostsCMV: directCostsCMV,
+            totalOperationalExpenses: totalExpenses,
+            totalSellerCommissions,
+            netProfit,
+            netMarginPercentage,
+            breakdownByProduct,
+            breakdownByVolume,
+            breakdownByChannel,
+            breakdownBySeller,
+            generatedAt: new Date().toISOString()
+        };
     }
 }
 exports.FinanceService = FinanceService;

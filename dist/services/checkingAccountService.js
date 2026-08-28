@@ -167,7 +167,7 @@ class CheckingAccountService {
       `;
             const res = await this.db.query(query);
             if (res.rows.length > 0) {
-                return res.rows.map(row => {
+                return res.rows.map((row) => {
                     const creditLimit = parseFloat(row.credit_limit || '50000');
                     const currentBalance = parseFloat(row.current_account_balance || '0');
                     return {
@@ -339,14 +339,14 @@ class CheckingAccountService {
                 // 2. Saldo inicial previo a fechaInicio
                 const initialBalRes = await this.db.query(`SELECT COALESCE(SUM(CASE WHEN movement_type = 'DEBIT' THEN amount ELSE -amount END), 0) as initial_balance
            FROM customer_account_movements
-           WHERE customer_id = $1 AND created_at < $2::timestamp`, [clienteId, `${periodStart} 00:00:00`]);
+           WHERE customer_id = $1 AND created_at < $2`, [clienteId, `${periodStart} 00:00:00`]);
                 const initialBalance = parseFloat(initialBalRes.rows[0].initial_balance || '0');
                 // 3. Movimientos del período
                 const movRes = await this.db.query(`SELECT id, customer_id, movement_type, amount, balance_after, reference_type, reference_id, description, created_at
            FROM customer_account_movements
            WHERE customer_id = $1 
-             AND created_at >= $2::timestamp 
-             AND created_at <= $3::timestamp
+             AND created_at >= $2 
+             AND created_at <= $3
            ORDER BY created_at ASC`, [clienteId, `${periodStart} 00:00:00`, `${periodEnd} 23:59:59`]);
                 let totalDebitos = 0;
                 let totalCreditos = 0;
@@ -370,7 +370,7 @@ class CheckingAccountService {
                                 numeroComprobante = orderRes.rows[0].order_number;
                             }
                             const itemsRes = await this.db.query('SELECT product_name, quantity, unit_price, subtotal FROM order_items WHERE order_id = $1', [row.reference_id]);
-                            itemsPedido = itemsRes.rows.map(item => ({
+                            itemsPedido = itemsRes.rows.map((item) => ({
                                 nombreProducto: item.product_name,
                                 cantidad: parseFloat(item.quantity),
                                 precioUnitario: parseFloat(item.unit_price),

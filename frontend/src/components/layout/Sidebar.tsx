@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { 
   Menu, Leaf, LayoutDashboard, Users, Package, Download, Scale, 
   ShoppingCart, Kanban, Truck, Wallet, Building2, Receipt, Calculator, 
-  CheckSquare, Printer, Settings, FolderTree, Shield, LogOut
+  CheckSquare, Printer, Settings, FolderTree, Shield, LogOut, TrendingUp
 } from 'lucide-react';
 import { useSettings } from '../../hooks/useSettings';
 import { useAuth } from '../../context/AuthContext';
@@ -49,7 +49,8 @@ const navSections: NavSection[] = [
       { id: 'tab-cc-clients', label: 'Cta Cte Clientes', icon: Wallet, moduleKey: 'checking_accounts' },
       { id: 'tab-cc-suppliers', label: 'Cta Cte Proveedores', icon: Building2, moduleKey: 'suppliers' },
       { id: 'tab-expenses', label: 'Gastos', icon: Receipt, moduleKey: 'finance' },
-      { id: 'tab-pricing', label: 'Precios & Costos', icon: Calculator, moduleKey: 'finance' }
+      { id: 'tab-pricing', label: 'Precios & Costos', icon: Calculator, moduleKey: 'finance' },
+      { id: 'tab-commissions-profits', label: 'Comisiones & Ganancias', icon: TrendingUp, moduleKey: 'finance' }
     ]
   },
   {

@@ -1,4 +1,3 @@
-import { Pool } from 'pg';
 import { PackagingMaterial, CreatePackagingMaterialDTO, UpdatePackagingMaterialDTO } from '../types/packaging';
 
 const initialPackagingMaterials: PackagingMaterial[] = [
@@ -93,32 +92,38 @@ export class PackagingService {
   private inMemoryMaterials: PackagingMaterial[] = [...initialPackagingMaterials];
   private isTableInitialized = false;
 
-  constructor(private db: Pool) {}
+  constructor(private db: any) {}
 
   private async ensureTableExists(): Promise<void> {
     if (this.isTableInitialized) return;
     try {
       await this.db.query(`
         CREATE TABLE IF NOT EXISTS packaging_materials (
-          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          id VARCHAR(64) NOT NULL PRIMARY KEY,
           code VARCHAR(100) NOT NULL UNIQUE,
           name VARCHAR(255) NOT NULL,
           category VARCHAR(50) NOT NULL DEFAULT 'DOYPACK',
           unit VARCHAR(20) NOT NULL DEFAULT 'UN',
-          current_stock NUMERIC(12,3) NOT NULL DEFAULT 0,
-          min_stock NUMERIC(12,3) NOT NULL DEFAULT 10,
-          cost_per_unit NUMERIC(12,2) NOT NULL DEFAULT 0,
+          current_stock DECIMAL(12,3) NOT NULL DEFAULT 0,
+          min_stock DECIMAL(12,3) NOT NULL DEFAULT 10,
+          cost_per_unit DECIMAL(12,2) NOT NULL DEFAULT 0,
           supplier_name VARCHAR(255),
           storage_location VARCHAR(255),
-          family_id UUID REFERENCES article_families(id),
-          is_active BOOLEAN DEFAULT TRUE,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+          family_id VARCHAR(64),
+          is_active TINYINT(1) DEFAULT 1,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
       `);
-      await this.db.query(`ALTER TABLE packaging_materials ADD COLUMN IF NOT EXISTS family_id UUID;`);
+      try {
+        await this.db.query(`ALTER TABLE packaging_materials ADD COLUMN family_id VARCHAR(64);`);
+      } catch (err) {
+        // Ignorar si la columna ya existe
+      }
       this.isTableInitialized = true;
-    } catch {}
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   async getAll(): Promise<PackagingMaterial[]> {
@@ -136,7 +141,7 @@ export class PackagingService {
         ORDER BY p.name ASC;
       `);
       if (res.rows.length > 0) {
-        return res.rows.map(row => ({
+        return res.rows.map((row: any) => ({
           ...row,
           currentStock: parseFloat(row.currentStock),
           minStock: parseFloat(row.minStock),

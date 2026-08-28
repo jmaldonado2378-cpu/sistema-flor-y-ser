@@ -1,4 +1,3 @@
-import { Pool } from 'pg';
 import { RawMaterialService } from './rawMaterialService';
 import { FinalProductService } from './finalProductService';
 import { TaskService } from './taskService';
@@ -58,7 +57,7 @@ export class FractioningService {
   private inMemoryOrders: FractioningOrder[] = [...initialFractioningOrders];
 
   constructor(
-    private db: Pool,
+    private db: any,
     private rawMaterialService: RawMaterialService,
     private finalProductService: FinalProductService,
     private taskService?: TaskService
@@ -325,7 +324,7 @@ export class FractioningService {
         ORDER BY fo.fractioning_date DESC;
       `);
       if (res.rows.length > 0) {
-        return res.rows.map(row => ({
+        return res.rows.map((row: any) => ({
           ...row,
           inputQtyKg: parseFloat(row.inputQtyKg),
           wasteKg: parseFloat(row.wasteKg),

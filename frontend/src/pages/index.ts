@@ -15,4 +15,5 @@ export { LabelsPage } from './LabelsPage';
 export { SettingsPage } from './SettingsPage';
 export { ArticleFamiliesPage } from './ArticleFamiliesPage';
 export { UserManagement } from './UserManagement';
+export { CommissionsAndProfitabilityPage } from './CommissionsAndProfitabilityPage';
 export { Login } from './Login';

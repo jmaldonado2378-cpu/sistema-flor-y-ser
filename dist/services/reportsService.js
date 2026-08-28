@@ -16,9 +16,9 @@ class ReportsService {
             const channelQuery = `
         SELECT 
           channel,
-          COUNT(id)::int AS order_count,
-          COALESCE(SUM(total_amount), 0)::numeric AS total_revenue,
-          COALESCE(AVG(total_amount), 0)::numeric AS average_ticket
+          COUNT(id) AS order_count,
+          COALESCE(SUM(total_amount), 0) AS total_revenue,
+          COALESCE(AVG(total_amount), 0) AS average_ticket
         FROM orders
         WHERE status = 'COMPLETED'
         GROUP BY channel;
@@ -31,9 +31,9 @@ class ReportsService {
           CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
           c.phone_whatsapp,
           c.preferred_channel,
-          COUNT(o.id)::int AS order_count,
-          COALESCE(SUM(o.total_amount), 0)::numeric AS total_spent,
-          COALESCE(AVG(o.total_amount), 0)::numeric AS average_ticket
+          COUNT(o.id) AS order_count,
+          COALESCE(SUM(o.total_amount), 0) AS total_spent,
+          COALESCE(AVG(o.total_amount), 0) AS average_ticket
         FROM customers c
         JOIN orders o ON c.id = o.customer_id
         WHERE o.status = 'COMPLETED'
@@ -44,7 +44,7 @@ class ReportsService {
             const customerRes = await this.db.query(customerQuery);
             if (channelRes.rows.length > 0) {
                 const totalRevenue = channelRes.rows.reduce((acc, row) => acc + parseFloat(row.total_revenue), 0);
-                const totalOrdersCount = channelRes.rows.reduce((acc, row) => acc + row.order_count, 0);
+                const totalOrdersCount = channelRes.rows.reduce((acc, row) => acc + parseInt(row.order_count), 0);
                 const overallAverageTicket = totalOrdersCount > 0 ? totalRevenue / totalOrdersCount : 0;
                 const channelNamesMap = {
                     LOCAL: 'Local / Mostrador',
@@ -52,22 +52,22 @@ class ReportsService {
                     ONLINE_STORE: 'Tienda Web',
                     INSTAGRAM: 'Instagram Direct'
                 };
-                const byChannel = channelRes.rows.map(row => {
+                const byChannel = channelRes.rows.map((row) => {
                     const rev = parseFloat(row.total_revenue);
                     return {
                         channel: row.channel,
                         channelName: channelNamesMap[row.channel] || row.channel,
-                        orderCount: row.order_count,
+                        orderCount: parseInt(row.order_count),
                         totalRevenue: rev,
                         averageTicket: parseFloat(row.average_ticket),
                         percentageOfTotal: totalRevenue > 0 ? Math.round((rev / totalRevenue) * 100) : 0
                     };
                 });
-                const topCustomersByTicket = customerRes.rows.map(row => ({
+                const topCustomersByTicket = customerRes.rows.map((row) => ({
                     customerId: row.customer_id,
                     customerName: row.customer_name,
                     phoneWhatsapp: row.phone_whatsapp,
-                    orderCount: row.order_count,
+                    orderCount: parseInt(row.order_count),
                     totalSpent: parseFloat(row.total_spent),
                     averageTicket: parseFloat(row.average_ticket),
                     preferredChannel: row.preferred_channel
@@ -97,8 +97,8 @@ class ReportsService {
           p.name AS product_name,
           p.sku,
           p.category,
-          COALESCE(SUM(oi.quantity), 0)::numeric AS total_quantity_sold,
-          COALESCE(SUM(oi.total_price), 0)::numeric AS total_revenue
+          COALESCE(SUM(oi.quantity), 0) AS total_quantity_sold,
+          COALESCE(SUM(oi.total_price), 0) AS total_revenue
         FROM products p
         JOIN product_dietary_profiles pdp ON p.id = pdp.product_id
         JOIN dietary_profiles dp ON pdp.dietary_profile_id = dp.id
@@ -160,23 +160,23 @@ class ReportsService {
           GROUP BY customer_id
         )
         SELECT 
-          (SELECT COUNT(*) FROM customers WHERE is_active = TRUE)::int AS total_customers,
-          COUNT(customer_id)::int AS active_customers_with_orders,
-          COUNT(CASE WHEN order_count = 1 THEN 1 END)::int AS one_time_buyers,
-          COUNT(CASE WHEN order_count > 1 THEN 1 END)::int AS repeat_buyers,
-          COALESCE(AVG(order_count), 0)::numeric AS avg_orders
+          (SELECT COUNT(*) FROM customers WHERE is_active = TRUE) AS total_customers,
+          COUNT(customer_id) AS active_customers_with_orders,
+          COUNT(CASE WHEN order_count = 1 THEN 1 END) AS one_time_buyers,
+          COUNT(CASE WHEN order_count > 1 THEN 1 END) AS repeat_buyers,
+          COALESCE(AVG(order_count), 0) AS avg_orders
         FROM customer_orders;
       `;
             const res = await this.db.query(query);
             if (res.rows.length > 0 && res.rows[0].active_customers_with_orders > 0) {
                 const row = res.rows[0];
-                const activeWithOrders = row.active_customers_with_orders;
-                const repeatBuyers = row.repeat_buyers;
+                const activeWithOrders = parseInt(row.active_customers_with_orders);
+                const repeatBuyers = parseInt(row.repeat_buyers);
                 const rate = activeWithOrders > 0 ? (repeatBuyers / activeWithOrders) * 100 : 0;
                 return {
-                    totalCustomers: row.total_customers,
+                    totalCustomers: parseInt(row.total_customers),
                     activeCustomersWithOrders: activeWithOrders,
-                    oneTimeBuyers: row.one_time_buyers,
+                    oneTimeBuyers: parseInt(row.one_time_buyers),
                     repeatBuyers,
                     repurchaseRatePercentage: Math.round(rate * 10) / 10,
                     averageOrdersPerCustomer: Math.round(parseFloat(row.avg_orders) * 10) / 10,
@@ -210,19 +210,19 @@ class ReportsService {
           c.email,
           c.preferred_channel,
           COALESCE(MAX(o.created_at), c.created_at) AS last_purchase_date,
-          ROUND(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(MAX(o.created_at), c.created_at))) / 86400)::int AS days_inactive,
-          COALESCE(SUM(o.total_amount), 0)::numeric AS total_historical_spent,
-          COUNT(o.id)::int AS total_orders
+          TIMESTAMPDIFF(DAY, COALESCE(MAX(o.created_at), c.created_at), CURRENT_TIMESTAMP) AS days_inactive,
+          COALESCE(SUM(o.total_amount), 0) AS total_historical_spent,
+          COUNT(o.id) AS total_orders
         FROM customers c
         LEFT JOIN orders o ON c.id = o.customer_id AND o.status = 'COMPLETED'
         WHERE c.is_active = TRUE
         GROUP BY c.id, c.first_name, c.last_name, c.phone_whatsapp, c.email, c.preferred_channel, c.created_at
-        HAVING EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - COALESCE(MAX(o.created_at), c.created_at))) / 86400 >= 30
+        HAVING TIMESTAMPDIFF(DAY, COALESCE(MAX(o.created_at), c.created_at), CURRENT_TIMESTAMP) >= 30
         ORDER BY days_inactive DESC;
       `;
             const res = await this.db.query(query);
             if (res.rows.length > 0) {
-                let items = res.rows.map(row => {
+                let items = res.rows.map((row) => {
                     const days = row.days_inactive;
                     let range = '30_DAYS';
                     let action = 'Enviar recordatorio de reposición con 10% OFF';
@@ -381,7 +381,7 @@ class ReportsService {
           CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
           c.phone_whatsapp,
           c.email,
-          COALESCE(SUM(CASE WHEN cat.transaction_type = 'DEBIT' THEN cat.amount ELSE -cat.amount END), 0)::numeric AS current_balance,
+          COALESCE(SUM(CASE WHEN cat.transaction_type = 'DEBIT' THEN cat.amount ELSE -cat.amount END), 0) AS current_balance,
           MAX(cat.created_at) AS last_activity
         FROM customers c
         JOIN customer_account_transactions cat ON c.id = cat.customer_id
@@ -391,7 +391,7 @@ class ReportsService {
       `;
             const res = await this.db.query(query);
             if (res.rows.length > 0) {
-                const accounts = res.rows.map(row => {
+                const accounts = res.rows.map((row) => {
                     const balance = parseFloat(row.current_balance);
                     const limit = 50000; // Límite por defecto
                     let status = 'NORMAL';

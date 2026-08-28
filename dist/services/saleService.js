@@ -90,17 +90,31 @@ class SaleService {
                 ? `${custRes.rows[0].first_name} ${custRes.rows[0].last_name}`
                 : resolvedCustomerName;
             const orderNumber = `PED-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+            // Obtener porcentaje de comisión para este vendedor y canal
+            let commissionPct = 3.0; // por defecto 3%
+            if (dto.sellerId) {
+                try {
+                    const commRes = await client.query('SELECT commission_percentage FROM seller_channel_commissions WHERE user_id = $1 AND channel = $2', [dto.sellerId, channel]);
+                    if (commRes.rows.length > 0) {
+                        commissionPct = parseFloat(commRes.rows[0].commission_percentage) || 0;
+                    }
+                }
+                catch { }
+            }
+            const commissionAmount = Math.round((totalAmount * (commissionPct / 100)) * 100) / 100;
             const insertOrderQuery = `
         INSERT INTO orders (
-          order_number, customer_id, quote_id, channel, status, payment_status,
+          order_number, customer_id, seller_id, seller_name, quote_id, channel, status, payment_status,
           subtotal, discount_amount, delivery_fee, total_amount, paid_amount, balance_due,
-          points_earned, delivery_address, notes
-        ) VALUES ($1, $2, $3, $4, 'PENDING', 'PAID', $5, $6, $7, $8, $8, 0, $9, $10, $11)
+          points_earned, commission_amount, commission_settled, delivery_address, notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'PENDING', 'PAID', $7, $8, $9, $10, $10, 0, $11, $12, 0, $13, $14)
         RETURNING id, created_at;
       `;
             const orderRes = await client.query(insertOrderQuery, [
                 orderNumber,
                 dto.customerId,
+                dto.sellerId || null,
+                dto.sellerName || null,
                 dto.quoteId || null,
                 channel,
                 subtotal,
@@ -108,6 +122,7 @@ class SaleService {
                 deliveryFee,
                 totalAmount,
                 pointsEarned,
+                commissionAmount,
                 dto.deliveryAddress || null,
                 dto.notes || null
             ]);
@@ -138,11 +153,14 @@ class SaleService {
         }
     }
     createOrderInMemory(dto, customerName, totalAmount, subtotal, pointsEarned, channel) {
+        const commissionAmount = Math.round((totalAmount * 0.03) * 100) / 100;
         const newOrder = {
             id: 'ord-' + Date.now(),
             orderNumber: this.generateOrderNumberInMemory(),
             customerId: dto.customerId,
             customerName: customerName || 'Cliente Registrado',
+            sellerId: dto.sellerId,
+            sellerName: dto.sellerName || 'Vendedor General',
             channel,
             status: 'PENDING',
             paymentStatus: 'PAID',
@@ -153,6 +171,8 @@ class SaleService {
             paidAmount: totalAmount,
             balanceDue: 0,
             pointsEarned,
+            commissionAmount,
+            commissionSettled: false,
             items: dto.items.map(i => ({
                 id: 'oi-' + Math.random(),
                 productName: i.productName,
@@ -201,6 +221,8 @@ class SaleService {
                     orderNumber: row.order_number,
                     customerId: row.customer_id,
                     customerName: `${row.first_name} ${row.last_name}`,
+                    sellerId: row.seller_id,
+                    sellerName: row.seller_name,
                     channel: row.channel,
                     status: row.status,
                     paymentStatus: row.payment_status,
@@ -211,6 +233,9 @@ class SaleService {
                     paidAmount: parseFloat(row.paid_amount),
                     balanceDue: parseFloat(row.balance_due),
                     pointsEarned: row.points_earned,
+                    commissionAmount: parseFloat(row.commission_amount || 0),
+                    commissionSettled: Boolean(row.commission_settled),
+                    commissionSettlementId: row.commission_settlement_id,
                     items,
                     createdAt: row.created_at,
                     updatedAt: row.updated_at
@@ -229,20 +254,22 @@ class SaleService {
         try {
             const ordersQuery = `
         SELECT 
-          o.id, o.order_number, o.customer_id, o.channel, o.status, o.payment_status,
+          o.id, o.order_number, o.customer_id, o.seller_id, o.seller_name, o.channel, o.status, o.payment_status,
           o.subtotal, o.discount_amount, o.delivery_fee, o.total_amount, o.paid_amount, o.balance_due,
-          o.points_earned, o.created_at, o.updated_at, c.first_name, c.last_name
+          o.points_earned, o.commission_amount, o.commission_settled, o.commission_settlement_id, o.created_at, o.updated_at, c.first_name, c.last_name
         FROM orders o
         JOIN customers c ON c.id = o.customer_id
         ORDER BY o.created_at DESC;
       `;
             const ordersRes = await this.db.query(ordersQuery);
             if (ordersRes.rows.length > 0) {
-                const orders = ordersRes.rows.map(row => ({
+                const orders = ordersRes.rows.map((row) => ({
                     id: row.id,
                     orderNumber: row.order_number,
                     customerId: row.customer_id,
                     customerName: `${row.first_name} ${row.last_name}`,
+                    sellerId: row.seller_id,
+                    sellerName: row.seller_name,
                     channel: row.channel,
                     status: row.status,
                     paymentStatus: row.payment_status,
@@ -253,6 +280,9 @@ class SaleService {
                     paidAmount: parseFloat(row.paid_amount),
                     balanceDue: parseFloat(row.balance_due),
                     pointsEarned: row.points_earned || 0,
+                    commissionAmount: parseFloat(row.commission_amount || 0),
+                    commissionSettled: Boolean(row.commission_settled),
+                    commissionSettlementId: row.commission_settlement_id,
                     items: [],
                     createdAt: row.created_at,
                     updatedAt: row.updated_at || row.created_at

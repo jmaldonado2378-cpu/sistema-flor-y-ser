@@ -87,7 +87,7 @@ class RawMaterialService {
         ORDER BY r.name ASC;
       `);
             if (res.rows.length > 0) {
-                return res.rows.map(row => ({
+                return res.rows.map((row) => ({
                     ...row,
                     currentStock: parseFloat(row.currentStock),
                     minStock: parseFloat(row.minStock),

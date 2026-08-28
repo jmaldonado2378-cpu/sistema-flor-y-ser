@@ -1,4 +1,3 @@
-import { Pool } from 'pg';
 import {
   Quote,
   QuoteItem,
@@ -12,7 +11,7 @@ import { SaleService } from './saleService';
 
 export class QuoteService {
   constructor(
-    private db: Pool,
+    private db: any,
     private saleService: SaleService
   ) {}
 
@@ -159,7 +158,7 @@ export class QuoteService {
       [id]
     );
 
-    const items: QuoteItem[] = itemsRes.rows.map((iRow) => ({
+    const items: QuoteItem[] = itemsRes.rows.map((iRow: any) => ({
       id: iRow.id,
       quoteId: iRow.quote_id,
       productName: iRow.product_name,
@@ -213,12 +212,12 @@ export class QuoteService {
     }
 
     if (startDate) {
-      conditions.push(`q.created_at >= $${paramIdx++}::timestamp`);
+      conditions.push(`q.created_at >= $${paramIdx++}`);
       params.push(`${startDate} 00:00:00`);
     }
 
     if (endDate) {
-      conditions.push(`q.created_at <= $${paramIdx++}::timestamp`);
+      conditions.push(`q.created_at <= $${paramIdx++}`);
       params.push(`${endDate} 23:59:59`);
     }
 
@@ -254,14 +253,14 @@ export class QuoteService {
     const res = await this.db.query(query, [...params, limit, offset]);
 
     const quotes: Quote[] = await Promise.all(
-      res.rows.map(async (row) => {
+      res.rows.map(async (row: any) => {
         const itemsRes = await this.db.query(
           `SELECT id, quote_id, product_name, product_id, is_bulk_fractioned, quantity, unit_price, subtotal, notes
            FROM quote_items WHERE quote_id = $1`,
           [row.id]
         );
 
-        const items: QuoteItem[] = itemsRes.rows.map((iRow) => ({
+        const items: QuoteItem[] = itemsRes.rows.map((iRow: any) => ({
           id: iRow.id,
           quoteId: iRow.quote_id,
           productName: iRow.product_name,

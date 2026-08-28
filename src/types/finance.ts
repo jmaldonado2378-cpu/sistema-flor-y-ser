@@ -10,6 +10,7 @@ export type ExpenseCategory =
   | 'ALQUILER'
   | 'SERVICIOS'
   | 'SUELDOS'
+  | 'COMISIONES'
   | 'LOGISTICA'
   | 'MARKETING'
   | 'MANTENIMIENTO'
@@ -248,5 +249,90 @@ export interface FinancialOverviewReport {
     minProfitChannel: string;
     profitAmount: number;
   };
+  generatedAt: string;
+}
+
+// ==========================================
+// SECCIÓN: COMISIONES POR VENDEDOR & P&L
+// ==========================================
+
+export interface SellerChannelCommissionRate {
+  userId: string;
+  userName: string;
+  channel: 'LOCAL' | 'WHATSAPP' | 'ONLINE_STORE' | 'INSTAGRAM';
+  commissionPercentage: number;
+}
+
+export interface CommissionSettlement {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole?: string;
+  periodStart: string;
+  periodEnd: string;
+  totalPaidSalesAmount: number;
+  ordersCount: number;
+  totalCommissionAmount: number;
+  expenseId?: string;
+  paymentMethod: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface ProductProfitabilityItem {
+  productId: string;
+  productName: string;
+  category?: string;
+  quantitySoldKg: number;
+  quantitySoldUnits: number;
+  totalRevenue: number;
+  totalDirectCost: number;
+  grossProfit: number;
+  marginPercentage: number;
+}
+
+export interface VolumeProfitabilityItem {
+  unitType: 'KG' | 'UNIDADES';
+  totalVolume: number;
+  totalRevenue: number;
+  totalCost: number;
+  grossProfit: number;
+}
+
+export interface ChannelProfitabilityItem {
+  channel: 'LOCAL' | 'WHATSAPP' | 'ONLINE_STORE' | 'INSTAGRAM';
+  channelLabel: string;
+  ordersCount: number;
+  totalRevenue: number;
+  gatewayCommissionsAmount: number;
+  sellerCommissionsAmount: number;
+  netRevenue: number;
+}
+
+export interface SellerProfitabilityItem {
+  sellerId: string;
+  sellerName: string;
+  role: string;
+  totalOrders: number;
+  totalSalesAmount: number;
+  averageTicket: number;
+  earnedCommissionsAmount: number;
+  settledCommissionsAmount: number;
+  pendingCommissionsAmount: number;
+}
+
+export interface ProfitabilityMonitorReport {
+  periodStart: string;
+  periodEnd: string;
+  totalGrossRevenue: number;
+  totalDirectCostsCMV: number;
+  totalOperationalExpenses: number;
+  totalSellerCommissions: number;
+  netProfit: number;
+  netMarginPercentage: number;
+  breakdownByProduct: ProductProfitabilityItem[];
+  breakdownByVolume: VolumeProfitabilityItem[];
+  breakdownByChannel: ChannelProfitabilityItem[];
+  breakdownBySeller: SellerProfitabilityItem[];
   generatedAt: string;
 }

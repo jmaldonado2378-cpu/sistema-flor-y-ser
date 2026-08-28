@@ -1,4 +1,3 @@
-import { Pool } from 'pg';
 import {
   MarketingTemplate,
   CreateMarketingTemplateDTO,
@@ -87,7 +86,7 @@ export class MarketingService {
 
   private customerService: CustomerService;
 
-  constructor(private db: Pool, customerService?: CustomerService) {
+  constructor(private db: any, customerService?: CustomerService) {
     this.customerService = customerService || new CustomerService(db);
   }
 
@@ -107,7 +106,7 @@ export class MarketingService {
       `;
       const res = await this.db.query(query);
       if (res.rows.length > 0) {
-        return res.rows.map(row => ({
+        return res.rows.map((row: any) => ({
           id: row.id,
           title: row.title,
           content: row.content,
@@ -290,7 +289,7 @@ export class MarketingService {
       `;
       const res = await this.db.query(query);
       if (res.rows.length > 0) {
-        return res.rows.map(row => ({
+        return res.rows.map((row: any) => ({
           id: row.id,
           name: row.name,
           templateId: row.template_id,

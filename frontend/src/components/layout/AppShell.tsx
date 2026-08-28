@@ -20,6 +20,7 @@ import {
   SettingsPage,
   ArticleFamiliesPage,
   UserManagement,
+  CommissionsAndProfitabilityPage,
   Login
 } from '../../pages';
 
@@ -59,6 +60,8 @@ export const AppShell: React.FC = () => {
         return <ExpensesPage onTabChange={setActiveTab} />;
       case 'tab-pricing': 
         return <PricingPage onTabChange={setActiveTab} />;
+      case 'tab-commissions-profits':
+        return <CommissionsAndProfitabilityPage />;
       case 'tab-tasks': 
         return <TasksKanbanPage onTabChange={setActiveTab} />;
       case 'tab-labels': 

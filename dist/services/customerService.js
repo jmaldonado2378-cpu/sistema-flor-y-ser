@@ -236,7 +236,7 @@ class CustomerService {
           WHERE cdp.customer_id = $1;
         `;
                 const dietaryRes = await this.db.query(dietaryQuery, [customerId]);
-                const dietaryProfiles = dietaryRes.rows.map(row => ({
+                const dietaryProfiles = dietaryRes.rows.map((row) => ({
                     id: row.id,
                     code: row.code,
                     name: row.name,
@@ -335,7 +335,7 @@ class CustomerService {
                 sql += ` AND c.is_active = $${params.length}`;
             }
             const res = await this.db.query(sql, params);
-            const profiles = await Promise.all(res.rows.map(r => this.getUnifiedProfile(r.id)));
+            const profiles = await Promise.all(res.rows.map((r) => this.getUnifiedProfile(r.id)));
             return { customers: profiles, total: profiles.length };
         }
         catch {

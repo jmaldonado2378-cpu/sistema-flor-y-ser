@@ -679,14 +679,33 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
     try { bodyData = JSON.parse(options.body); } catch (e) {}
   }
 
+  // Inyectar token JWT en cada request autenticada
+  const token = localStorage.getItem('floryser_jwt_token');
+  const authHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...options.headers as Record<string, string>,
+  };
+
   const config: RequestInit = {
-    headers: { 'Content-Type': 'application/json', ...options.headers as Record<string, string> },
+    headers: authHeaders,
     ...options,
   };
 
   try {
     const response = await fetch(url, config);
     const contentType = response.headers.get('content-type') || '';
+
+    // Si el token expiró o es inválido, limpiar sesión
+    if (response.status === 401) {
+      localStorage.removeItem('floryser_jwt_token');
+      localStorage.removeItem('floryser_current_user_v2');
+      // Intentar fallback local antes de forzar logout
+      const fallback = getLocalDataFallback<T>(endpoint, method, bodyData);
+      if (fallback !== null) return fallback;
+      window.location.reload();
+      throw new ApiError(401, 'Sesión expirada. Inicie sesión nuevamente.');
+    }
     
     if (!response.ok || !contentType.includes('application/json')) {
       const fallback = getLocalDataFallback<T>(endpoint, method, bodyData);

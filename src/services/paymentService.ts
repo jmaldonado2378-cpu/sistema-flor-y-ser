@@ -1,10 +1,9 @@
-import { Pool } from 'pg';
 import { Payment, CreatePaymentDTO } from '../types/sales';
 import { CheckingAccountService } from './checkingAccountService';
 
 export class PaymentService {
   constructor(
-    private db: Pool,
+    private db: any,
     private checkingAccountService: CheckingAccountService
   ) {}
 
@@ -179,7 +178,7 @@ export class PaymentService {
     `;
 
     const res = await this.db.query(query, [customerId]);
-    return res.rows.map((row) => ({
+    return res.rows.map((row: any) => ({
       id: row.id,
       receiptNumber: row.receipt_number,
       customerId: row.customer_id,
@@ -210,7 +209,7 @@ export class PaymentService {
     `;
 
     const res = await this.db.query(query, [orderId]);
-    return res.rows.map((row) => ({
+    return res.rows.map((row: any) => ({
       id: row.id,
       receiptNumber: row.receipt_number,
       customerId: row.customer_id,

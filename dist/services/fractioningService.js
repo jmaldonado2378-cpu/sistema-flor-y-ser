@@ -296,7 +296,7 @@ class FractioningService {
         ORDER BY fo.fractioning_date DESC;
       `);
             if (res.rows.length > 0) {
-                return res.rows.map(row => ({
+                return res.rows.map((row) => ({
                     ...row,
                     inputQtyKg: parseFloat(row.inputQtyKg),
                     wasteKg: parseFloat(row.wasteKg),

@@ -1,4 +1,3 @@
-import { Pool } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
 import {
   OperationalTask,
@@ -59,7 +58,7 @@ export class TaskService {
   private fractioningService?: any;
 
   constructor(
-    private db: Pool,
+    private db: any,
     private saleService?: SaleService
   ) {}
 
@@ -73,23 +72,23 @@ export class TaskService {
     try {
       const createTableQuery = `
         CREATE TABLE IF NOT EXISTS operational_tasks (
-          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          id VARCHAR(64) NOT NULL PRIMARY KEY,
           title VARCHAR(255) NOT NULL,
           description TEXT,
           type VARCHAR(50) NOT NULL DEFAULT 'GENERAL',
           status VARCHAR(50) NOT NULL DEFAULT 'PENDING_FRACTIONING',
           priority VARCHAR(20) NOT NULL DEFAULT 'MEDIUM',
           assigned_to VARCHAR(150),
-          order_id UUID,
-          product_id UUID,
+          order_id VARCHAR(64),
+          product_id VARCHAR(64),
           product_name VARCHAR(255),
-          quantity NUMERIC(12,3),
+          quantity DECIMAL(12,3),
           unit_of_measure VARCHAR(50),
           due_date DATE,
-          completed_at TIMESTAMP WITH TIME ZONE,
+          completed_at DATETIME,
           notes TEXT,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
       `;
       await this.db.query(createTableQuery);
@@ -196,7 +195,7 @@ export class TaskService {
       query += ` ORDER BY created_at DESC`;
 
       const res = await this.db.query(query, values);
-      const tasks = res.rows.map((row) => this.mapRowToTask(row));
+      const tasks = res.rows.map((row: any) => this.mapRowToTask(row));
 
       return { tasks, total: tasks.length };
     } catch (error) {
@@ -320,7 +319,7 @@ export class TaskService {
            LEFT JOIN customers c ON o.customer_id = c.id
            ORDER BY o.created_at DESC`
         );
-        allOrders = res.rows.map(row => ({
+        allOrders = res.rows.map((row: any) => ({
           id: row.id,
           orderNumber: row.order_number,
           customerId: row.customer_id,

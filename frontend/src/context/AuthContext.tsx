@@ -7,41 +7,14 @@ interface AuthContextType extends AuthState {
   logout: () => void;
   hasPermission: (module: ModuleKey) => boolean;
   users: User[];
-  createUser: (user: Omit<User, 'id' | 'createdAt'>) => void;
+  createUser: (user: Omit<User, 'id' | 'createdAt'>) => Promise<void>;
   updateUser: (userId: string, updates: Partial<User>) => void;
   deleteUser: (userId: string) => void;
 }
 
-const DEFAULT_USERS: User[] = [
-  {
-    id: 'usr-admin-1',
-    name: 'Juan Pablo (Administrador)',
-    email: 'admin@floryser.com',
-    password: 'admin123',
-    role: 'ADMIN',
-    allowedModules: [
-      'dashboard', 'customers', 'stock', 'article_families',
-      'merchandise_receipt', 'fractioning', 'new_sale', 'kanban_orders', 'kanban_tasks',
-      'suppliers', 'checking_accounts', 'finance', 'settings', 'marketing', 'users'
-    ],
-    avatarInitials: 'JP',
-    active: true,
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'usr-seller-1',
-    name: 'Rocio Quevedo (Vendedora)',
-    email: 'rocioQ@floryser.com',
-    password: 'vendedor123',
-    role: 'SELLER',
-    allowedModules: ['new_sale', 'kanban_orders', 'kanban_tasks', 'customers', 'stock', 'fractioning'],
-    avatarInitials: 'RQ',
-    active: true,
-    createdAt: new Date().toISOString()
-  }
-];
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const API_BASE = '/api/v1';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<User[]>(() => {
@@ -54,48 +27,111 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Error al cargar usuarios guardados:', e);
       }
     }
-    return DEFAULT_USERS;
+    return [];
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
 
+  // Restaurar sesión desde localStorage al cargar
   useEffect(() => {
-    localStorage.removeItem('floryser_current_user_v2');
-    localStorage.removeItem('floryser_jwt_token');
+    const savedToken = localStorage.getItem('floryser_jwt_token');
+    const savedUser = localStorage.getItem('floryser_current_user_v2');
+    
+    if (savedToken && savedUser) {
+      try {
+        const user = JSON.parse(savedUser);
+        setCurrentUser(user);
+        setToken(savedToken);
+      } catch (e) {
+        // Token o usuario corrupto, limpiar
+        localStorage.removeItem('floryser_jwt_token');
+        localStorage.removeItem('floryser_current_user_v2');
+      }
+    }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('floryser_users_v2', JSON.stringify(users));
+    if (users.length > 0) {
+      localStorage.setItem('floryser_users_v2', JSON.stringify(users));
+    }
   }, [users]);
 
   const login = async (emailInput: string, passwordInput: string): Promise<boolean> => {
     const cleanEmail = emailInput.trim().toLowerCase();
     const cleanPass = passwordInput.trim();
 
-    const foundUser = users.find(u => 
-      (u.email.toLowerCase() === cleanEmail || 
-       (cleanEmail === 'admin' && u.role === 'ADMIN') || 
-       (cleanEmail === 'vendedor' && u.role === 'SELLER')) && u.active
-    );
+    try {
+      // Autenticación real contra el backend API
+      const response = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, password: cleanPass }),
+      });
 
-    if (foundUser) {
-      if (!foundUser.password || foundUser.password === cleanPass || cleanPass === 'password123' || cleanEmail === 'admin' || cleanEmail === 'vendedor') {
-        setCurrentUser(foundUser);
-        const demoToken = `jwt-token-${foundUser.id}-${Date.now()}`;
-        setToken(demoToken);
+      if (response.ok) {
+        const data = await response.json();
+        const user: User = {
+          id: data.user.id,
+          name: data.user.name,
+          email: data.user.email,
+          role: data.user.role,
+          allowedModules: data.user.allowedModules || [],
+          avatarInitials: data.user.avatarInitials || data.user.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase(),
+          active: data.user.active,
+          createdAt: data.user.createdAt || new Date().toISOString(),
+        };
+
+        setCurrentUser(user);
+        setToken(data.token);
+
+        // Persistir sesión
+        localStorage.setItem('floryser_jwt_token', data.token);
+        localStorage.setItem('floryser_current_user_v2', JSON.stringify(user));
+
+        // Actualizar lista de usuarios local si no existe
+        setUsers(prev => {
+          const exists = prev.find(u => u.id === user.id);
+          if (!exists) return [...prev, user];
+          return prev.map(u => u.id === user.id ? user : u);
+        });
 
         addAuditLog({
-          userName: foundUser.name,
-          userEmail: foundUser.email,
-          userRole: foundUser.role,
+          userName: user.name,
+          userEmail: user.email,
+          userRole: user.role,
           action: 'INICIO_SESION',
           module: 'Sistema',
-          details: `Inicio de sesión exitoso de ${foundUser.name}`
+          details: `Inicio de sesión exitoso de ${user.name}`
         });
 
         return true;
       }
+
+      // Si el backend devuelve error, intentar fallback local
+      return loginFallback(cleanEmail, cleanPass);
+    } catch (err) {
+      // Error de red — intentar fallback local
+      console.warn('⚠️ Backend no disponible, usando autenticación local');
+      return loginFallback(cleanEmail, cleanPass);
+    }
+  };
+
+  /**
+   * Fallback local cuando el backend no está disponible
+   */
+  const loginFallback = (email: string, password: string): boolean => {
+    const foundUser = users.find(u =>
+      u.email.toLowerCase() === email && u.active
+    );
+
+    if (foundUser && foundUser.password && foundUser.password === password) {
+      setCurrentUser(foundUser);
+      const demoToken = `jwt-local-${foundUser.id}-${Date.now()}`;
+      setToken(demoToken);
+      localStorage.setItem('floryser_jwt_token', demoToken);
+      localStorage.setItem('floryser_current_user_v2', JSON.stringify(foundUser));
+      return true;
     }
 
     return false;
@@ -124,13 +160,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return currentUser.allowedModules.includes(module);
   };
 
-  const createUser = (userData: Omit<User, 'id' | 'createdAt'>) => {
-    const newUser: User = {
-      ...userData,
-      id: `usr-${Date.now()}`,
-      createdAt: new Date().toISOString()
-    };
-    setUsers(prev => [...prev, newUser]);
+  const createUser = async (userData: Omit<User, 'id' | 'createdAt'>) => {
+    try {
+      // Intentar crear en el backend
+      const response = await fetch(`${API_BASE}/auth/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(userData),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const newUser: User = {
+          ...userData,
+          id: data.data?.id || `usr-${Date.now()}`,
+          createdAt: data.data?.createdAt || new Date().toISOString(),
+        };
+        setUsers(prev => [...prev, newUser]);
+      } else {
+        throw new Error('Backend error');
+      }
+    } catch {
+      // Fallback local
+      const newUser: User = {
+        ...userData,
+        id: `usr-${Date.now()}`,
+        createdAt: new Date().toISOString()
+      };
+      setUsers(prev => [...prev, newUser]);
+    }
 
     if (currentUser) {
       addAuditLog({
@@ -139,7 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         userRole: currentUser.role,
         action: 'CREAR_USUARIO',
         module: 'Usuarios & Permisos',
-        details: `Nuevo usuario creado: ${newUser.name} (${newUser.email}) con rol ${newUser.role}`
+        details: `Nuevo usuario creado: ${userData.name} (${userData.email}) con rol ${userData.role}`
       });
     }
   };
@@ -148,6 +209,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updates } : u));
     if (currentUser && currentUser.id === userId) {
       setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
+    }
+
+    // Intentar actualizar en backend (fire-and-forget)
+    if (token) {
+      fetch(`${API_BASE}/auth/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(updates),
+      }).catch(() => { /* silent fallback */ });
     }
 
     if (currentUser) {
@@ -165,6 +238,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const deleteUser = (userId: string) => {
     const targetUser = users.find(u => u.id === userId);
     setUsers(prev => prev.filter(u => u.id !== userId));
+
+    // Intentar eliminar en backend
+    if (token) {
+      fetch(`${API_BASE}/auth/users/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      }).catch(() => { /* silent fallback */ });
+    }
 
     if (currentUser) {
       addAuditLog({

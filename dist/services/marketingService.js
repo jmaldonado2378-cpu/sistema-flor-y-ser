@@ -94,7 +94,7 @@ class MarketingService {
       `;
             const res = await this.db.query(query);
             if (res.rows.length > 0) {
-                return res.rows.map(row => ({
+                return res.rows.map((row) => ({
                     id: row.id,
                     title: row.title,
                     content: row.content,
@@ -263,7 +263,7 @@ class MarketingService {
       `;
             const res = await this.db.query(query);
             if (res.rows.length > 0) {
-                return res.rows.map(row => ({
+                return res.rows.map((row) => ({
                     id: row.id,
                     name: row.name,
                     templateId: row.template_id,

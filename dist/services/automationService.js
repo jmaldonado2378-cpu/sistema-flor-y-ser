@@ -229,7 +229,7 @@ class AutomationService {
         try {
             const res = await this.db.query(query, customerId ? [customerId] : []);
             if (res.rows.length > 0) {
-                return res.rows.map(row => ({
+                return res.rows.map((row) => ({
                     id: row.id,
                     customerId: row.customer_id,
                     customerName: row.customer_name,
