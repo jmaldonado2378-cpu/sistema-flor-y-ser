@@ -5,6 +5,39 @@
 
 SET FOREIGN_KEY_CHECKS = 0;
 
+-- Eliminar tablas anteriores si existen para recrear esquema limpio v2.0
+DROP TABLE IF EXISTS `commission_settlements`;
+DROP TABLE IF EXISTS `seller_channel_commissions`;
+DROP TABLE IF EXISTS `order_items`;
+DROP TABLE IF EXISTS `orders`;
+DROP TABLE IF EXISTS `quote_items`;
+DROP TABLE IF EXISTS `quotes`;
+DROP TABLE IF EXISTS `payments`;
+DROP TABLE IF EXISTS `customer_account_movements`;
+DROP TABLE IF EXISTS `merchandise_receipt_items`;
+DROP TABLE IF EXISTS `merchandise_receipts`;
+DROP TABLE IF EXISTS `accounts_payable_payments`;
+DROP TABLE IF EXISTS `fractioning_orders`;
+DROP TABLE IF EXISTS `operational_tasks`;
+DROP TABLE IF EXISTS `operational_expenses`;
+DROP TABLE IF EXISTS `product_pricing_structures`;
+DROP TABLE IF EXISTS `system_settings`;
+DROP TABLE IF EXISTS `marketing_campaigns`;
+DROP TABLE IF EXISTS `marketing_templates`;
+DROP TABLE IF EXISTS `automation_logs`;
+DROP TABLE IF EXISTS `printer_configurations`;
+DROP TABLE IF EXISTS `customer_dietary_profiles`;
+DROP TABLE IF EXISTS `customer_points_history`;
+DROP TABLE IF EXISTS `customers`;
+DROP TABLE IF EXISTS `dietary_profiles`;
+DROP TABLE IF EXISTS `final_products`;
+DROP TABLE IF EXISTS `products`;
+DROP TABLE IF EXISTS `packaging_materials`;
+DROP TABLE IF EXISTS `raw_materials`;
+DROP TABLE IF EXISTS `suppliers`;
+DROP TABLE IF EXISTS `article_families`;
+DROP TABLE IF EXISTS `system_users`;
+
 -- 1. Tabla de Usuarios del Sistema (Autenticación JWT)
 CREATE TABLE IF NOT EXISTS `system_users` (
   `id` VARCHAR(64) NOT NULL PRIMARY KEY,
