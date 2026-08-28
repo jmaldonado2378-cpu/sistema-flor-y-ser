@@ -11,9 +11,15 @@
     RewriteEngine On
     RewriteBase /
 
+    # Proxy para conectar llamadas API con el backend Node.js (Express en puerto 3000)
+    RewriteRule ^api/(.*)$ http://127.0.0.1:3000/api/$1 [P,L]
+
     DirectoryIndex index.html
 
     RewriteCond %{REQUEST_FILENAME} -f [OR]
     RewriteCond %{REQUEST_FILENAME} -d
     RewriteRule ^ - [L]
+
+    # SPA Fallback para React (evita 404 al recargar páginas)
+    RewriteRule ^ index.html [L]
 </IfModule>
