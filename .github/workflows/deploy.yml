@@ -33,22 +33,10 @@ jobs:
             cd frontend && npm install && cd ..
             npm run build
 
-      - name: Deploy via SSH (Key Auth)
-        if: ${{ secrets.HOSTINGER_SSH_KEY != '' && secrets.HOSTINGER_SSH_PASSWORD == '' }}
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.HOSTINGER_SSH_HOST }}
-          username: ${{ secrets.HOSTINGER_SSH_USER || 'u829089200' }}
-          key: ${{ secrets.HOSTINGER_SSH_KEY }}
-          port: ${{ secrets.HOSTINGER_SSH_PORT || 65002 }}
-          script: |
-            mkdir -p ~/public_html/sistema-flor-y-ser
-            cd ~/public_html/sistema-flor-y-ser
-            if [ ! -d ".git" ]; then
-              git clone https://github.com/jmaldonado2378-cpu/sistema-flor-y-ser.git .
-            else
-              git pull origin main
-            fi
-            npm install
-            cd frontend && npm install && cd ..
-            npm run build
+      - name: Info - Hostinger Auto-Deploy active
+        if: ${{ secrets.HOSTINGER_SSH_PASSWORD == '' && secrets.HOSTINGER_SSH_KEY == '' }}
+        run: |
+          echo "ℹ️ No GitHub SSH secrets configured (HOSTINGER_SSH_PASSWORD or HOSTINGER_SSH_KEY)."
+          echo "🚀 Deployment relies on Hostinger Git Auto-Deploy from GitHub repository."
+          echo "To enable SSH deployment via GitHub Actions, add HOSTINGER_SSH_HOST and HOSTINGER_SSH_PASSWORD in GitHub Repository Secrets."
+
