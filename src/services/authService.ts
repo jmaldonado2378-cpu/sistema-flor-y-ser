@@ -91,27 +91,77 @@ export class AuthService {
     const cleanPass = password.trim();
 
     try {
-      // Intentar autenticación contra la base de datos
+      // Buscar usuario por email (sin restringir active en SQL para auto-reparar si estuviera inactivo)
       const result = await this.db.query(
-        'SELECT id, name, email, password_hash, role, allowed_modules_json, avatar_initials, active, created_at FROM system_users WHERE LOWER(email) = ? AND active = 1',
+        'SELECT id, name, email, password_hash, role, allowed_modules_json, avatar_initials, active, created_at FROM system_users WHERE LOWER(email) = ?',
         [cleanEmail]
       );
 
       if (result.rows.length > 0) {
         const dbUser = result.rows[0];
-        const passwordMatch = await bcrypt.compare(cleanPass, dbUser.password_hash);
+        let passwordMatch = await bcrypt.compare(cleanPass, dbUser.password_hash);
 
-        if (passwordMatch) {
+        // Auto-Reparación: si la contraseña no coincide pero ingresó la clave oficial por defecto
+        const expectedDefaultPass = DEFAULT_PASSWORDS[cleanEmail];
+        if (!passwordMatch && expectedDefaultPass && cleanPass === expectedDefaultPass) {
+          console.log(`🔧 Auto-reparando hash de contraseña para ${cleanEmail}...`);
+          const realHash = await bcrypt.hash(cleanPass, 10);
+          try {
+            await this.db.query(
+              'UPDATE system_users SET password_hash = ?, active = 1 WHERE id = ?',
+              [realHash, dbUser.id]
+            );
+            dbUser.password_hash = realHash;
+            dbUser.active = 1;
+            passwordMatch = true;
+          } catch (updateErr) {
+            console.error('Error al auto-reparar hash de usuario en BD:', updateErr);
+          }
+        }
+
+        const isActive = Boolean(dbUser.active == 1 || dbUser.active === true || dbUser.active === '1');
+
+        if (passwordMatch && isActive) {
           return this.buildLoginResult(dbUser);
         }
 
-        return null; // Contraseña incorrecta
+        return null;
       }
 
-      // Si no se encontró en BD, intentar fallback en memoria
+      // Auto-Creación en BD si el usuario es uno de los administradores/vendedores oficiales por defecto
+      const defaultUser = DEFAULT_USERS.find(u => u.email.toLowerCase() === cleanEmail);
+      const expectedDefaultPass = DEFAULT_PASSWORDS[cleanEmail];
+
+      if (defaultUser && expectedDefaultPass && cleanPass === expectedDefaultPass) {
+        console.log(`🔧 Auto-creando usuario por defecto ${cleanEmail} en la base de datos...`);
+        const realHash = await bcrypt.hash(cleanPass, 10);
+        try {
+          await this.db.query(
+            `INSERT INTO system_users (id, name, email, password_hash, role, allowed_modules_json, avatar_initials, active) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE password_hash = ?, active = 1`,
+            [
+              defaultUser.id,
+              defaultUser.name,
+              defaultUser.email,
+              realHash,
+              defaultUser.role,
+              defaultUser.allowed_modules_json,
+              defaultUser.avatar_initials,
+              realHash
+            ]
+          );
+          defaultUser.password_hash = realHash;
+          defaultUser.active = true;
+          return this.buildLoginResult(defaultUser);
+        } catch (insertErr) {
+          console.error('Error al auto-crear usuario en BD:', insertErr);
+        }
+      }
+
+      // Si no está en BD ni se auto-creó, probar fallback en memoria
       return this.loginInMemory(cleanEmail, cleanPass);
     } catch (err) {
-      // Error de BD — usar fallback en memoria
       console.warn('⚠️ Base de datos no disponible para auth, usando fallback en memoria');
       return this.loginInMemory(cleanEmail, cleanPass);
     }
