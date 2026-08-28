@@ -52,10 +52,12 @@ CREATE TABLE IF NOT EXISTS `system_users` (
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Insertar Usuario Administrador Inicial
--- Contraseña por defecto: admin123 (hash generado con bcrypt cost 10)
+-- Insertar Usuarios del Sistema
+-- Admin: jmaldonado2378@gmail.com / admin123
+-- Seller: memimaldonado05@gmail.com / LaJefa3012
 INSERT IGNORE INTO `system_users` (`id`, `name`, `email`, `password_hash`, `role`, `allowed_modules_json`, `avatar_initials`, `active`) VALUES
-('usr-admin-1', 'Juan Pablo (Administrador)', 'jmaldonado2378@gmail.com', '$2b$10$wE96tV1z65S5zN2qB.N5..u0Z8xJ8R9uK8qZ8u7z8z8z8z8z8z8z8', 'ADMIN', '["dashboard","customers","stock","article_families","merchandise_receipt","fractioning","new_sale","kanban_orders","kanban_tasks","suppliers","checking_accounts","finance","settings","marketing","users"]', 'JP', 1);
+('usr-admin-1', 'Juan Pablo (Administrador)', 'jmaldonado2378@gmail.com', '$2b$10$bdWDJOTRlDF339VyM0fOgu7XSQMeKy2o2NOooR1BViXop1j0FzAyi', 'ADMIN', '["dashboard","customers","stock","article_families","merchandise_receipt","fractioning","new_sale","kanban_orders","kanban_tasks","suppliers","checking_accounts","finance","settings","marketing","users"]', 'JP', 1),
+('usr-seller-1', 'Emilia Maldonado Hernandez', 'memimaldonado05@gmail.com', '$2b$10$EpkZkjN6zUxemeOwnKeO9enJx.aLGPKSrVz9aPh4WsZCzxJ1hPCqW', 'SELLER', '["dashboard","customers","stock","new_sale","kanban_orders","fractioning"]', 'EH', 1);
 
 -- 2. Perfiles Dietéticos y Alérgenos (Catálogo Dinámico)
 CREATE TABLE IF NOT EXISTS `dietary_profiles` (

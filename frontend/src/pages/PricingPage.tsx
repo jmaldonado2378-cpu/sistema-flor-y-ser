@@ -113,9 +113,9 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
     return { suggested, finalPrice, profit, realMargin };
   };
 
-  const mostradorCalc = calcChannelMetrics(watch('mostradorCommissionPct'), watch('mostradorMarginPct'), watch('mostradorFinalPrice'));
-  const whatsappCalc = calcChannelMetrics(watch('whatsappCommissionPct'), watch('whatsappMarginPct'), watch('whatsappFinalPrice'));
-  const onlineCalc = calcChannelMetrics(watch('onlineCommissionPct'), watch('onlineMarginPct'), watch('onlineFinalPrice'));
+  const mostradorCalc = calcChannelMetrics(0, watch('mostradorMarginPct'), watch('mostradorFinalPrice'));
+  const whatsappCalc = calcChannelMetrics(0, watch('whatsappMarginPct'), watch('whatsappFinalPrice'));
+  const onlineCalc = calcChannelMetrics(0, watch('onlineMarginPct'), watch('onlineFinalPrice'));
 
   const handleOpenConfigModal = (p?: PricingStructure | null, fpFallback?: any) => {
     setSuccessMsg(null);
@@ -612,11 +612,7 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
           {/* Mostrador */}
           <div className="p-3 border rounded bg-white">
             <div className="font-bold text-sm text-text-dark mb-2">🏪 Canal: Mostrador / Venta Presencial</div>
-            <div className="grid grid-cols-3 gap-3 text-xs mb-2">
-              <div>
-                <label className="mb-1 block">% Comisión Canal</label>
-                <input type="number" step="0.1" className="input" {...register('mostradorCommissionPct')} />
-              </div>
+            <div className="grid grid-cols-2 gap-3 text-xs mb-2">
               <div>
                 <label className="mb-1 block">% Margen Deseado</label>
                 <input type="number" step="0.1" className="input" {...register('mostradorMarginPct')} />
@@ -635,11 +631,7 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
           {/* WhatsApp */}
           <div className="p-3 border rounded bg-white">
             <div className="font-bold text-sm text-text-dark mb-2">📱 Canal: WhatsApp / Pedidos Chat</div>
-            <div className="grid grid-cols-3 gap-3 text-xs mb-2">
-              <div>
-                <label className="mb-1 block">% Comisión Canal</label>
-                <input type="number" step="0.1" className="input" {...register('whatsappCommissionPct')} />
-              </div>
+            <div className="grid grid-cols-2 gap-3 text-xs mb-2">
               <div>
                 <label className="mb-1 block">% Margen Deseado</label>
                 <input type="number" step="0.1" className="input" {...register('whatsappMarginPct')} />
@@ -658,11 +650,7 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
           {/* Tienda Online */}
           <div className="p-3 border rounded bg-white">
             <div className="font-bold text-sm text-text-dark mb-2">🌐 Canal: Tienda Online / E-commerce</div>
-            <div className="grid grid-cols-3 gap-3 text-xs mb-2">
-              <div>
-                <label className="mb-1 block">% Comisión Canal</label>
-                <input type="number" step="0.1" className="input" {...register('onlineCommissionPct')} />
-              </div>
+            <div className="grid grid-cols-2 gap-3 text-xs mb-2">
               <div>
                 <label className="mb-1 block">% Margen Deseado</label>
                 <input type="number" step="0.1" className="input" {...register('onlineMarginPct')} />

@@ -551,7 +551,6 @@ export const CommissionsAndProfitabilityPage: React.FC = () => {
                       <th style={{ padding: '12px' }}>Canal de Venta</th>
                       <th style={{ padding: '12px' }}>Pedidos</th>
                       <th style={{ padding: '12px', textAlign: 'right' }}>Ventas Brutas</th>
-                      <th style={{ padding: '12px', textAlign: 'right' }}>Comisión Pasarela</th>
                       <th style={{ padding: '12px', textAlign: 'right' }}>Comisión Vendedor</th>
                       <th style={{ padding: '12px', textAlign: 'right' }}>Ingreso Neto Canal</th>
                     </tr>
@@ -562,7 +561,6 @@ export const CommissionsAndProfitabilityPage: React.FC = () => {
                         <td style={{ padding: '12px', fontWeight: 700 }}>{c.channelLabel}</td>
                         <td style={{ padding: '12px' }}>{c.ordersCount} pedidos</td>
                         <td style={{ padding: '12px', textAlign: 'right', fontWeight: 600 }}>{c.totalRevenue.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
-                        <td style={{ padding: '12px', textAlign: 'right', color: '#DC2626' }}>-{c.gatewayCommissionsAmount.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
                         <td style={{ padding: '12px', textAlign: 'right', color: '#D97706' }}>-{c.sellerCommissionsAmount.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
                         <td style={{ padding: '12px', textAlign: 'right', fontWeight: 700, color: '#166534' }}>{c.netRevenue.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
                       </tr>

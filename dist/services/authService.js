@@ -26,12 +26,12 @@ const DEFAULT_USERS = [
     },
     {
         id: 'usr-seller-1',
-        name: 'Rocio Quevedo (Vendedora)',
-        email: 'rocioq@floryser.com',
+        name: 'Emilia Maldonado Hernandez',
+        email: 'memimaldonado05@gmail.com',
         password_hash: '',
         role: 'SELLER',
-        allowed_modules_json: JSON.stringify(['new_sale', 'kanban_orders', 'kanban_tasks', 'customers', 'stock', 'fractioning']),
-        avatar_initials: 'RQ',
+        allowed_modules_json: JSON.stringify(['dashboard', 'customers', 'stock', 'new_sale', 'kanban_orders', 'fractioning']),
+        avatar_initials: 'EH',
         active: true,
         created_at: new Date().toISOString()
     }
@@ -39,7 +39,7 @@ const DEFAULT_USERS = [
 // Contraseñas por defecto (se hashean al inicializar)
 const DEFAULT_PASSWORDS = {
     'jmaldonado2378@gmail.com': 'admin123',
-    'rocioq@floryser.com': 'vendedor123'
+    'memimaldonado05@gmail.com': 'LaJefa3012'
 };
 class AuthService {
     db; // MySQLAdapter compatible con pg.Pool interface

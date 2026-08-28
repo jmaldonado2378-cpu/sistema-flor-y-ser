@@ -543,7 +543,8 @@ class FinanceService {
         const totalUnitCost = Number((totalDirectCost + allocatedFixedCosts).toFixed(2));
         // Helper para procesar métricas de cada canal de venta
         const processChannel = (key, name, config) => {
-            const commissionPercentage = Number(config.commissionPercentage || 0);
+            // Comisión de pasarela/canal eliminada — solo se usan comisiones de vendedor (Comisiones & Ganancias)
+            const commissionPercentage = 0;
             const marginPercentage = Number(config.marginPercentage || 0);
             /**
              * FÓRMULA DE PRECIO SUGERIDO:
@@ -1164,12 +1165,12 @@ class FinanceService {
         ];
         const breakdownByChannel = [
             { channel: 'LOCAL', channelLabel: 'Mostrador Local', ordersCount: 12, totalRevenue: 110000, gatewayCommissionsAmount: 0, sellerCommissionsAmount: 2750, netRevenue: 107250 },
-            { channel: 'WHATSAPP', channelLabel: 'WhatsApp Directo', ordersCount: 8, totalRevenue: 85000, gatewayCommissionsAmount: 2125, sellerCommissionsAmount: 3400, netRevenue: 79475 },
-            { channel: 'ONLINE_STORE', channelLabel: 'Tienda Online Web', ordersCount: 5, totalRevenue: 79700, gatewayCommissionsAmount: 3985, sellerCommissionsAmount: 3985, netRevenue: 71730 }
+            { channel: 'WHATSAPP', channelLabel: 'WhatsApp Directo', ordersCount: 8, totalRevenue: 85000, gatewayCommissionsAmount: 0, sellerCommissionsAmount: 3400, netRevenue: 81600 },
+            { channel: 'ONLINE_STORE', channelLabel: 'Tienda Online Web', ordersCount: 5, totalRevenue: 79700, gatewayCommissionsAmount: 0, sellerCommissionsAmount: 3985, netRevenue: 75715 }
         ];
         const breakdownBySeller = [
             { sellerId: 'usr-admin-1', sellerName: 'Juan Pablo (Administrador)', role: 'ADMIN', totalOrders: 15, totalSalesAmount: 165000, averageTicket: 11000, earnedCommissionsAmount: 5775, settledCommissionsAmount: 0, pendingCommissionsAmount: 5775 },
-            { sellerId: 'usr-seller-1', sellerName: 'Rocio Quevedo (Vendedora)', role: 'SELLER', totalOrders: 10, totalSalesAmount: 109700, averageTicket: 10970, earnedCommissionsAmount: 4360, settledCommissionsAmount: 4360, pendingCommissionsAmount: 0 }
+            { sellerId: 'usr-seller-1', sellerName: 'Emilia Maldonado Hernandez', role: 'SELLER', totalOrders: 10, totalSalesAmount: 109700, averageTicket: 10970, earnedCommissionsAmount: 4360, settledCommissionsAmount: 4360, pendingCommissionsAmount: 0 }
         ];
         grossRevenue = breakdownByProduct.reduce((sum, p) => sum + p.totalRevenue, 0);
         directCostsCMV = breakdownByProduct.reduce((sum, p) => sum + p.totalDirectCost, 0);
