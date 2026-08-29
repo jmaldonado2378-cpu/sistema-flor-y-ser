@@ -197,34 +197,35 @@ export const UserManagement: React.FC = () => {
       </div>
 
       {activeTab === 'users' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))', gap: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
           {users.map(u => {
             const isPassVisible = visiblePasswords[u.id] || false;
-            const userPassword = u.password || 'vendedor123';
+            const defaultPass = u.email.toLowerCase() === 'jmaldonado2378@gmail.com' ? 'admin123' : 'LaJefa3012';
+            const userPassword = u.password || defaultPass;
             return (
-              <div key={u.id} style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '24px', display: 'flex', flexDirection: 'column', opacity: u.active ? 1 : 0.65 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div key={u.id} style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '16px 20px', display: 'flex', flexDirection: 'column', opacity: u.active ? 1 : 0.65, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     {u.avatarUrl ? (
-                      <img src={u.avatarUrl} alt={u.name} style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #2E5339' }} />
+                      <img src={u.avatarUrl} alt={u.name} style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #2E5339' }} />
                     ) : (
-                      <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: u.role === 'ADMIN' ? '#18261E' : '#D97706', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{u.avatarInitials}</div>
+                      <div style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: u.role === 'ADMIN' ? '#18261E' : '#D97706', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '14px' }}>{u.avatarInitials}</div>
                     )}
                     <div>
-                      <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>{u.name}</h3>
-                      <p style={{ margin: 0, fontSize: '13px', color: '#64748B' }}>{u.email}</p>
+                      <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#1E293B' }}>{u.name}</h3>
+                      <p style={{ margin: 0, fontSize: '12px', color: '#64748B' }}>{u.email}</p>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button onClick={() => handleOpenEditModal(u)} style={{ border: 'none', background: '#F1F5F9', padding: '6px', borderRadius: '6px', cursor: 'pointer' }}><Edit size={16} /></button>
-                    {u.id !== currentUser.id && <button onClick={() => deleteUser(u.id)} style={{ border: 'none', background: '#FEE2E2', padding: '6px', borderRadius: '6px', cursor: 'pointer', color: '#DC2626' }}><Trash2 size={16} /></button>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button onClick={() => handleOpenEditModal(u)} title="Editar usuario" style={{ border: 'none', background: '#F1F5F9', padding: '6px', borderRadius: '6px', cursor: 'pointer', color: '#475569' }}><Edit size={15} /></button>
+                    {u.id !== currentUser.id && <button onClick={() => deleteUser(u.id)} title="Eliminar usuario" style={{ border: 'none', background: '#FEE2E2', padding: '6px', borderRadius: '6px', cursor: 'pointer', color: '#DC2626' }}><Trash2 size={15} /></button>}
                   </div>
                 </div>
-                <div style={{ backgroundColor: '#F8FAFC', borderRadius: '10px', padding: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 600 }}>Clave: {isPassVisible ? userPassword : '••••••••'}</span>
-                  <div>
-                    <button onClick={() => toggleVisibility(u.id)} style={{ border: 'none', background: 'none' }}>{isPassVisible ? <EyeOff size={16} /> : <Eye size={16} />}</button>
-                    <button onClick={() => copyPassword(u.id, userPassword)} style={{ border: 'none', background: 'none' }}>{copiedId === u.id ? <Check size={16} /> : <Copy size={16} />}</button>
+                <div style={{ backgroundColor: '#F8FAFC', borderRadius: '8px', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #F1F5F9' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>Clave: {isPassVisible ? userPassword : '••••••••'}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <button onClick={() => toggleVisibility(u.id)} title={isPassVisible ? 'Ocultar clave' : 'Mostrar clave'} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#64748B', padding: '2px' }}>{isPassVisible ? <EyeOff size={15} /> : <Eye size={15} />}</button>
+                    <button onClick={() => copyPassword(u.id, userPassword)} title="Copiar clave" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#64748B', padding: '2px' }}>{copiedId === u.id ? <Check size={15} color="#166534" /> : <Copy size={15} />}</button>
                   </div>
                 </div>
               </div>

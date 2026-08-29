@@ -62,7 +62,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
 
-  // Restaurar sesión desde localStorage al cargar
+  const fetchUsers = async (activeToken?: string | null) => {
+    const currentToken = activeToken !== undefined ? activeToken : token;
+    try {
+      const response = await fetch(`${API_BASE}/auth/users`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {}),
+        }
+      });
+      if (response.ok) {
+        const result = await response.json();
+        const apiUsers: User[] = result.data || result;
+        if (Array.isArray(apiUsers) && apiUsers.length > 0) {
+          setUsers(apiUsers);
+          localStorage.setItem('floryser_users_v2', JSON.stringify(apiUsers));
+          return;
+        }
+      }
+    } catch (e) {
+      // Fallback a los usuarios locales
+    }
+  };
+
+  // Restaurar sesión desde localStorage al cargar y sincronizar usuarios desde backend
   useEffect(() => {
     const savedToken = localStorage.getItem('floryser_jwt_token');
     const savedUser = localStorage.getItem('floryser_current_user_v2');
@@ -78,6 +101,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.removeItem('floryser_current_user_v2');
       }
     }
+
+    fetchUsers(savedToken);
   }, []);
 
   useEffect(() => {

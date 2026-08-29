@@ -65,7 +65,7 @@ export const TasksKanbanPage: React.FC<TasksKanbanPageProps> = () => {
       title: '',
       type: 'FRACTIONING',
       priority: 'MEDIUM',
-      assignedTo: user?.name || 'Rocio Quevedo (Vendedora)',
+      assignedTo: user?.name || 'Emilia Maldonado Hernandez',
       dueDate: new Date().toISOString().split('T')[0],
       notes: ''
     }
@@ -322,7 +322,7 @@ export const TasksKanbanPage: React.FC<TasksKanbanPageProps> = () => {
                   ))
                 ) : (
                   <>
-                    <option value="Rocio Quevedo (Vendedora)">Rocio Quevedo (Vendedora)</option>
+                    <option value="Emilia Maldonado Hernandez">Emilia Maldonado Hernandez</option>
                     <option value="Juan Pablo (Administrador)">Juan Pablo (Administrador)</option>
                     <option value="María Clara (Empaque)">María Clara (Empaque)</option>
                   </>

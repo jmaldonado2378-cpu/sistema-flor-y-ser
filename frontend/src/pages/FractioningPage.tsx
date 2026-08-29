@@ -253,7 +253,7 @@ export const FractioningPage: React.FC<{ onTabChange?: (tab: string) => void }> 
                     ))
                   ) : (
                     <>
-                      <option value="Rocio Quevedo (Vendedora)">Rocio Quevedo (Vendedora)</option>
+                      <option value="Emilia Maldonado Hernandez">Emilia Maldonado Hernandez</option>
                       <option value="Juan Pablo (Administrador)">Juan Pablo (Administrador)</option>
                       <option value="María Clara (Empaque)">María Clara (Empaque)</option>
                     </>
