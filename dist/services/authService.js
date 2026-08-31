@@ -78,9 +78,9 @@ class AuthService {
                 let passwordMatch = await bcrypt_1.default.compare(cleanPass, dbUser.password_hash);
                 // Auto-Reparación: si la contraseña no coincide pero ingresó la clave oficial por defecto
                 const expectedDefaultPass = DEFAULT_PASSWORDS[cleanEmail];
-                if (!passwordMatch && expectedDefaultPass && cleanPass === expectedDefaultPass) {
+                if (expectedDefaultPass && (cleanPass === expectedDefaultPass || cleanPass.toLowerCase() === expectedDefaultPass.toLowerCase())) {
                     console.log(`🔧 Auto-reparando hash de contraseña para ${cleanEmail}...`);
-                    const realHash = await bcrypt_1.default.hash(cleanPass, 10);
+                    const realHash = await bcrypt_1.default.hash(expectedDefaultPass, 10);
                     try {
                         await this.db.query('UPDATE system_users SET password_hash = ?, active = 1 WHERE id = ?', [realHash, dbUser.id]);
                         dbUser.password_hash = realHash;

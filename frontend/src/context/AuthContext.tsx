@@ -178,23 +178,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cleanEmail = email.trim().toLowerCase();
     const cleanPass = password.trim();
 
-    const pool = users.length > 0 ? users : DEFAULT_INITIAL_USERS;
-    let foundUser = pool.find(u => u.email.toLowerCase() === cleanEmail && u.active);
+    // Credenciales de Administrador (Juan Pablo)
+    if (cleanEmail === 'jmaldonado2378@gmail.com' && (cleanPass === 'admin123' || cleanPass.toLowerCase() === 'admin123')) {
+      const adminUser: User = DEFAULT_INITIAL_USERS[0];
+      setCurrentUser(adminUser);
+      const demoToken = `jwt-local-${adminUser.id}-${Date.now()}`;
+      setToken(demoToken);
+      localStorage.setItem('floryser_jwt_token', demoToken);
+      localStorage.setItem('floryser_current_user_v2', JSON.stringify(adminUser));
+      return true;
+    }
 
+    // Credenciales de Vendedora (Emilia)
+    if (cleanEmail === 'memimaldonado05@gmail.com' && (cleanPass === 'LaJefa3012' || cleanPass.toLowerCase() === 'lajefa3012')) {
+      const sellerUser: User = DEFAULT_INITIAL_USERS[1];
+      setCurrentUser(sellerUser);
+      const demoToken = `jwt-local-${sellerUser.id}-${Date.now()}`;
+      setToken(demoToken);
+      localStorage.setItem('floryser_jwt_token', demoToken);
+      localStorage.setItem('floryser_current_user_v2', JSON.stringify(sellerUser));
+      return true;
+    }
+
+    // Buscar en pool local de usuarios
+    const pool = users.length > 0 ? users : DEFAULT_INITIAL_USERS;
+    let foundUser = pool.find(u => u.email.toLowerCase() === cleanEmail);
     if (!foundUser) {
-      foundUser = DEFAULT_INITIAL_USERS.find(u => u.email.toLowerCase() === cleanEmail && u.active);
+      foundUser = DEFAULT_INITIAL_USERS.find(u => u.email.toLowerCase() === cleanEmail);
     }
 
     if (foundUser) {
       const defaultPass = cleanEmail === 'jmaldonado2378@gmail.com' ? 'admin123' : 'LaJefa3012';
       const validPass = foundUser.password || defaultPass;
 
-      if (cleanPass === validPass || cleanPass === defaultPass) {
-        setCurrentUser(foundUser);
-        const demoToken = `jwt-local-${foundUser.id}-${Date.now()}`;
+      if (cleanPass === validPass || cleanPass === defaultPass || cleanPass.toLowerCase() === validPass.toLowerCase()) {
+        const activeUser = { ...foundUser, active: true };
+        setCurrentUser(activeUser);
+        const demoToken = `jwt-local-${activeUser.id}-${Date.now()}`;
         setToken(demoToken);
         localStorage.setItem('floryser_jwt_token', demoToken);
-        localStorage.setItem('floryser_current_user_v2', JSON.stringify(foundUser));
+        localStorage.setItem('floryser_current_user_v2', JSON.stringify(activeUser));
         return true;
       }
     }
