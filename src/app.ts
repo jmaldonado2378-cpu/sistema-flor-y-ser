@@ -81,10 +81,16 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Archivos estáticos del frontend (React SPA dist o public)
+// Archivos estáticos del frontend (React SPA dist, raíz o public)
 const frontendDist = path.join(__dirname, '../frontend/dist');
+const rootDir = path.join(__dirname, '..');
 const publicDir = path.join(__dirname, '../public');
-app.use(express.static(fs.existsSync(frontendDist) ? frontendDist : publicDir));
+
+const staticDir = fs.existsSync(frontendDist)
+  ? frontendDist
+  : (fs.existsSync(path.join(rootDir, 'assets')) ? rootDir : publicDir);
+
+app.use(express.static(staticDir));
 
 // Inicialización de Servicios y Controladores Módulo 1 & 2
 const customerService = new CustomerService(db);
@@ -371,8 +377,16 @@ app.get('/api/v1/automations/logs', requireAuth, automationController.getLogs);
 // Fallback para SPA / index.html
 app.get('*', (req: Request, res: Response) => {
   const distIndex = path.join(__dirname, '../frontend/dist/index.html');
+  const rootIndex = path.join(__dirname, '../index.html');
   const publicIndex = path.join(__dirname, '../public/index.html');
-  res.sendFile(fs.existsSync(distIndex) ? distIndex : publicIndex);
+
+  if (fs.existsSync(distIndex)) {
+    return res.sendFile(distIndex);
+  }
+  if (fs.existsSync(rootIndex)) {
+    return res.sendFile(rootIndex);
+  }
+  res.sendFile(publicIndex);
 });
 
 app.listen(PORT, '0.0.0.0', () => {

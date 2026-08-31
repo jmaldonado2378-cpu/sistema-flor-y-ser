@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Informe Técnico Ejecutivo — Panificación y Molinería</title>
+    <style>
+        {{ css_content }}
+    </style>
+</head>
+<body>
+
+    <!-- PIE DE PAGINA CON INFORMACION INSTITUCIONAL Y PAGINACION -->
+    <div id="footer_content">
+        <table style="width: 100%;">
+            <tr>
+                <td style="text-align: left; width: 65%;">
+                    Informe Técnico Ejecutivo post-Visita | Asistencia Técnica &amp; Reología
+                </td>
+                <td style="text-align: right; width: 35%;">
+                    Página <pdf:pagenumber/> de <pdf:pagecount/>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ENCABEZADO CON FRANJA AZUL MARINO (#1A365D) -->
+    <div class="header-banner">
+        <table style="width: 100%;">
+            <tr>
+                <td style="width: 62%; vertical-align: middle;">
+                    <div class="brand-title">INFORME TÉCNICO DE VISITA EN PLANTA</div>
+                    <div class="brand-subtitle">Asistencia Técnica &amp; Control de Calidad — {{ report.tipo_cliente|upper }}</div>
+                </td>
+                <td style="width: 38%; vertical-align: middle;">
+                    <table class="doc-metadata-floating" style="width: 100%;">
+                        <tr>
+                            <td style="font-weight: bold;">N° Ensayo:</td>
+                            <td>{{ report.codigo_ensayo }}</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold;">Fecha Visita:</td>
+                            <td>{{ report.fecha_visita }}</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight: bold;">Cliente:</td>
+                            <td>{{ report.empresa_cliente }}</td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- CUADRO DE RESUMEN EJECUTIVO CON BARRA DE ACENTO LATERAL DE 4PX (#D69E2E) -->
+    <div class="exec-summary-box">
+        <div class="exec-summary-title">Resumen Ejecutivo &amp; Diagnóstico General</div>
+        <div class="exec-summary-text">
+            {{ report.resumen_ejecutivo }}
+        </div>
+    </div>
+
+    <!-- METADATOS Y PARTICIPANTES -->
+    <div class="section-title">1. Datos Generales de la Visita y Participantes</div>
+    <table class="info-grid-table">
+        <tr>
+            <td class="info-label">Empresa / Cliente:</td>
+            <td class="info-val"><strong>{{ report.empresa_cliente }}</strong></td>
+            <td class="info-label">Tipo de Cliente:</td>
+            <td class="info-val"><span class="badge badge-gold">{{ report.tipo_cliente }}</span></td>
+        </tr>
+        <tr>
+            <td class="info-label">Planta Industrial:</td>
+            <td class="info-val">{{ report.planta_ubicacion }}</td>
+            <td class="info-label">Fecha de Visita:</td>
+            <td class="info-val">{{ report.fecha_visita }}</td>
+        </tr>
+        <tr>
+            <td class="info-label">Participantes Cliente:</td>
+            <td class="info-val">{{ report.participantes.cliente | join(', ') }}</td>
+            <td class="info-label">Asesor Técnico:</td>
+            <td class="info-val"><strong>{{ report.participantes.asesor_tecnico | join(', ') }}</strong></td>
+        </tr>
+    </table>
+
+    <!-- FORMULACION BASE, ADITIVOS Y PARAMETROS TERMICOS EN 4 COLUMNAS COMPACTAS -->
+    <div class="section-title">2. Formulación de Masa, Complejo Enzimático &amp; Proceso Térmico</div>
+    <table class="four-col-table">
+        <thead>
+            <tr>
+                <th colspan="2" style="width: 50%;">Formulación Base &amp; Complejo de Aditivos</th>
+                <th colspan="2" style="width: 50%;">Parámetros Mecánicos, Térmicos &amp; Horneado</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="width: 30%; font-weight: bold;">Harina Base Nombre</td>
+                <td style="width: 20%; text-align: center;">{{ report.formulacion.harina_base_nombre }}</td>
+                <td style="width: 30%; font-weight: bold;">Temperatura Agua / Harina</td>
+                <td style="width: 20%; text-align: center;">{{ report.temperaturas.temp_agua_c }} °C / {{ report.temperaturas.temp_harina_c }} °C</td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold;">Agua (Absorción %)</td>
+                <td style="text-align: center; font-weight: bold; color: #1A365D;">{{ report.formulacion.absorcion_agua_porc }} %</td>
+                <td style="font-weight: bold;">Temperatura Ambiente / Masa</td>
+                <td style="text-align: center;">{{ report.temperaturas.temp_ambiente_c }} °C / <strong>{{ report.temperaturas.temp_masa_final_c }} °C</strong></td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold;">Sal / Levadura Fresca</td>
+                <td style="text-align: center;">{{ report.formulacion.sal_porc }} % / {{ report.formulacion.levadura_fresca_porc }} %</td>
+                <td style="font-weight: bold;">Amasado Velocidad 1 / 2</td>
+                <td style="text-align: center;">{{ report.proceso.tiempo_amasado_vel1_min }} min / {{ report.proceso.tiempo_amasado_vel2_min }} min</td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold;">Complejo Enzimático / Aditivos</td>
+                <td style="text-align: left; font-size: 7.2pt;" colspan="1">
+                    {% for ad in report.formulacion.aditivos_enzimas %}
+                        <div>• {{ ad }}</div>
+                    {% endfor %}
+                </td>
+                <td style="font-weight: bold;">Fermentación / Descanso</td>
+                <td style="text-align: center;">{{ report.proceso.tiempo_fermentacion_min }} min (Reposo {{ report.proceso.tiempo_descanso_min or 0 }} min)</td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold;">Cámara Temp / Humedad</td>
+                <td style="text-align: center;">{{ report.proceso.temp_fermentacion_c or 28 }} °C / {{ report.proceso.humedad_relativa_porc or 75 }} %</td>
+                <td style="font-weight: bold;">Horneado Temp / Tiempo / Vapor</td>
+                <td style="text-align: center;">{{ report.proceso.horneado_temp_c }} °C / {{ report.proceso.horneado_tiempo_min }} min (Vapor {{ report.proceso.vapor_segundos or 0 }}s)</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- MODULO TECNICO ESPECIALIZADO (CONDICIONAL) -->
+    {% if report.tipo_cliente == "Molino Harinero" and report.datos_molino %}
+        <div class="section-title">3. Módulo Técnico Especializado — Control de Laboratorio de Molinería</div>
+        <table class="four-col-table">
+            <thead>
+                <tr>
+                    <th>Parámetro Reológico / Químico</th>
+                    <th style="text-align: center;">Valor Medido</th>
+                    <th style="text-align: center;">Rango Estándar Objetivo</th>
+                    <th style="text-align: center;">Estado Conformidad</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Trabajo Alveográfico W</strong> (10⁻⁴ J)</td>
+                    <td style="text-align: center; font-weight: bold;">{{ report.datos_molino.alveografo_w }}</td>
+                    <td style="text-align: center;">220 - 320</td>
+                    <td style="text-align: center;"><span class="badge {{ compliance.W.badge }}">{{ compliance.W.status }}</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Relación Tenacidad/Extensibilidad P/L</strong></td>
+                    <td style="text-align: center; font-weight: bold;">{{ report.datos_molino.alveografo_pl }}</td>
+                    <td style="text-align: center;">0.60 - 1.20</td>
+                    <td style="text-align: center;"><span class="badge {{ compliance.PL.badge }}">{{ compliance.PL.status }}</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Número de Caída Hagberg (Falling Number)</strong></td>
+                    <td style="text-align: center; font-weight: bold;">{{ report.datos_molino.falling_number_seg }} s</td>
+                    <td style="text-align: center;">220 - 320 s</td>
+                    <td style="text-align: center;"><span class="badge {{ compliance.FN.badge }}">{{ compliance.FN.status }}</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Gluten Húmedo (%)</strong></td>
+                    <td style="text-align: center;">{{ report.datos_molino.gluten_humedo_porc }} %</td>
+                    <td style="text-align: center;">28.0 - 34.0 %</td>
+                    <td style="text-align: center;"><span class="badge {{ compliance.Gluten.badge }}">{{ compliance.Gluten.status }}</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Gluten Index (%)</strong></td>
+                    <td style="text-align: center;">{{ report.datos_molino.gluten_index or '-' }} %</td>
+                    <td style="text-align: center;">75.0 - 95.0 %</td>
+                    <td style="text-align: center;"><span class="badge badge-success">PASS</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Contenido de Cenizas (%)</strong></td>
+                    <td style="text-align: center;">{{ report.datos_molino.cenizas_porc or '-' }} %</td>
+                    <td style="text-align: center;">&le; 0.65 %</td>
+                    <td style="text-align: center;"><span class="badge badge-success">PASS</span></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- GRÁFICOS REOLÓGICOS -->
+        <table style="width: 100%; margin-top: 4px;">
+            <tr>
+                <td style="width: 50%; text-align: center; padding: 2px;">
+                    <img src="{{ alveogram_img }}" style="width: 250px; height: 115px; border: 1px solid #CBD5E1;" alt="Alveograma">
+                </td>
+                <td style="width: 50%; text-align: center; padding: 2px;">
+                    <img src="{{ farinogram_img }}" style="width: 250px; height: 115px; border: 1px solid #CBD5E1;" alt="Farinograma">
+                </td>
+            </tr>
+        </table>
+    {% else %}
+        <div class="section-title">3. Módulo Técnico Especializado — Variables Operativas de Planta Industrial</div>
+        <table class="four-col-table">
+            <thead>
+                <tr>
+                    <th>Parámetro Operativo de Planta</th>
+                    <th style="text-align: center;">Resultado Observado</th>
+                    <th>Evaluación Técnica / Tolerancia</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Maquinabilidad en Rodillos / Sobado</strong></td>
+                    <td style="text-align: center; font-weight: bold;">{{ report.datos_panificadora.maquinabilidad if report.datos_panificadora else 'Excelente' }}</td>
+                    <td>Gluten extensible, sin desgarrado ni adherencia en cinta.</td>
+                </tr>
+                <tr>
+                    <td><strong>Tolerancia en Fermentación</strong></td>
+                    <td style="text-align: center;"><span class="badge badge-success">{{ report.datos_panificadora.tolerancia_fermentacion if report.datos_panificadora else 'Alta' }}</span></td>
+                    <td>Mantiene retención de CO₂ durante sobrefermentación.</td>
+                </tr>
+                <tr>
+                    <td><strong>Salto de Horno (Oven Spring)</strong></td>
+                    <td style="text-align: center;"><span class="badge badge-gold">{{ report.datos_panificadora.salto_horno if report.datos_panificadora else 'Vigoroso' }}</span></td>
+                    <td>Apertura simétrica de greña sin colapso de pared.</td>
+                </tr>
+                <tr>
+                    <td><strong>Rendimiento de Piezas por kg Harina</strong></td>
+                    <td style="text-align: center; font-weight: bold; color: #1A365D;">{{ report.datos_panificadora.rendimiento_piezas if report.datos_panificadora else '1.45 pz/kg' }}</td>
+                    <td>Rendimiento óptimo basado en la absorción de agua efectiva.</td>
+                </tr>
+            </tbody>
+        </table>
+    {% endif %}
+
+    <pdf:nextpage />
+
+    <!-- TRIPTICO DE REGISTRO FOTOGRAFICO EN 3 COLUMNAS HORIZONTALES IGUALES -->
+    <div class="section-title">4. Tríptico de Registro Fotográfico del Proceso de Panificación</div>
+    
+    <table class="triptych-table">
+        <tr>
+            {% if report.registro_fotografico and report.registro_fotografico|length >= 3 %}
+                {% for photo in report.registro_fotografico[:3] %}
+                <td class="triptych-card">
+                    <div class="triptych-badge">FASE {{ loop.index }}: {{ photo.fase|upper }}</div>
+                    {% if photo.imagen_base64_o_url and photo.imagen_base64_o_url != "" %}
+                        <img src="{{ photo.imagen_base64_o_url }}" class="triptych-img" alt="{{ photo.fase }}">
+                    {% else %}
+                        <div class="triptych-placeholder">
+                            <div style="font-weight: bold; font-size: 8pt; color: #1A365D;">[ REGISTRO {{ photo.fase|upper }} ]</div>
+                            <div style="font-size: 7pt; color: #4A5568;">Sin foto adjunta</div>
+                        </div>
+                    {% endif %}
+                    <div class="triptych-title">Fase: {{ photo.fase }}</div>
+                    <div class="triptych-desc">{{ photo.observacion_tecnica }}</div>
+                </td>
+                {% endfor %}
+            {% else %}
+                <td class="triptych-card">
+                    <div class="triptych-badge">FASE 1: AMASADO</div>
+                    <div class="triptych-placeholder">
+                        <div style="font-weight: bold; font-size: 8pt; color: #1A365D;">[ RED DE GLUTEN ]</div>
+                        <div style="font-size: 7pt; color: #4A5568;">Placeholder Amasado</div>
+                    </div>
+                    <div class="triptych-title">Amasado y Desarrollo</div>
+                    <div class="triptych-desc">Formación de membrana translúcida y lisa en velo de gluten.</div>
+                </td>
+                <td class="triptych-card">
+                    <div class="triptych-badge">FASE 2: CRUDO / FERMENTADO</div>
+                    <div class="triptych-placeholder">
+                        <div style="font-weight: bold; font-size: 8pt; color: #1A365D;">[ PIEZA EN CRUDO ]</div>
+                        <div style="font-size: 7pt; color: #4A5568;">Placeholder Fermentación</div>
+                    </div>
+                    <div class="triptych-title">Crecimiento en Cámara</div>
+                    <div class="triptych-desc">Estructura inflada con buena tensión superficial antes de entrar a horno.</div>
+                </td>
+                <td class="triptych-card">
+                    <div class="triptych-badge">FASE 3: HORNEADO / MIGA</div>
+                    <div class="triptych-placeholder">
+                        <div style="font-weight: bold; font-size: 8pt; color: #1A365D;">[ CORTE DE MIGA ]</div>
+                        <div style="font-size: 7pt; color: #4A5568;">Placeholder Miga</div>
+                    </div>
+                    <div class="triptych-title">Miga &amp; Corteza Final</div>
+                    <div class="triptych-desc">Alveolado pareja de paredes delgadas y dorado caramelo crujiente.</div>
+                </td>
+            {% endif %}
+        </tr>
+    </table>
+
+    <!-- MATRIZ DE PLAN DE ACCION / PROXIMOS PASOS -->
+    <div class="section-title">5. Matriz de Plan de Acción &amp; Compromisos Acordados</div>
+    <table class="action-table">
+        <thead>
+            <tr>
+                <th style="width: 35%;">Acción Acordada</th>
+                <th style="width: 20%;">Responsable</th>
+                <th style="width: 15%;">Plazo Límite</th>
+                <th style="width: 30%;">Criterio de Éxito / Validación</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if report.plan_de_accion %}
+                {% for item in report.plan_de_accion %}
+                <tr>
+                    <td><strong>{{ item.accion }}</strong></td>
+                    <td>{{ item.responsable }}</td>
+                    <td><span class="badge badge-gold">{{ item.fecha_limite }}</span></td>
+                    <td>{{ item.criterio_exito }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td>Ajustar hidratación en +1.5% en amasadora continua</td>
+                    <td>Jefe de Planta / Operador</td>
+                    <td>Inmediato</td>
+                    <td>Verificar absorción sin pegajosidad en cinta.</td>
+                </tr>
+                <tr>
+                    <td>Incorporar 15 ppm de Alfa-Amilasa al complejo molinero</td>
+                    <td>Asesor Técnico / Molino</td>
+                    <td>3 días</td>
+                    <td>Lograr Falling Number objetivo entre 250s y 270s.</td>
+                </tr>
+                <tr>
+                    <td>Monitorear temperatura final de masa (&le; 25°C)</td>
+                    <td>Control de Calidad Planta</td>
+                    <td>Semanal</td>
+                    <td>Disminuir fluctuaciones de fermentación en turnos.</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+    <!-- FIRMAS DE CONFORMIDAD -->
+    <table class="signature-table">
+        <tr>
+            <td class="signature-cell">
+                <div class="signature-line"></div>
+                <div class="signature-name">{{ report.participantes.cliente | join(', ') }}</div>
+                <div class="signature-title">Conformidad Representante del Cliente</div>
+            </td>
+            <td class="signature-cell">
+                <div class="signature-line"></div>
+                <div class="signature-name">{{ report.participantes.asesor_tecnico | join(', ') }}</div>
+                <div class="signature-title">Asesor Técnico &amp; Reología</div>
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>

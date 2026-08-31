@@ -60,10 +60,14 @@ const db = (0, database_1.createDatabasePool)();
 app.use((0, cors_1.default)());
 app.use(express_1.default.json({ limit: '10mb' }));
 app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
-// Archivos estáticos del frontend (React SPA dist o public)
+// Archivos estáticos del frontend (React SPA dist, raíz o public)
 const frontendDist = path_1.default.join(__dirname, '../frontend/dist');
+const rootDir = path_1.default.join(__dirname, '..');
 const publicDir = path_1.default.join(__dirname, '../public');
-app.use(express_1.default.static(fs_1.default.existsSync(frontendDist) ? frontendDist : publicDir));
+const staticDir = fs_1.default.existsSync(frontendDist)
+    ? frontendDist
+    : (fs_1.default.existsSync(path_1.default.join(rootDir, 'assets')) ? rootDir : publicDir);
+app.use(express_1.default.static(staticDir));
 // Inicialización de Servicios y Controladores Módulo 1 & 2
 const customerService = new customerService_1.CustomerService(db);
 const customerController = new customerController_1.CustomerController(customerService);
@@ -299,8 +303,15 @@ app.get('/api/v1/automations/logs', auth_1.requireAuth, automationController.get
 // Fallback para SPA / index.html
 app.get('*', (req, res) => {
     const distIndex = path_1.default.join(__dirname, '../frontend/dist/index.html');
+    const rootIndex = path_1.default.join(__dirname, '../index.html');
     const publicIndex = path_1.default.join(__dirname, '../public/index.html');
-    res.sendFile(fs_1.default.existsSync(distIndex) ? distIndex : publicIndex);
+    if (fs_1.default.existsSync(distIndex)) {
+        return res.sendFile(distIndex);
+    }
+    if (fs_1.default.existsSync(rootIndex)) {
+        return res.sendFile(rootIndex);
+    }
+    res.sendFile(publicIndex);
 });
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🌸 Sistema Flor y Ser Almacén Natural v2.0 ejecutándose en http://localhost:${PORT}`);

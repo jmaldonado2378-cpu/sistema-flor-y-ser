@@ -7,12 +7,19 @@ try {
   execSync('npm run build', { cwd: path.join(__dirname, 'frontend'), stdio: 'inherit' });
   console.log('✅ React frontend built successfully in frontend/dist!');
 
-  // Copiar el bundle de React generado a la raíz para compatibilidad con el importador de Git de Hostinger
+  // Copiar el bundle de React generado a la raíz y a public/ para compatibilidad total con Hostinger
   const distDir = path.join(__dirname, 'frontend', 'dist');
+  const publicDir = path.join(__dirname, 'public');
+  const distPublicDir = path.join(__dirname, 'dist', 'public');
+
   if (fs.existsSync(distDir)) {
-    console.log('📦 Sincronizando frontend/dist a la raíz del repositorio para Hostinger...');
+    console.log('📦 Sincronizando frontend/dist a la raíz y carpetas public/...');
     fs.cpSync(distDir, __dirname, { recursive: true });
-    console.log('✅ Archivos estáticos (index.html, assets/) copiados exitosamente a la raíz!');
+    fs.cpSync(distDir, publicDir, { recursive: true });
+    if (fs.existsSync(path.join(__dirname, 'dist'))) {
+      fs.cpSync(distDir, distPublicDir, { recursive: true });
+    }
+    console.log('✅ Archivos estáticos de React v2.0 sincronizados exitosamente!');
   }
 } catch (err) {
   console.error('❌ React frontend build failed:', err);

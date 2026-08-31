@@ -1,0 +1,73 @@
+{
+  "client": {
+    "company_name": "Panificadora Industrial San Juan S.A.",
+    "plant_location": "Planta Central - San Martín, B.A.",
+    "contact_person": "Ing. Carlos Mendoza",
+    "email": "cmendoza@panificadorasanjuan.com",
+    "phone": "+54 11 4589-2200"
+  },
+  "sample": {
+    "sample_id": "2026-089-ALV",
+    "lot_number": "FL-2026-089-A",
+    "reception_date": "2026-08-25",
+    "analysis_date": "2026-08-28",
+    "flour_name": "Harina 0000 Panificable Superior Premium",
+    "flour_category": "Pan Francés / Tradi",
+    "miller_brand": "MOLINO FLOR & SER",
+    "origin": "Trigo Pan (Triticum aestivum L.) - Cosecha 2025/2026"
+  },
+  "alveograph": {
+    "W": 265.0,
+    "P": 88.0,
+    "L": 95.0,
+    "P_L": 0.93,
+    "Ie": 58.5
+  },
+  "farinograph": {
+    "water_absorption": 61.8,
+    "development_time": 4.5,
+    "stability": 12.2,
+    "softening_degree": 35.0
+  },
+  "falling_number": {
+    "falling_number": 275.0,
+    "alpha_amylase_activity": "Actividad Enzimática Equilibrada"
+  },
+  "extensograph": {
+    "energy": 115.0,
+    "resistance": 420.0,
+    "extensibility": 165.0,
+    "ratio_r_e": 2.54
+  },
+  "baking_test": {
+    "effective_hydration": 61.0,
+    "dough_behavior": "Masa elástica, suave de excelente maquinabilidad y tolerancia al sobado",
+    "fermentation_tolerance": "Excelente",
+    "oven_spring": "Vigoroso",
+    "crumb_score": 9.0,
+    "crust_score": 9.2,
+    "specific_volume": 4.65,
+    "overall_score": 94.5
+  },
+  "photographic_evidence": [
+    {
+      "title": "Evaluación de Miga — Pan Francés 250g",
+      "description": "Alveolado abierto de paredes delgadas, miga elástica de alta sedosidad y retención de humedad óptima.",
+      "image_path": null,
+      "category": "miga"
+    },
+    {
+      "title": "Corteza y Apertura de Greña",
+      "description": "Corteza crocante de dorado caramelo homogéneo con excelente expansión y oreja pronunciada en el corte.",
+      "image_path": null,
+      "category": "corteza"
+    }
+  ],
+  "technician_name": "Ing. Juan Manuel Maldonado",
+  "technician_title": "Especialista en Reología & Asistencia Técnica Molinera",
+  "general_observations": "La muestra analizada presenta un excelente comportamiento reológico y funcional. Su tenacidad y extensibilidad equilibradas (P/L 0.93) garantizan una óptima maquinabilidad en líneas automáticas y excelente salto de horno en panificación directa o prefermentada.",
+  "custom_recommendations": [
+    "Apta para líneas de producción automatizadas de pan baguette, pan francés y bollos de alta hidratación.",
+    "Se sugiere mantener la temperatura final de masa amasada entre 23°C y 25°C para maximizar la estabilidad."
+  ]
+}
