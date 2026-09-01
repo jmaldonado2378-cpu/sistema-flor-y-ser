@@ -230,7 +230,7 @@ function createDatabasePool() {
         host: targetHost,
         port: parseInt(process.env.DB_PORT || '3306'),
         database: process.env.DB_NAME || 'u829089200_floryser',
-        user: process.env.DB_USER || 'u829089200_admin',
+        user: process.env.DB_USER || 'u829089200_Emilia_user',
         password: process.env.DB_PASSWORD || '',
     });
 }
