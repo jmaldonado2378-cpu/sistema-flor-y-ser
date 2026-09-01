@@ -1,0 +1,101 @@
+export class SystemService {
+  constructor(private db: any) {}
+
+  async getDbStatus(): Promise<{
+    connected: boolean;
+    dbType: string;
+    databaseName: string;
+    host: string;
+    tablesCount: number;
+    tables: Record<string, number>;
+    message: string;
+  }> {
+    const dbName = process.env.DB_NAME || 'u829089200_floryser';
+    const host = process.env.DB_HOST || 'localhost';
+
+    try {
+      // Intentar query básica
+      const result = await this.db.query('SELECT 1 as test');
+      const connected = Boolean(result && result.rows && result.rows.length > 0);
+
+      const tableCounts: Record<string, number> = {};
+      const tablesToCheck = [
+        'system_users',
+        'raw_materials',
+        'final_products',
+        'packaging_materials',
+        'article_families',
+        'customers',
+        'sales_orders',
+        'checking_account_movements',
+        'tasks'
+      ];
+
+      let totalTables = 0;
+      for (const table of tablesToCheck) {
+        try {
+          const countRes = await this.db.query(`SELECT COUNT(*) as count FROM ${table}`);
+          if (countRes.rows && countRes.rows.length > 0) {
+            const cnt = parseInt(countRes.rows[0].count || countRes.rows[0].COUNT || '0', 10);
+            tableCounts[table] = cnt;
+            totalTables++;
+          }
+        } catch {
+          tableCounts[table] = 0;
+        }
+      }
+
+      return {
+        connected,
+        dbType: 'MySQL',
+        databaseName: dbName,
+        host,
+        tablesCount: totalTables,
+        tables: tableCounts,
+        message: connected ? 'Conexión activa a MySQL' : 'Base de datos en modo fallback local'
+      };
+    } catch (error: any) {
+      return {
+        connected: false,
+        dbType: 'MySQL (Fallback in-memory)',
+        databaseName: dbName,
+        host,
+        tablesCount: 0,
+        tables: {},
+        message: `Servidor operando en modo local (BD no alcanzable: ${error.message || 'desconectado'})`
+      };
+    }
+  }
+
+  async purgeSeedData(): Promise<{ success: boolean; purged: Record<string, number>; message: string }> {
+    const purged: Record<string, number> = {};
+
+    const tablesToPurge = [
+      'sales_orders',
+      'checking_account_movements',
+      'fractioning_orders',
+      'tasks',
+      'merchandise_receipts',
+      'final_products',
+      'raw_materials',
+      'packaging_materials',
+      'expenses',
+      'quotes'
+    ];
+
+    for (const table of tablesToPurge) {
+      try {
+        const res = await this.db.query(`DELETE FROM ${table}`);
+        purged[table] = res.rowCount || 0;
+      } catch {
+        purged[table] = 0;
+      }
+    }
+
+    return {
+      success: true,
+      purged,
+      message: 'Se han purgado los datos semilla de prueba exitosamente. Las cuentas de usuario principales se mantienen intactas.'
+    };
+  }
+}

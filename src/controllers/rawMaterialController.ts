@@ -74,5 +74,29 @@ export class RawMaterialController {
       res.status(500).json({ status: 'ERROR', message: error.message });
     }
   };
+
+  bulkImport = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { items } = req.body;
+      if (!Array.isArray(items) || items.length === 0) {
+        res.status(400).json({ status: 'ERROR', message: 'Se requiere una lista "items" no vacía.' });
+        return;
+      }
+
+      const result = await this.rawMaterialService.bulkImport(items);
+      res.json({ status: 'SUCCESS', count: result.importedCount, data: result.items });
+    } catch (error: any) {
+      res.status(500).json({ status: 'ERROR', message: error.message });
+    }
+  };
+
+  purgeAll = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const count = await this.rawMaterialService.purgeAll();
+      res.json({ status: 'SUCCESS', message: `Se eliminaron ${count} materias primas.` });
+    } catch (error: any) {
+      res.status(500).json({ status: 'ERROR', message: error.message });
+    }
+  };
 }
 

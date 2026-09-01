@@ -344,5 +344,30 @@ class FinalProductService {
         }
         return null;
     }
+    async purgeAll() {
+        const count = this.inMemoryProducts.length;
+        this.inMemoryProducts = [];
+        try {
+            const res = await this.db.query('DELETE FROM final_products');
+            return res.rowCount !== undefined ? res.rowCount : count;
+        }
+        catch {
+            return count;
+        }
+    }
+    async bulkImport(items) {
+        const imported = [];
+        for (const dto of items) {
+            try {
+                const created = await this.create(dto);
+                if (created)
+                    imported.push(created);
+            }
+            catch (e) {
+                console.error('Error al importar producto final:', e);
+            }
+        }
+        return { importedCount: imported.length, items: imported };
+    }
 }
 exports.FinalProductService = FinalProductService;

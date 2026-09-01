@@ -78,5 +78,28 @@ class FinalProductController {
             res.status(500).json({ status: 'ERROR', message: error.message });
         }
     };
+    bulkImport = async (req, res) => {
+        try {
+            const { items } = req.body;
+            if (!Array.isArray(items) || items.length === 0) {
+                res.status(400).json({ status: 'ERROR', message: 'Se requiere una lista "items" no vacía.' });
+                return;
+            }
+            const result = await this.finalProductService.bulkImport(items);
+            res.json({ status: 'SUCCESS', count: result.importedCount, data: result.items });
+        }
+        catch (error) {
+            res.status(500).json({ status: 'ERROR', message: error.message });
+        }
+    };
+    purgeAll = async (req, res) => {
+        try {
+            const count = await this.finalProductService.purgeAll();
+            res.json({ status: 'SUCCESS', message: `Se eliminaron ${count} productos finales.` });
+        }
+        catch (error) {
+            res.status(500).json({ status: 'ERROR', message: error.message });
+        }
+    };
 }
 exports.FinalProductController = FinalProductController;

@@ -247,5 +247,29 @@ export class RawMaterialService {
     }
     return null;
   }
+
+  async purgeAll(): Promise<number> {
+    const count = this.inMemoryMaterials.length;
+    this.inMemoryMaterials = [];
+    try {
+      const res = await this.db.query('DELETE FROM raw_materials');
+      return res.rowCount !== undefined ? res.rowCount : count;
+    } catch {
+      return count;
+    }
+  }
+
+  async bulkImport(items: CreateRawMaterialDTO[]): Promise<{ importedCount: number; items: RawMaterial[] }> {
+    const imported: RawMaterial[] = [];
+    for (const dto of items) {
+      try {
+        const created = await this.create(dto);
+        if (created) imported.push(created);
+      } catch (e) {
+        console.error('Error al importar materia prima:', e);
+      }
+    }
+    return { importedCount: imported.length, items: imported };
+  }
 }
 

@@ -63,6 +63,8 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   const [isPkgModalOpen, setIsPkgModalOpen] = useState(false);
   const [isFinalModalOpen, setIsFinalModalOpen] = useState(false);
   const [isCustomSupplier, setIsCustomSupplier] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  const [bulkImportType, setBulkImportType] = useState<'raw_materials' | 'final_products'>('raw_materials');
 
   const [isBlendProduct, setIsBlendProduct] = useState(false);
   const [blendIngredients, setBlendIngredients] = useState<Array<{ rawMaterialId: string; percentage: number }>>([
@@ -456,10 +458,22 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               ? 'Listado de Materiales de Empaque & Etiquetas' 
               : 'Listado de Productos Finales'}
           </h2>
-          <button
-            className="btn btn-primary flex items-center gap-2"
-            onClick={() => {
-              if (activeTab === 'raw') {
+          <div className="flex gap-2">
+            {(activeTab === 'raw' || activeTab === 'final') && (
+              <button
+                className="btn btn-secondary flex items-center gap-2"
+                onClick={() => {
+                  setBulkImportType(activeTab === 'raw' ? 'raw_materials' : 'final_products');
+                  setIsBulkImportOpen(true);
+                }}
+              >
+                📊 Carga Masiva Google Sheets / Excel
+              </button>
+            )}
+            <button
+              className="btn btn-primary flex items-center gap-2"
+              onClick={() => {
+                if (activeTab === 'raw') {
                 setEditingRawItem(null);
                 rawForm.reset({
                   code: '',
@@ -524,6 +538,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               : 'Nuevo Producto Final'}
           </button>
         </div>
+      </div>
 
         {/* Tab 1: Materias Primas */}
         {activeTab === 'raw' && (
@@ -1187,6 +1202,16 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
           </div>
         </form>
       </Modal>
+
+      <BulkImportModal
+        isOpen={isBulkImportOpen}
+        onClose={() => setIsBulkImportOpen(false)}
+        type={bulkImportType}
+        onSuccess={() => {
+          // Refetch stock lists
+          window.location.reload();
+        }}
+      />
     </div>
   );
 };

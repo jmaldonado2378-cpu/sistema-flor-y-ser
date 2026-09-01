@@ -71,6 +71,9 @@ import { AutomationController } from './controllers/automationController';
 import { AuthService } from './services/authService';
 import { AuthController } from './controllers/authController';
 
+import { SystemService } from './services/systemService';
+import { SystemController } from './controllers/systemController';
+
 const app = express();
 const PORT: number = Number(process.env.PORT) || 3000;
 
@@ -169,6 +172,10 @@ const automationController = new AutomationController(automationService);
 // Inicialización Módulo Autenticación & Usuarios
 const authService = new AuthService(db);
 const authController = new AuthController(authService);
+
+// Inicialización Módulo Diagnóstico de Sistema & Mantenimiento
+const systemService = new SystemService(db);
+const systemController = new SystemController(systemService);
 
 // =============================================
 // RUTAS PÚBLICAS (sin autenticación)
@@ -315,9 +322,15 @@ app.post('/api/v1/marketing/campaigns/audience-preview', requireAuth, marketingC
 app.post('/api/v1/marketing/campaigns/:id/send', requireAuth, marketingController.sendCampaign);
 app.delete('/api/v1/marketing/campaigns/:id', requireAuth, marketingController.deleteCampaign);
 
+// Diagnóstico de Sistema & Purga de Datos Semilla
+app.get('/api/v1/system/db-status', requireAuth, systemController.getDbStatus);
+app.post('/api/v1/system/purge-seed-data', requireAuth, requireRole('ADMIN'), systemController.purgeSeedData);
+
 // Módulo de Inventario: Materias Primas
 app.get('/api/v1/raw-materials', requireAuth, rawMaterialController.getAll);
 app.post('/api/v1/raw-materials', requireAuth, rawMaterialController.create);
+app.post('/api/v1/raw-materials/bulk-import', requireAuth, rawMaterialController.bulkImport);
+app.delete('/api/v1/raw-materials/purge', requireAuth, requireRole('ADMIN'), rawMaterialController.purgeAll);
 app.put('/api/v1/raw-materials/:id', requireAuth, rawMaterialController.update);
 app.patch('/api/v1/raw-materials/:id/stock', requireAuth, rawMaterialController.updateStock);
 
@@ -338,6 +351,8 @@ app.delete('/api/v1/article-families/:id', requireAuth, requireRole('ADMIN'), ar
 // Módulo de Inventario: Productos Finales
 app.get('/api/v1/final-products', requireAuth, finalProductController.getAll);
 app.post('/api/v1/final-products', requireAuth, finalProductController.create);
+app.post('/api/v1/final-products/bulk-import', requireAuth, finalProductController.bulkImport);
+app.delete('/api/v1/final-products/purge', requireAuth, requireRole('ADMIN'), finalProductController.purgeAll);
 app.put('/api/v1/final-products/:id', requireAuth, finalProductController.update);
 app.patch('/api/v1/final-products/:id/stock', requireAuth, finalProductController.updateStock);
 

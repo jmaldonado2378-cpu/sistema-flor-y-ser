@@ -529,6 +529,79 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
             </div>
           </form>
         </div>
+
+        {/* Card 5: Mantenimiento del Sistema & Purga de Datos Semilla */}
+        <div className="card p-5 border-t-4 border-red-500">
+          <div className="card-header flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-text-dark flex items-center gap-2">
+              <Trash2 size={20} className="text-red-600" />
+              Mantenimiento de Base de Datos & Purga de Datos Semilla
+            </h2>
+          </div>
+
+          <p className="text-xs text-slate-600 mb-4">
+            Utiliza este panel para limpiar todos los registros de prueba (materias primas, productos elaborados, órdenes y tareas mock), dejando el ERP en cero listo para la carga masiva oficial de tu catálogo. Las cuentas de usuario de Administrador y Vendedor se conservan intactas.
+          </p>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              className="btn btn-secondary flex items-center gap-2"
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('floryser_jwt_token');
+                  const res = await fetch('/api/v1/system/db-status', {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                  });
+                  const json = await res.json();
+                  alert(`🔍 Estado de Base de Datos:\n\n${json.data?.message || 'OK'}\nBase: ${json.data?.databaseName}\nTablas activas: ${json.data?.tablesCount}`);
+                } catch (e: any) {
+                  alert('Error al probar conexión: ' + e.message);
+                }
+              }}
+            >
+              🔍 Probar Conexión MySQL & Diagnóstico
+            </button>
+
+            <button
+              type="button"
+              className="btn flex items-center gap-2"
+              style={{ backgroundColor: '#DC2626', color: '#FFFFFF', fontWeight: 700 }}
+              onClick={async () => {
+                const confirmed = window.confirm('⚠️ ATENCIÓN: ¿Estás seguro de que deseas purgar TODOS los datos de prueba del sistema?\n\nEsta acción eliminará materias primas, productos y ventas mock, dejando la base de datos vacía para que puedas importar tus planillas oficiales.');
+                if (!confirmed) return;
+
+                try {
+                  const token = localStorage.getItem('floryser_jwt_token');
+                  const res = await fetch('/api/v1/system/purge-seed-data', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    }
+                  });
+
+                  if (res.ok) {
+                    // Limpiar también caches locales
+                    localStorage.removeItem('floryser_users_v2');
+                    localStorage.removeItem('floryser_raw_materials_v2');
+                    localStorage.removeItem('floryser_final_products_v2');
+                    alert('🧹 ¡Limpieza completada! El sistema se ha purgado de datos de prueba exitosamente.');
+                    window.location.reload();
+                  } else {
+                    const json = await res.json();
+                    alert('Error al purgar datos: ' + (json.message || 'Error desconocido'));
+                  }
+                } catch (err: any) {
+                  alert('Error de conexión al purgar datos: ' + err.message);
+                }
+              }}
+            >
+              🧹 Limpiar / Purgar Todos los Datos Semilla de Prueba
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   );

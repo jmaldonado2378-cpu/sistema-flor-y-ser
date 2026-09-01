@@ -29,6 +29,25 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenUsers, onTabChange }) => {
   const [showHelp, setShowHelp] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [dbStatus, setDbStatus] = useState<{ connected: boolean; message: string } | null>(null);
+
+  React.useEffect(() => {
+    const checkDb = async () => {
+      try {
+        const token = localStorage.getItem('floryser_jwt_token');
+        const res = await fetch('/api/v1/system/db-status', {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+        if (res.ok) {
+          const json = await res.json();
+          setDbStatus(json.data);
+        }
+      } catch {
+        setDbStatus({ connected: false, message: 'Modo Local' });
+      }
+    };
+    checkDb();
+  }, []);
 
   // Notificaciones dinámicas basadas en datos reales del sistema
   const dynamicNotifications: { id: string; title: string; text: string; type: 'warning' | 'info' | 'success'; tab: string }[] = [];
@@ -153,7 +172,34 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenUsers, onTabChange }) => {
         )}
       </div>
       
-      <div className="header-actions">
+      <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {dbStatus && (
+          <div 
+            title={dbStatus.message}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 10px',
+              borderRadius: '20px',
+              fontSize: '11px',
+              fontWeight: 700,
+              backgroundColor: dbStatus.connected ? '#DCFCE7' : '#FEF3C7',
+              color: dbStatus.connected ? '#166534' : '#92400E',
+              border: `1px solid ${dbStatus.connected ? '#86EFAC' : '#FCD34D'}`,
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <span style={{
+              width: '7px',
+              height: '7px',
+              borderRadius: '50%',
+              backgroundColor: dbStatus.connected ? '#22C55E' : '#F59E0B'
+            }} />
+            {dbStatus.connected ? 'MySQL Conectado' : 'Modo Local'}
+          </div>
+        )}
+
         {hasPermission('users') && (
           <button 
             className="btn btn-secondary btn-sm" 

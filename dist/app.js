@@ -53,6 +53,8 @@ const automationService_1 = require("./services/automationService");
 const automationController_1 = require("./controllers/automationController");
 const authService_1 = require("./services/authService");
 const authController_1 = require("./controllers/authController");
+const systemService_1 = require("./services/systemService");
+const systemController_1 = require("./controllers/systemController");
 const app = (0, express_1.default)();
 const PORT = Number(process.env.PORT) || 3000;
 // Configuración de MySQL Pool via adapter compatible con pg.Pool interface
@@ -125,6 +127,9 @@ const automationController = new automationController_1.AutomationController(aut
 // Inicialización Módulo Autenticación & Usuarios
 const authService = new authService_1.AuthService(db);
 const authController = new authController_1.AuthController(authService);
+// Inicialización Módulo Diagnóstico de Sistema & Mantenimiento
+const systemService = new systemService_1.SystemService(db);
+const systemController = new systemController_1.SystemController(systemService);
 // =============================================
 // RUTAS PÚBLICAS (sin autenticación)
 // =============================================
@@ -250,9 +255,14 @@ app.put('/api/v1/marketing/campaigns/:id', auth_1.requireAuth, marketingControll
 app.post('/api/v1/marketing/campaigns/audience-preview', auth_1.requireAuth, marketingController.previewAudience);
 app.post('/api/v1/marketing/campaigns/:id/send', auth_1.requireAuth, marketingController.sendCampaign);
 app.delete('/api/v1/marketing/campaigns/:id', auth_1.requireAuth, marketingController.deleteCampaign);
+// Diagnóstico de Sistema & Purga de Datos Semilla
+app.get('/api/v1/system/db-status', auth_1.requireAuth, systemController.getDbStatus);
+app.post('/api/v1/system/purge-seed-data', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), systemController.purgeSeedData);
 // Módulo de Inventario: Materias Primas
 app.get('/api/v1/raw-materials', auth_1.requireAuth, rawMaterialController.getAll);
 app.post('/api/v1/raw-materials', auth_1.requireAuth, rawMaterialController.create);
+app.post('/api/v1/raw-materials/bulk-import', auth_1.requireAuth, rawMaterialController.bulkImport);
+app.delete('/api/v1/raw-materials/purge', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), rawMaterialController.purgeAll);
 app.put('/api/v1/raw-materials/:id', auth_1.requireAuth, rawMaterialController.update);
 app.patch('/api/v1/raw-materials/:id/stock', auth_1.requireAuth, rawMaterialController.updateStock);
 // Módulo de Inventario: Materiales de Empaque y Etiquetas
@@ -270,6 +280,8 @@ app.delete('/api/v1/article-families/:id', auth_1.requireAuth, (0, auth_1.requir
 // Módulo de Inventario: Productos Finales
 app.get('/api/v1/final-products', auth_1.requireAuth, finalProductController.getAll);
 app.post('/api/v1/final-products', auth_1.requireAuth, finalProductController.create);
+app.post('/api/v1/final-products/bulk-import', auth_1.requireAuth, finalProductController.bulkImport);
+app.delete('/api/v1/final-products/purge', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), finalProductController.purgeAll);
 app.put('/api/v1/final-products/:id', auth_1.requireAuth, finalProductController.update);
 app.patch('/api/v1/final-products/:id/stock', auth_1.requireAuth, finalProductController.updateStock);
 // Módulo de Fraccionado
