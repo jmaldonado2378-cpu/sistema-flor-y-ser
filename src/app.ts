@@ -5,7 +5,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
-import { createDatabasePool } from './database';
+import { createDatabasePool, autoInitDatabase } from './database';
 import { requireAuth, requireRole } from './middleware/auth';
 
 import { CustomerService } from './services/customerService';
@@ -79,6 +79,7 @@ const PORT: number = Number(process.env.PORT) || 3000;
 
 // Configuración de MySQL Pool via adapter compatible con pg.Pool interface
 const db = createDatabasePool();
+autoInitDatabase(db);
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));

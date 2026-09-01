@@ -59,6 +59,7 @@ const app = (0, express_1.default)();
 const PORT = Number(process.env.PORT) || 3000;
 // Configuración de MySQL Pool via adapter compatible con pg.Pool interface
 const db = (0, database_1.createDatabasePool)();
+(0, database_1.autoInitDatabase)(db);
 app.use((0, cors_1.default)());
 app.use(express_1.default.json({ limit: '10mb' }));
 app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
