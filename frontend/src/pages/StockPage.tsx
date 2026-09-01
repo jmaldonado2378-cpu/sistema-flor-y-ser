@@ -86,7 +86,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
     ? rawFamiliesData 
     : (rawFamiliesData && Array.isArray((rawFamiliesData as any).data) ? (rawFamiliesData as any).data : []);
 
-  const getScope = (f: any) => ((f.articleScope || f.scope || 'ALL') + '').toUpperCase();
+  const getScope = (f: any) => f ? ((f.articleScope || f.scope || 'ALL') + '').toUpperCase() : 'ALL';
 
   const rawFamilies = articleFamilies.filter((f: any) => {
     const sc = getScope(f);

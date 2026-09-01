@@ -24,10 +24,22 @@ import {
   Login
 } from '../../pages';
 
+import { syncLocalStorageToMySQL } from '../../utils/syncEngine';
+
 export const AppShell: React.FC = () => {
   const { isAuthenticated, user, hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState('tab-dashboard');
   const [collapsed, setCollapsed] = useState(false);
+
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      syncLocalStorageToMySQL().then(res => {
+        if (res.syncedCustomers > 0 || res.syncedOrders > 0) {
+          console.log(`✅ Sincronizados exitosamente a MySQL: ${res.syncedCustomers} clientes y ${res.syncedOrders} pedidos.`);
+        }
+      });
+    }
+  }, [isAuthenticated]);
 
   // Si no está autenticado, muestra la pantalla de inicio de sesión
   if (!isAuthenticated || !user) {

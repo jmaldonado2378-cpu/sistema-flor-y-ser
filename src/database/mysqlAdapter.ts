@@ -305,8 +305,11 @@ export class MySQLAdapter {
  * Crea la instancia de base de datos según configuración
  */
 export function createDatabasePool(): MySQLAdapter {
+  const hostEnv = process.env.DB_HOST;
+  const targetHost = (!hostEnv || hostEnv === 'localhost' || hostEnv === '::1') ? '127.0.0.1' : hostEnv;
+
   return new MySQLAdapter({
-    host: process.env.DB_HOST || 'localhost',
+    host: targetHost,
     port: parseInt(process.env.DB_PORT || '3306'),
     database: process.env.DB_NAME || 'u829089200_floryser',
     user: process.env.DB_USER || 'u829089200_admin',
