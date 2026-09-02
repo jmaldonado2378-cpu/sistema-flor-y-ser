@@ -9,8 +9,10 @@ const promise_1 = __importDefault(require("mysql2/promise"));
 class MySQLAdapter {
     pool;
     constructor(config) {
+        const hostEnv = config.host;
+        const targetHost = (!hostEnv || hostEnv === 'localhost' || hostEnv === '::1') ? '127.0.0.1' : hostEnv;
         this.pool = promise_1.default.createPool({
-            host: config.host,
+            host: targetHost,
             port: config.port,
             database: config.database,
             user: config.user,
@@ -224,11 +226,13 @@ exports.MySQLAdapter = MySQLAdapter;
  * Crea la instancia de base de datos según configuración
  */
 function createDatabasePool() {
+    const rawHost = process.env.DB_HOST;
+    const host = (!rawHost || rawHost === 'localhost' || rawHost === '::1') ? '127.0.0.1' : rawHost;
     return new MySQLAdapter({
-        host: process.env.DB_HOST || 'localhost',
+        host,
         port: parseInt(process.env.DB_PORT || '3306'),
         database: process.env.DB_NAME || 'u829089200_floryser',
         user: process.env.DB_USER || 'u829089200_Emilia_user',
-        password: process.env.DB_PASSWORD || '',
+        password: process.env.DB_PASSWORD || 'Emilia3012',
     });
 }
