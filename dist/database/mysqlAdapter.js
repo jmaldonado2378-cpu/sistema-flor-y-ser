@@ -6,14 +6,29 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MySQLAdapter = void 0;
 exports.createDatabasePool = createDatabasePool;
 const promise_1 = __importDefault(require("mysql2/promise"));
+const fs_1 = __importDefault(require("fs"));
 class MySQLAdapter {
     pool;
     constructor(config) {
         const hostEnv = config.host;
         const targetHost = (!hostEnv || hostEnv === 'localhost' || hostEnv === '::1') ? '127.0.0.1' : hostEnv;
-        this.pool = promise_1.default.createPool({
-            host: targetHost,
-            port: config.port,
+        const possibleSockets = [
+            '/var/run/mysqld/mysqld.sock',
+            '/tmp/mysql.sock',
+            '/var/lib/mysql/mysql.sock',
+            '/var/run/mysql/mysql.sock'
+        ];
+        let foundSocket = undefined;
+        try {
+            for (const sockPath of possibleSockets) {
+                if (fs_1.default.existsSync(sockPath)) {
+                    foundSocket = sockPath;
+                    break;
+                }
+            }
+        }
+        catch { }
+        const poolConfig = {
             database: config.database,
             user: config.user,
             password: config.password,
@@ -22,9 +37,17 @@ class MySQLAdapter {
             queueLimit: 0,
             enableKeepAlive: true,
             keepAliveInitialDelay: 0,
-            // MySQL equivalent of idleTimeoutMillis
             idleTimeout: 30000,
-        });
+        };
+        if (foundSocket) {
+            console.log(`🔌 Conectando a MySQL mediante Unix Socket (${foundSocket})...`);
+            poolConfig.socketPath = foundSocket;
+        }
+        else {
+            poolConfig.host = targetHost;
+            poolConfig.port = config.port;
+        }
+        this.pool = promise_1.default.createPool(poolConfig);
     }
     /**
      * Ejecuta una query traduciendo sintaxis PostgreSQL a MySQL

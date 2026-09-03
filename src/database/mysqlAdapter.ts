@@ -1,4 +1,5 @@
 import mysql, { Pool as MySQLPool, PoolConnection, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import fs from 'fs';
 
 /**
  * MySQLAdapter — Wrapper compatible con la interfaz de pg.Pool
@@ -34,9 +35,23 @@ export class MySQLAdapter {
     const hostEnv = config.host;
     const targetHost = (!hostEnv || hostEnv === 'localhost' || hostEnv === '::1') ? '127.0.0.1' : hostEnv;
 
-    this.pool = mysql.createPool({
-      host: targetHost,
-      port: config.port,
+    const possibleSockets = [
+      '/var/run/mysqld/mysqld.sock',
+      '/tmp/mysql.sock',
+      '/var/lib/mysql/mysql.sock',
+      '/var/run/mysql/mysql.sock'
+    ];
+    let foundSocket: string | undefined = undefined;
+    try {
+      for (const sockPath of possibleSockets) {
+        if (fs.existsSync(sockPath)) {
+          foundSocket = sockPath;
+          break;
+        }
+      }
+    } catch {}
+
+    const poolConfig: any = {
       database: config.database,
       user: config.user,
       password: config.password,
@@ -45,9 +60,18 @@ export class MySQLAdapter {
       queueLimit: 0,
       enableKeepAlive: true,
       keepAliveInitialDelay: 0,
-      // MySQL equivalent of idleTimeoutMillis
       idleTimeout: 30000,
-    });
+    };
+
+    if (foundSocket) {
+      console.log(`🔌 Conectando a MySQL mediante Unix Socket (${foundSocket})...`);
+      poolConfig.socketPath = foundSocket;
+    } else {
+      poolConfig.host = targetHost;
+      poolConfig.port = config.port;
+    }
+
+    this.pool = mysql.createPool(poolConfig);
   }
 
   /**
