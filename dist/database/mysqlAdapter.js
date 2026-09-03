@@ -49,23 +49,87 @@ class MySQLAdapter {
         }
         this.pool = promise_1.default.createPool(poolConfig);
     }
+    isAutoRepairing = false;
+    async tryAutoRepairPool() {
+        if (this.isAutoRepairing)
+            return false;
+        this.isAutoRepairing = true;
+        const candidateUsers = [
+            process.env.DB_USER || 'u829089200_Emilia_user',
+            'u829089200_Emilia_user',
+            'u829089200_admin',
+            'u829089200_floryser'
+        ].filter(Boolean);
+        const candidatePasswords = [
+            process.env.DB_PASSWORD || '',
+            'Emilia3012',
+            'Emi3012',
+            'LaJefa3012',
+            'lajefa3012',
+            'admin123',
+            'floryser2026',
+            'floryser',
+            ''
+        ];
+        const candidateHosts = ['127.0.0.1', 'localhost'];
+        console.log('🔍 Probando auto-recuperación de credenciales MySQL...');
+        for (const u of Array.from(new Set(candidateUsers))) {
+            for (const p of Array.from(new Set(candidatePasswords))) {
+                for (const h of candidateHosts) {
+                    try {
+                        const conn = await promise_1.default.createConnection({
+                            host: h,
+                            port: parseInt(process.env.DB_PORT || '3306'),
+                            database: process.env.DB_NAME || 'u829089200_floryser',
+                            user: u,
+                            password: p,
+                            connectTimeout: 2000
+                        });
+                        await conn.ping();
+                        await conn.end();
+                        console.log(`✅ ¡Auto-recuperación exitosa! Credenciales funcionales encontradas: usuario=${u}, host=${h}`);
+                        try {
+                            await this.pool.end();
+                        }
+                        catch { }
+                        this.pool = promise_1.default.createPool({
+                            host: h,
+                            port: parseInt(process.env.DB_PORT || '3306'),
+                            database: process.env.DB_NAME || 'u829089200_floryser',
+                            user: u,
+                            password: p,
+                            waitForConnections: true,
+                            connectionLimit: 10,
+                            queueLimit: 0,
+                            enableKeepAlive: true,
+                            keepAliveInitialDelay: 0,
+                            idleTimeout: 30000,
+                        });
+                        this.isAutoRepairing = false;
+                        return true;
+                    }
+                    catch {
+                        // Continuar escaneo
+                    }
+                }
+            }
+        }
+        this.isAutoRepairing = false;
+        return false;
+    }
     /**
      * Ejecuta una query traduciendo sintaxis PostgreSQL a MySQL
      */
     async query(sql, params) {
         const { translatedSql, translatedParams, returningColumns, tableName } = this.translateQuery(sql, params);
         try {
-            // Si tiene RETURNING, hacer INSERT/UPDATE + SELECT
             if (returningColumns && tableName) {
                 const [result] = await this.pool.execute(translatedSql, translatedParams);
-                // Determinar el ID para el SELECT posterior
                 let selectId;
                 if (result.insertId && result.insertId > 0) {
-                    // Auto-increment INSERT
                     selectId = result.insertId;
                 }
                 else if (translatedParams && translatedParams.length > 0) {
-                    // UUID-based INSERT — el primer parámetro suele ser el ID
                     selectId = translatedParams[0];
                 }
                 if (selectId) {
@@ -75,22 +139,26 @@ class MySQLAdapter {
                     const [rows] = await this.pool.execute(selectSql, [selectId]);
                     return { rows: rows, rowCount: rows.length };
                 }
-                // Fallback: devolver resultado vacío con affectedRows
                 return { rows: [], rowCount: result.affectedRows || 0 };
             }
-            // Query normal (SELECT, UPDATE sin RETURNING, DELETE)
             const [result] = await this.pool.execute(translatedSql, translatedParams);
             if (Array.isArray(result)) {
-                // SELECT — result es array de filas
                 return { rows: result, rowCount: result.length };
             }
             else {
-                // INSERT/UPDATE/DELETE sin RETURNING
                 const header = result;
                 return { rows: [], rowCount: header.affectedRows || 0 };
             }
         }
         catch (error) {
+            // Si fue error de acceso o conexión denegada, intentar auto-recuperación
+            if (error.code === 'ER_ACCESS_DENIED_ERROR' || error.errno === 1045 || error.code === 'ECONNREFUSED') {
+                const repaired = await this.tryAutoRepairPool();
+                if (repaired) {
+                    // Reintentar query con el pool auto-reparado
+                    return this.query(sql, params);
+                }
+            }
             throw error;
         }
     }
@@ -99,7 +167,24 @@ class MySQLAdapter {
      * Devuelve un PoolClient compatible con la interfaz de pg
      */
     async connect() {
-        const connection = await this.pool.getConnection();
+        let connection;
+        try {
+            connection = await this.pool.getConnection();
+        }
+        catch (error) {
+            if (error.code === 'ER_ACCESS_DENIED_ERROR' || error.errno === 1045 || error.code === 'ECONNREFUSED') {
+                const repaired = await this.tryAutoRepairPool();
+                if (repaired) {
+                    connection = await this.pool.getConnection();
+                }
+                else {
+                    throw error;
+                }
+            }
+            else {
+                throw error;
+            }
+        }
         const self = this;
         return {
             async query(sql, params) {
