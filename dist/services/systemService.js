@@ -21,9 +21,9 @@ class SystemService {
                 'packaging_materials',
                 'article_families',
                 'customers',
-                'sales_orders',
-                'checking_account_movements',
-                'tasks'
+                'orders',
+                'customer_account_movements',
+                'operational_tasks'
             ];
             let totalTables = 0;
             for (const table of tablesToCheck) {
@@ -64,15 +64,19 @@ class SystemService {
     async purgeSeedData() {
         const purged = {};
         const tablesToPurge = [
-            'sales_orders',
-            'checking_account_movements',
+            'order_items',
+            'payments',
+            'orders',
+            'customer_account_movements',
             'fractioning_orders',
-            'tasks',
+            'operational_tasks',
+            'merchandise_receipt_items',
             'merchandise_receipts',
             'final_products',
             'raw_materials',
             'packaging_materials',
-            'expenses',
+            'operational_expenses',
+            'quote_items',
             'quotes'
         ];
         for (const table of tablesToPurge) {
