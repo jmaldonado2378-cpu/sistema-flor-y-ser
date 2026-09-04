@@ -561,46 +561,53 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                     </tr>
                   </thead>
                   <tbody>
-                    {rawMaterials?.map((item) => (
-                      <tr key={item.id}>
-                        <td className="font-semibold text-primary-sage">{item.code}</td>
-                        <td className="font-medium">{item.name}</td>
-                        <td><span className="badge gray">{item.familyName || articleFamilies.find(f => f.id === item.familyId || f.id === (item as any).articleFamilyId)?.name || 'Sin familia'}</span></td>
-                        <td>
-                          <span className={item.currentStock <= item.minStock ? 'text-terracotta font-bold' : ''}>
-                            {item.currentStock} {item.unit}
-                          </span>
-                        </td>
-                        <td>{(item.costPerUnit || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
-                        <td><span className="badge gray">{item.supplierName || 'Sin asignar'}</span></td>
-                        <td className="text-sm text-text-muted">{item.storageLocation || 'Depósito Principal'}</td>
-                        <td style={{ textAlign: 'right' }}>
-                          <button 
-                            type="button"
-                            onClick={() => openEditRaw(item)}
-                            title="Editar materia prima"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '8px',
-                              border: '1px solid #D1D5DB',
-                              backgroundColor: '#FFFFFF',
-                              cursor: 'pointer',
-                              padding: 0,
-                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                            }}
-                          >
-                            <Pencil size={15} style={{ color: '#2563EB', strokeWidth: 2.2 }} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {rawMaterials?.length === 0 && (
+                    {(rawMaterials || []).map((item) => {
+                      if (!item) return null;
+                      const currentStock = item.currentStock || 0;
+                      const minStock = item.minStock || 0;
+                      const familyName = item.familyName || (articleFamilies || []).find(f => f && (f.id === item.familyId || f.id === (item as any).articleFamilyId))?.name || 'Sin familia';
+
+                      return (
+                        <tr key={item.id}>
+                          <td className="font-semibold text-primary-sage">{item.code}</td>
+                          <td className="font-medium">{item.name}</td>
+                          <td><span className="badge gray">{familyName}</span></td>
+                          <td>
+                            <span className={currentStock <= minStock ? 'text-terracotta font-bold' : ''}>
+                              {currentStock} {item.unit || 'UN'}
+                            </span>
+                          </td>
+                          <td>{(item.costPerUnit || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
+                          <td><span className="badge gray">{item.supplierName || 'Sin asignar'}</span></td>
+                          <td className="text-sm text-text-muted">{item.storageLocation || 'Depósito Principal'}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button 
+                              type="button"
+                              onClick={() => openEditRaw(item)}
+                              title="Editar materia prima"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '8px',
+                                border: '1px solid #D1D5DB',
+                                backgroundColor: '#FFFFFF',
+                                cursor: 'pointer',
+                                padding: 0,
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                              }}
+                            >
+                              <Pencil size={15} style={{ color: '#2563EB', strokeWidth: 2.2 }} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {(!rawMaterials || rawMaterials.length === 0) && (
                       <tr>
-                        <td colSpan={6} className="text-center py-6 text-text-muted">
+                        <td colSpan={8} className="text-center py-6 text-text-muted">
                           No hay materias primas registradas
                         </td>
                       </tr>
@@ -711,20 +718,25 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                     </tr>
                   </thead>
                   <tbody>
-                    {finalProducts?.map((item) => {
-                      const baseRm = rawMaterials?.find(rm => rm.id === item.rawMaterialId);
+                    {(finalProducts || []).map((item) => {
+                      if (!item) return null;
+                      const baseRm = (rawMaterials || []).find(rm => rm && rm.id === item.rawMaterialId);
+                      const currentStock = item.currentStock || 0;
+                      const minStock = item.minStock || 0;
+                      const familyName = item.familyName || (articleFamilies || []).find(f => f && (f.id === item.familyId || f.id === (item as any).articleFamilyId))?.name || 'Sin familia';
+
                       return (
                         <tr key={item.id}>
                           <td className="font-semibold text-primary-sage">{item.code}</td>
                           <td className="font-medium">{item.name}</td>
-                          <td><span className="badge gray">{item.familyName || articleFamilies.find(f => f.id === item.familyId || f.id === (item as any).articleFamilyId)?.name || 'Sin familia'}</span></td>
+                          <td><span className="badge gray">{familyName}</span></td>
                           <td>
-                            <span className={item.currentStock <= item.minStock ? 'text-terracotta font-bold' : ''}>
-                              {item.currentStock} un.
+                            <span className={currentStock <= minStock ? 'text-terracotta font-bold' : ''}>
+                              {currentStock} un.
                             </span>
                           </td>
                           <td className="font-semibold text-text-dark">{(item.price || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
-                          <td>{item.unitWeightGrams}g ({item.netContentLabel || `${item.unitWeightGrams}g`})</td>
+                          <td>{item.unitWeightGrams || 0}g ({item.netContentLabel || `${item.unitWeightGrams || 0}g`})</td>
                           <td><span className="badge gray">{baseRm ? baseRm.name : 'Insumo Base'}</span></td>
                           <td style={{ textAlign: 'right' }}>
                             <button 
@@ -751,9 +763,9 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                         </tr>
                       );
                     })}
-                    {finalProducts?.length === 0 && (
+                    {(!finalProducts || finalProducts.length === 0) && (
                       <tr>
-                        <td colSpan={6} className="text-center py-6 text-text-muted">
+                        <td colSpan={8} className="text-center py-6 text-text-muted">
                           No hay productos finales registrados
                         </td>
                       </tr>

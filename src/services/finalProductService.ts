@@ -87,6 +87,18 @@ const initialFinalProducts: FinalProduct[] = [
   }
 ];
 
+const parseJsonArray = (val: any): any[] => {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'object') return [val];
+  try {
+    const parsed = typeof val === 'string' ? JSON.parse(val) : val;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
 export class FinalProductService {
   private inMemoryProducts: FinalProduct[] = [...initialFinalProducts];
 
@@ -113,10 +125,12 @@ export class FinalProductService {
       if (res.rows.length > 0) {
         return res.rows.map((row: any) => ({
           ...row,
-          unitWeightGrams: parseFloat(row.unitWeightGrams),
-          price: parseFloat(row.price),
-          dietaryBadgeCodes: Array.isArray(row.dietaryBadgeCodes) ? row.dietaryBadgeCodes : JSON.parse(row.dietaryBadgeCodes || '[]'),
-          ingredientsList: Array.isArray(row.ingredientsList) ? row.ingredientsList : JSON.parse(row.ingredientsList || '[]')
+          unitWeightGrams: parseFloat(row.unitWeightGrams || 0),
+          currentStock: parseFloat(row.currentStock || 0),
+          minStock: parseFloat(row.minStock || 0),
+          price: parseFloat(row.price || 0),
+          dietaryBadgeCodes: parseJsonArray(row.dietaryBadgeCodes),
+          ingredientsList: parseJsonArray(row.ingredientsList)
         }));
       }
     } catch {}
@@ -144,10 +158,12 @@ export class FinalProductService {
         const row = res.rows[0];
         return {
           ...row,
-          unitWeightGrams: parseFloat(row.unitWeightGrams),
-          price: parseFloat(row.price),
-          dietaryBadgeCodes: Array.isArray(row.dietaryBadgeCodes) ? row.dietaryBadgeCodes : JSON.parse(row.dietaryBadgeCodes || '[]'),
-          ingredientsList: Array.isArray(row.ingredientsList) ? row.ingredientsList : JSON.parse(row.ingredientsList || '[]')
+          unitWeightGrams: parseFloat(row.unitWeightGrams || 0),
+          currentStock: parseFloat(row.currentStock || 0),
+          minStock: parseFloat(row.minStock || 0),
+          price: parseFloat(row.price || 0),
+          dietaryBadgeCodes: parseJsonArray(row.dietaryBadgeCodes),
+          ingredientsList: parseJsonArray(row.ingredientsList)
         };
       }
     } catch {}
