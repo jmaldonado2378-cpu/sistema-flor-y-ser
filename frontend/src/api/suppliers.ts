@@ -37,11 +37,11 @@ export interface MerchandiseReceiptDTO {
 
 export async function getSuppliers(): Promise<Supplier[]> {
   const res = await apiRequest<any>('/suppliers');
-  const list = Array.isArray(res) ? res : (res.data || res.suppliers || []);
+  const list = Array.isArray(res) ? res : (res?.data && Array.isArray(res.data) ? res.data : (Array.isArray(res?.suppliers) ? res.suppliers : []));
   return list.map((s: any) => ({
     ...s,
-    name: s.name || s.businessName || 'Proveedor',
-    businessName: s.businessName || s.name
+    name: s?.name || s?.businessName || 'Proveedor',
+    businessName: s?.businessName || s?.name
   }));
 }
 

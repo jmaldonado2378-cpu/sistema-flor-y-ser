@@ -74,7 +74,9 @@ export interface CreateFinalProductDTO {
 
 export const getRawMaterials = async (): Promise<RawMaterial[]> => {
   const res = await apiRequest<any>('/raw-materials');
-  return res.data || res;
+  if (Array.isArray(res)) return res;
+  if (res?.data && Array.isArray(res.data)) return res.data;
+  return [];
 };
 
 export const createRawMaterial = async (data: CreateRawMaterialDTO): Promise<RawMaterial> => {
@@ -103,7 +105,9 @@ export const updateRawMaterialStock = async (id: string, newStock: number): Prom
 
 export const getFinalProducts = async (): Promise<FinalProduct[]> => {
   const res = await apiRequest<any>('/final-products');
-  return res.data || res;
+  if (Array.isArray(res)) return res;
+  if (res?.data && Array.isArray(res.data)) return res.data;
+  return [];
 };
 
 export const createFinalProduct = async (data: CreateFinalProductDTO): Promise<FinalProduct> => {

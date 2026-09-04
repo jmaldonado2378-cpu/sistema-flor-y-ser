@@ -33,7 +33,9 @@ export interface CreatePackagingMaterialDTO {
 
 export const getPackagingMaterials = async (): Promise<PackagingMaterial[]> => {
   const res = await apiRequest<any>('/packaging-materials');
-  return Array.isArray(res) ? res : (res.data || res);
+  if (Array.isArray(res)) return res;
+  if (res?.data && Array.isArray(res.data)) return res.data;
+  return [];
 };
 
 export const createPackagingMaterial = async (data: CreatePackagingMaterialDTO): Promise<PackagingMaterial> => {

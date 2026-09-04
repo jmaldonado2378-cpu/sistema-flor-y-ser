@@ -82,6 +82,18 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   const { data: suppliers } = useSuppliers();
   const { data: rawFamiliesData } = useArticleFamilies();
 
+  const rawMaterialsList: any[] = Array.isArray(rawMaterials) 
+    ? rawMaterials 
+    : (rawMaterials && Array.isArray((rawMaterials as any).data) ? (rawMaterials as any).data : []);
+
+  const packagingMaterialsList: any[] = Array.isArray(packagingMaterials) 
+    ? packagingMaterials 
+    : (packagingMaterials && Array.isArray((packagingMaterials as any).data) ? (packagingMaterials as any).data : []);
+
+  const finalProductsList: any[] = Array.isArray(finalProducts) 
+    ? finalProducts 
+    : (finalProducts && Array.isArray((finalProducts as any).data) ? (finalProducts as any).data : []);
+
   const articleFamilies: any[] = Array.isArray(rawFamiliesData) 
     ? rawFamiliesData 
     : (rawFamiliesData && Array.isArray((rawFamiliesData as any).data) ? (rawFamiliesData as any).data : []);
@@ -89,16 +101,19 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   const getScope = (f: any) => f ? ((f.articleScope || f.scope || 'ALL') + '').toUpperCase() : 'ALL';
 
   const rawFamilies = articleFamilies.filter((f: any) => {
+    if (!f) return false;
     const sc = getScope(f);
     return sc === 'RAW_MATERIAL' || sc === 'RAW' || sc === 'MATERIA PRIMA' || sc === 'ALL';
   });
 
   const pkgFamilies = articleFamilies.filter((f: any) => {
+    if (!f) return false;
     const sc = getScope(f);
     return sc === 'PACKAGING' || sc === 'PKG' || sc === 'EMPAQUE' || sc === 'EMP' || sc === 'ALL';
   });
 
   const finalFamilies = articleFamilies.filter((f: any) => {
+    if (!f) return false;
     const sc = getScope(f);
     return sc === 'FINAL_PRODUCT' || sc === 'FINAL' || sc === 'PRODUCTO FINAL' || sc === 'ALL';
   });
@@ -171,7 +186,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
     if (!name || name.trim().length === 0) return 'MP-INS-01';
     const clean = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const prefix = clean.slice(0, 3).padEnd(3, 'X');
-    const existingCount = (rawMaterials || []).filter(rm => rm.code.startsWith(`MP-${prefix}`)).length + 1;
+    const existingCount = rawMaterialsList.filter(rm => rm && typeof rm.code === 'string' && rm.code.startsWith(`MP-${prefix}`)).length + 1;
     const num = existingCount.toString().padStart(2, '0');
     return `MP-${prefix}-${num}`;
   };
@@ -180,7 +195,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
     if (!name || name.trim().length === 0) return 'ENV-PK-01';
     const clean = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const prefix = clean.slice(0, 3).padEnd(3, 'X');
-    const existingCount = (packagingMaterials || []).filter(pm => pm.code.startsWith(`ENV-${prefix}`)).length + 1;
+    const existingCount = packagingMaterialsList.filter(pm => pm && typeof pm.code === 'string' && pm.code.startsWith(`ENV-${prefix}`)).length + 1;
     const num = existingCount.toString().padStart(2, '0');
     return `ENV-${prefix}-${num}`;
   };
@@ -189,7 +204,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
     if (!name || name.trim().length === 0) return 'PF-PROD-01';
     const clean = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const prefix = clean.slice(0, 3).padEnd(3, 'X');
-    const existingCount = (finalProducts || []).filter(fp => fp.code.startsWith(`PF-${prefix}`)).length + 1;
+    const existingCount = finalProductsList.filter(fp => fp && typeof fp.code === 'string' && fp.code.startsWith(`PF-${prefix}`)).length + 1;
     const num = existingCount.toString().padStart(2, '0');
     return `PF-${prefix}-${num}`;
   };
@@ -347,8 +362,8 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       : [];
 
     const formattedIngredientsList = isBlendProduct 
-      ? blendIngredients.filter(ing => ing.rawMaterialId).map(ing => {
-          const rm = (rawMaterials || []).find(r => r.id === ing.rawMaterialId);
+      ? blendIngredients.filter(ing => ing && ing.rawMaterialId).map(ing => {
+          const rm = rawMaterialsList.find(r => r && r.id === ing.rawMaterialId);
           return {
             rawMaterialId: ing.rawMaterialId,
             rawMaterialName: rm ? rm.name : '',
@@ -403,10 +418,10 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   ];
 
   const allSupplierNames = Array.from(new Set([
-    ...masterSuppliers.map(s => s.name || s.businessName).filter(Boolean),
+    ...masterSuppliers.map(s => s?.name || s?.businessName).filter(Boolean),
     ...defaultSupplierNames,
-    ...(rawMaterials || []).map(rm => rm.supplierName).filter(Boolean),
-    ...(packagingMaterials || []).map(pm => pm.supplierName).filter(Boolean)
+    ...rawMaterialsList.map(rm => rm?.supplierName).filter(Boolean),
+    ...packagingMaterialsList.map(pm => pm?.supplierName).filter(Boolean)
   ]));
 
   const getCategoryBadgeLabel = (cat: string) => {
@@ -508,11 +523,11 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                 setEditingFinalItem(null);
                 setIsBlendProduct(false);
                 setBlendIngredients([
-                  { rawMaterialId: rawMaterials && rawMaterials.length > 0 ? rawMaterials[0].id : '', percentage: 50 },
-                  { rawMaterialId: rawMaterials && rawMaterials.length > 1 ? rawMaterials[1].id : '', percentage: 50 },
+                  { rawMaterialId: rawMaterialsList.length > 0 ? rawMaterialsList[0]?.id || '' : '', percentage: 50 },
+                  { rawMaterialId: rawMaterialsList.length > 1 ? rawMaterialsList[1]?.id || '' : '', percentage: 50 },
                 ]);
                 finalForm.reset({
-                  rawMaterialId: rawMaterials && rawMaterials.length > 0 ? rawMaterials[0].id : '',
+                  rawMaterialId: rawMaterialsList.length > 0 ? rawMaterialsList[0]?.id || '' : '',
                   code: '',
                   barcode: '',
                   name: '',
@@ -561,7 +576,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                     </tr>
                   </thead>
                   <tbody>
-                    {(rawMaterials || []).map((item) => {
+                    {rawMaterialsList.map((item) => {
                       if (!item) return null;
                       const currentStock = item.currentStock || 0;
                       const minStock = item.minStock || 0;
@@ -605,7 +620,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                         </tr>
                       );
                     })}
-                    {(!rawMaterials || rawMaterials.length === 0) && (
+                    {rawMaterialsList.length === 0 && (
                       <tr>
                         <td colSpan={8} className="text-center py-6 text-text-muted">
                           No hay materias primas registradas
@@ -641,7 +656,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                     </tr>
                   </thead>
                   <tbody>
-                    {(packagingMaterials || []).map((item) => {
+                    {packagingMaterialsList.map((item) => {
                       if (!item) return null;
                       const currentStock = item.currentStock || 0;
                       const minStock = item.minStock || 0;
@@ -690,7 +705,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                         </tr>
                       );
                     })}
-                    {(!packagingMaterials || packagingMaterials.length === 0) && (
+                    {packagingMaterialsList.length === 0 && (
                       <tr>
                         <td colSpan={9} className="text-center py-6 text-text-muted">
                           No hay materiales de empaque o etiquetas registrados
@@ -725,9 +740,9 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                     </tr>
                   </thead>
                   <tbody>
-                    {(finalProducts || []).map((item) => {
+                    {finalProductsList.map((item) => {
                       if (!item) return null;
-                      const baseRm = (rawMaterials || []).find(rm => rm && rm.id === item.rawMaterialId);
+                      const baseRm = rawMaterialsList.find(rm => rm && rm.id === item.rawMaterialId);
                       const currentStock = item.currentStock || 0;
                       const minStock = item.minStock || 0;
                       const familyName = item.familyName || (articleFamilies || []).find(f => f && (f.id === item.familyId || f.id === (item as any).articleFamilyId))?.name || 'Sin familia';
@@ -770,7 +785,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                         </tr>
                       );
                     })}
-                    {(!finalProducts || finalProducts.length === 0) && (
+                    {finalProductsList.length === 0 && (
                       <tr>
                         <td colSpan={8} className="text-center py-6 text-text-muted">
                           No hay productos finales registrados
@@ -867,7 +882,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               <label>Familia / Categoría</label>
               <select {...rawForm.register('familyId')}>
                 <option value="">Seleccione una familia...</option>
-                {rawFamilies.map((fam: any) => (
+                {rawFamilies.map((fam: any) => fam && (
                   <option key={fam.id} value={fam.id}>
                     {fam.parentName ? `${fam.parentName} > ${fam.name}` : fam.name} ({fam.code})
                   </option>
@@ -986,7 +1001,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               <label>Familia de Artículos</label>
               <select {...pkgForm.register('familyId')}>
                 <option value="">Seleccione una familia...</option>
-                {pkgFamilies.map((fam: any) => (
+                {pkgFamilies.map((fam: any) => fam && (
                   <option key={fam.id} value={fam.id}>
                     {fam.parentName ? `${fam.parentName} > ${fam.name}` : fam.name} ({fam.code})
                   </option>
@@ -1051,7 +1066,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               <label>Materia Prima Base (Insumo Origen) *</label>
               <select {...finalForm.register('rawMaterialId')}>
                 <option value="">Seleccione materia prima base...</option>
-                {rawMaterials?.map(rm => (
+                {rawMaterialsList.map(rm => rm && (
                   <option key={rm.id} value={rm.id}>
                     {rm.name} ({rm.code}) - Stock: {rm.currentStock} {rm.unit}
                   </option>
@@ -1083,7 +1098,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       className="w-full text-sm"
                     >
                       <option value="">Seleccione insumo...</option>
-                      {rawMaterials?.map(rm => (
+                      {rawMaterialsList.map(rm => rm && (
                         <option key={rm.id} value={rm.id}>
                           {rm.name} ({rm.code})
                         </option>
@@ -1153,7 +1168,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               <label>Familia / Categoría</label>
               <select {...finalForm.register('familyId')}>
                 <option value="">Seleccione una familia...</option>
-                {finalFamilies.map((fam: any) => (
+                {finalFamilies.map((fam: any) => fam && (
                   <option key={fam.id} value={fam.id}>
                     {fam.parentName ? `${fam.parentName} > ${fam.name}` : fam.name} ({fam.code})
                   </option>

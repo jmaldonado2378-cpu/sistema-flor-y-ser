@@ -2,12 +2,16 @@ import { apiRequest } from './client';
 
 export const getArticleFamilies = async () => {
   const res = await apiRequest<any>('/article-families');
-  return res.data || res;
+  if (Array.isArray(res)) return res;
+  if (res?.data && Array.isArray(res.data)) return res.data;
+  return [];
 };
 
 export const getArticleFamiliesByScope = async (scope: string) => {
   const res = await apiRequest<any>(`/article-families/scope/${scope}`);
-  return res.data || res;
+  if (Array.isArray(res)) return res;
+  if (res?.data && Array.isArray(res.data)) return res.data;
+  return [];
 };
 
 export const createArticleFamily = async (data: any) => {
