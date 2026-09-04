@@ -88,9 +88,9 @@ export class RawMaterialService {
       if (res.rows.length > 0) {
         return res.rows.map((row: any) => ({
           ...row,
-          currentStock: parseFloat(row.currentStock),
-          minStock: parseFloat(row.minStock),
-          costPerUnit: parseFloat(row.costPerUnit)
+          currentStock: parseFloat(row.currentStock || 0),
+          minStock: parseFloat(row.minStock || 0),
+          costPerUnit: parseFloat(row.costPerUnit || 0)
         }));
       }
     } catch {}
