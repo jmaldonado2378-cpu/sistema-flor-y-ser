@@ -98,6 +98,7 @@ export class MySQLAdapter {
 
     const candidatePasswords = [
       process.env.DB_PASSWORD || '',
+      'FlorySer_2026_Secure!',
       'Emilia3012',
       'Emi3012',
       'LaJefa3012',
