@@ -15,6 +15,7 @@ import { usePackagingMaterials, useCreatePackagingMaterial, useUpdatePackagingMa
 import { useSuppliers } from '../hooks/useSuppliers';
 import { useArticleFamilies } from '../hooks/useArticleFamilies';
 import { Modal } from '../components/ui/Modal';
+import { BulkImportModal } from '../components/common/BulkImportModal';
 
 const rawMaterialSchema = z.object({
   code: z.string().optional(),
