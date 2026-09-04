@@ -34,10 +34,11 @@ class MySQLAdapter {
             password: config.password,
             waitForConnections: true,
             connectionLimit: 10,
+            maxIdle: 2,
             queueLimit: 0,
             enableKeepAlive: true,
-            keepAliveInitialDelay: 0,
-            idleTimeout: 30000,
+            keepAliveInitialDelay: 1000,
+            idleTimeout: 5000,
         };
         if (foundSocket) {
             console.log(`🔌 Conectando a MySQL mediante Unix Socket (${foundSocket})...`);
@@ -48,6 +49,13 @@ class MySQLAdapter {
             poolConfig.port = config.port;
         }
         this.pool = promise_1.default.createPool(poolConfig);
+        // Heartbeat Ping cada 15s para mantener activa la conexión en Hostinger
+        setInterval(() => {
+            this.pool.query('SELECT 1').catch(() => {
+                console.log('⚡ Heartbeat MySQL reconectando...');
+                this.tryAutoRepairPool();
+            });
+        }, 15000);
     }
     isAutoRepairing = false;
     async tryAutoRepairPool() {
@@ -151,8 +159,15 @@ class MySQLAdapter {
             }
         }
         catch (error) {
-            // Si fue error de acceso o conexión denegada, intentar auto-recuperación
-            if (error.code === 'ER_ACCESS_DENIED_ERROR' || error.errno === 1045 || error.code === 'ECONNREFUSED') {
+            // Si fue error de acceso, desconexión por inactividad o pérdida de socket, intentar auto-recuperación
+            const isTransientError = error.code === 'ER_ACCESS_DENIED_ERROR' ||
+                error.errno === 1045 ||
+                error.code === 'ECONNREFUSED' ||
+                error.code === 'PROTOCOL_CONNECTION_LOST' ||
+                error.code === 'ECONNRESET' ||
+                error.code === 'ETIMEDOUT' ||
+                error.code === 'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR';
+            if (isTransientError) {
                 const repaired = await this.tryAutoRepairPool();
                 if (repaired) {
                     // Reintentar query con el pool auto-reparado
@@ -172,7 +187,14 @@ class MySQLAdapter {
             connection = await this.pool.getConnection();
         }
         catch (error) {
-            if (error.code === 'ER_ACCESS_DENIED_ERROR' || error.errno === 1045 || error.code === 'ECONNREFUSED') {
+            const isTransientError = error.code === 'ER_ACCESS_DENIED_ERROR' ||
+                error.errno === 1045 ||
+                error.code === 'ECONNREFUSED' ||
+                error.code === 'PROTOCOL_CONNECTION_LOST' ||
+                error.code === 'ECONNRESET' ||
+                error.code === 'ETIMEDOUT' ||
+                error.code === 'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR';
+            if (isTransientError) {
                 const repaired = await this.tryAutoRepairPool();
                 if (repaired) {
                     connection = await this.pool.getConnection();
