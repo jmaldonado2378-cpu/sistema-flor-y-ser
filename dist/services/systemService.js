@@ -50,6 +50,9 @@ class SystemService {
             };
         }
         catch (error) {
+            const dbUser = process.env.DB_USER || 'u829089200_Emilia_user';
+            const rawPass = process.env.DB_PASSWORD || '';
+            const passMask = rawPass ? `${rawPass.substring(0, 3)}*** (${rawPass.length} caracteres)` : '(Vacía/Sin clave)';
             return {
                 connected: false,
                 dbType: 'MySQL (Fallback in-memory)',
@@ -57,7 +60,7 @@ class SystemService {
                 host,
                 tablesCount: 0,
                 tables: {},
-                message: `Servidor operando en modo local (BD no alcanzable: ${error.message || 'desconectado'})`
+                message: `Servidor operando en modo local.\n\nError MySQL: ${error.message || 'desconectado'}\n\n[Diagnóstico de Node.js]:\n- DB_HOST: ${host}\n- DB_USER: ${dbUser}\n- DB_PASSWORD leída por Node: ${passMask}`
             };
         }
     }
