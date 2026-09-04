@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -1234,3 +1234,69 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
     </div>
   );
 };
+
+// Error Boundary para evitar pantalla en blanco
+class StockErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('StockPage Error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="page-container" style={{ padding: '2rem' }}>
+          <div className="card" style={{ padding: '2rem', textAlign: 'center' }}>
+            <h2 style={{ color: '#DC2626', marginBottom: '1rem' }}>
+              ⚠️ Error en Stock & Productos
+            </h2>
+            <p style={{ color: '#6B7280', marginBottom: '1rem' }}>
+              Se produjo un error al cargar esta página. Detalle técnico:
+            </p>
+            <pre style={{
+              background: '#FEF2F2',
+              padding: '1rem',
+              borderRadius: '8px',
+              fontSize: '0.8rem',
+              textAlign: 'left',
+              overflow: 'auto',
+              maxHeight: '200px',
+              color: '#991B1B'
+            }}>
+              {this.state.error?.message || 'Error desconocido'}
+              {'\n\n'}
+              {this.state.error?.stack || ''}
+            </pre>
+            <button
+              className="btn btn-primary"
+              style={{ marginTop: '1rem' }}
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+              }}
+            >
+              🔄 Reintentar
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export const StockPageWithBoundary: React.FC<{ onTabChange?: (tab: string) => void }> = (props) => (
+  <StockErrorBoundary>
+    <StockPage {...props} />
+  </StockErrorBoundary>
+);

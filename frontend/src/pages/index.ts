@@ -1,7 +1,7 @@
 export { DashboardPage } from './DashboardPage';
 export { CustomersPage } from './CustomersPage';
 export { SalesPage } from './SalesPage';
-export { StockPage } from './StockPage';
+export { StockPageWithBoundary as StockPage } from './StockPage';
 export { SuppliersPage } from './SuppliersPage';
 export { ReceiptsPage } from './ReceiptsPage';
 export { FractioningPage } from './FractioningPage';

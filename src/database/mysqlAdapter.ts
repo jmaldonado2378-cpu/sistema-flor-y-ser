@@ -334,6 +334,10 @@ export class MySQLAdapter {
     // 2. Convertir placeholders $1, $2, $3 → ?
     translatedSql = translatedSql.replace(/\$\d+/g, '?');
 
+    // 2b. Convertir aliases con comillas dobles PostgreSQL → backticks MySQL
+    // AS "camelCase" → AS `camelCase`
+    translatedSql = translatedSql.replace(/\bAS\s+"([^"]+)"/gi, 'AS `$1`');
+
     // 3. Eliminar casts PostgreSQL (::text, ::int, ::varchar, ::numeric, ::boolean, ::uuid, ::date, ::timestamp)
     translatedSql = translatedSql.replace(/::(text|int|integer|varchar|numeric|boolean|uuid|date|timestamp|timestamptz|bigint|smallint|float|real|double precision|json|jsonb)\b/gi, '');
 
