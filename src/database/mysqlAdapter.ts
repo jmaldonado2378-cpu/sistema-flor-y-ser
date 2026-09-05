@@ -1,5 +1,6 @@
 import mysql, { Pool as MySQLPool, PoolConnection, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
 import fs from 'fs';
+import { randomUUID } from 'crypto';
 
 /**
  * MySQLAdapter — Wrapper compatible con la interfaz de pg.Pool
@@ -162,14 +163,25 @@ export class MySQLAdapter {
    * Ejecuta una query traduciendo sintaxis PostgreSQL a MySQL
    */
   async query(sql: string, params?: any[]): Promise<QueryResult> {
-    const { translatedSql, translatedParams, returningColumns, tableName } = this.translateQuery(sql, params);
+    const { 
+      translatedSql, 
+      translatedParams, 
+      returningColumns, 
+      tableName, 
+      injectedId, 
+      updateWhereIdIndex 
+    } = this.translateQuery(sql, params);
 
     try {
       if (returningColumns && tableName) {
         const [result] = await this.pool.execute<ResultSetHeader>(translatedSql, translatedParams);
 
-        let selectId: any;
-        if (result.insertId && result.insertId > 0) {
+        let selectId: any = null;
+        if (injectedId) {
+          selectId = injectedId;
+        } else if (updateWhereIdIndex !== null && translatedParams && translatedParams[updateWhereIdIndex] !== undefined) {
+          selectId = translatedParams[updateWhereIdIndex];
+        } else if (result.insertId && result.insertId > 0) {
           selectId = result.insertId;
         } else if (translatedParams && translatedParams.length > 0) {
           selectId = translatedParams[0];
@@ -251,13 +263,24 @@ export class MySQLAdapter {
 
     return {
       async query(sql: string, params?: any[]): Promise<QueryResult> {
-        const { translatedSql, translatedParams, returningColumns, tableName } = self.translateQuery(sql, params);
+        const { 
+          translatedSql, 
+          translatedParams, 
+          returningColumns, 
+          tableName, 
+          injectedId, 
+          updateWhereIdIndex 
+        } = self.translateQuery(sql, params);
 
         if (returningColumns && tableName) {
           const [result] = await connection.execute<ResultSetHeader>(translatedSql, translatedParams);
           
-          let selectId: any;
-          if (result.insertId && result.insertId > 0) {
+          let selectId: any = null;
+          if (injectedId) {
+            selectId = injectedId;
+          } else if (updateWhereIdIndex !== null && translatedParams && translatedParams[updateWhereIdIndex] !== undefined) {
+            selectId = translatedParams[updateWhereIdIndex];
+          } else if (result.insertId && result.insertId > 0) {
             selectId = result.insertId;
           } else if (translatedParams && translatedParams.length > 0) {
             selectId = translatedParams[0];
@@ -314,10 +337,15 @@ export class MySQLAdapter {
     translatedParams: any[] | undefined;
     returningColumns: string | null;
     tableName: string | null;
+    injectedId: string | null;
+    updateWhereIdIndex: number | null;
   } {
     let translatedSql = sql;
     let returningColumns: string | null = null;
     let tableName: string | null = null;
+    let injectedId: string | null = null;
+    let updateWhereIdIndex: number | null = null;
+    let translatedParams = params ? [...params] : undefined;
 
     // 1. Extraer y eliminar RETURNING clause
     const returningMatch = translatedSql.match(/\s+RETURNING\s+(.+?)$/i);
@@ -326,9 +354,51 @@ export class MySQLAdapter {
       translatedSql = translatedSql.replace(/\s+RETURNING\s+.+$/i, '');
 
       // Extraer tabla del INSERT INTO o UPDATE
-      const insertMatch = translatedSql.match(/INSERT\s+INTO\s+(\w+)/i);
-      const updateMatch = translatedSql.match(/UPDATE\s+(\w+)/i);
-      tableName = insertMatch?.[1] || updateMatch?.[1] || null;
+      const insertMatch = translatedSql.match(/INSERT\s+(?:IGNORE\s+)?INTO\s+([`\w]+)/i);
+      const updateMatch = translatedSql.match(/UPDATE\s+([`\w]+)/i);
+      tableName = insertMatch?.[1]?.replace(/[`"]/g, '') || updateMatch?.[1]?.replace(/[`"]/g, '') || null;
+    }
+
+    // 1b. Detección de UPDATE ... WHERE id = $N para RETURNING
+    const updateMatch = translatedSql.match(/UPDATE\s+([`\w]+)/i);
+    if (updateMatch && returningColumns) {
+      const whereIdMatch = translatedSql.match(/WHERE\s+id\s*=\s*\$(\d+)/i);
+      if (whereIdMatch) {
+        updateWhereIdIndex = parseInt(whereIdMatch[1], 10) - 1;
+      }
+    }
+
+    // 1c. Auto-inyección de UUID para INSERTs sin columna 'id' en tablas con PK id VARCHAR(64)
+    const insertHeaderMatch = translatedSql.match(/INSERT\s+(?:IGNORE\s+)?INTO\s+([`\w]+)\s*\(([^)]+)\)\s*VALUES\s*\(/i);
+    if (insertHeaderMatch) {
+      const currentTable = insertHeaderMatch[1].replace(/[`"]/g, '').toLowerCase();
+      const colListStr = insertHeaderMatch[2];
+
+      const tablesWithoutId = [
+        'customer_dietary_profiles',
+        'seller_channel_commissions',
+        'system_settings'
+      ];
+
+      const columns = colListStr.split(',').map(c => c.trim().replace(/[`"]/g, '').toLowerCase());
+      const hasIdColumn = columns.includes('id');
+
+      if (!hasIdColumn && !tablesWithoutId.includes(currentTable)) {
+        injectedId = randomUUID();
+        const fullMatch = insertHeaderMatch[0];
+        const newPrefix = fullMatch.replace(
+          `(${colListStr})`,
+          `(id, ${colListStr})`
+        ) + '?, ';
+        
+        translatedSql = translatedSql.replace(fullMatch, newPrefix);
+        
+        if (translatedParams) {
+          translatedParams = [injectedId, ...translatedParams];
+        } else {
+          translatedParams = [injectedId];
+        }
+      }
     }
 
     // 2. Convertir placeholders $1, $2, $3 → ?
@@ -339,7 +409,7 @@ export class MySQLAdapter {
     translatedSql = translatedSql.replace(/\bAS\s+"([^"]+)"/gi, 'AS `$1`');
 
     // 3. Eliminar casts PostgreSQL (::text, ::int, ::varchar, ::numeric, ::boolean, ::uuid, ::date, ::timestamp)
-    translatedSql = translatedSql.replace(/::(text|int|integer|varchar|numeric|boolean|uuid|date|timestamp|timestamptz|bigint|smallint|float|real|double precision|json|jsonb)\b/gi, '');
+    translatedSql = translatedSql.replace(/::(text|int|integer|varchar|numeric|boolean|uuid|date|timestamp|timestamptz|bigint|smallint|float|real|double precision|json|jsonb|[a-z_]+)\b/gi, '');
 
     // 4. ILIKE → LIKE (MySQL es case-insensitive por defecto con utf8mb4)
     translatedSql = translatedSql.replace(/\bILIKE\b/gi, 'LIKE');
@@ -368,9 +438,16 @@ export class MySQLAdapter {
     // 9. boolean TRUE/FALSE → MySQL 1/0 (en contextos WHERE)
     // MySQL entiende TRUE/FALSE como keywords, así que generalmente no hace falta cambiar
 
-    // 10. uuid_generate_v4() → eliminado (se genera en Node.js y se pasa como parámetro)
-    translatedSql = translatedSql.replace(/uuid_generate_v4\(\)/gi, '?');
-    // NOTA: Si se usa uuid_generate_v4() como DEFAULT en INSERT, el servicio debe generar el UUID
+    // 10. uuid_generate_v4() → ?
+    if (translatedSql.includes('uuid_generate_v4()')) {
+      translatedSql = translatedSql.replace(/uuid_generate_v4\(\)/gi, '?');
+      const extraUuid = randomUUID();
+      if (translatedParams) {
+        translatedParams = [extraUuid, ...translatedParams];
+      } else {
+        translatedParams = [extraUuid];
+      }
+    }
 
     // 11. ON CONFLICT → ON DUPLICATE KEY UPDATE  
     // Patrón: ON CONFLICT (col) DO UPDATE SET col1 = EXCLUDED.col1
@@ -437,7 +514,14 @@ export class MySQLAdapter {
       'FIND_IN_SET($1, ?)'
     );
 
-    return { translatedSql, translatedParams: params, returningColumns, tableName };
+    return { 
+      translatedSql, 
+      translatedParams, 
+      returningColumns, 
+      tableName, 
+      injectedId, 
+      updateWhereIdIndex 
+    };
   }
 
   /**
