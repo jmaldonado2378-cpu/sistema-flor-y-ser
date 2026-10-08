@@ -13,7 +13,7 @@ class SettingsService {
             cuit: '30-71689452-9',
             whatsapp: '+5491155439821',
             address: 'Av. Corrientes 3421, CABA, Argentina',
-            logoUrl: 'https://floryser.com.ar/assets/logo.png'
+            logoUrl: '/logo.png'
         },
         printSettings: {
             defaultPrinter: 'NIIMBOT B1 Pro (Mostrador)',

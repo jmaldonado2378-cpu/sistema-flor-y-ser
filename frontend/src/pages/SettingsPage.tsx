@@ -55,7 +55,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
       cuit: '30-71689452-9',
       whatsapp: '+5491155439821',
       address: 'Av. Corrientes 3421, CABA, Argentina',
-      logoUrl: ''
+      logoUrl: '/logo.png'
     }
   });
 
@@ -94,7 +94,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
           cuit: settings.businessInfo.cuit || '',
           whatsapp: settings.businessInfo.whatsapp || '',
           address: settings.businessInfo.address || '',
-          logoUrl: settings.businessInfo.logoUrl || ''
+          logoUrl: settings.businessInfo.logoUrl || '/logo.png'
         });
       }
       if (settings.printSettings) {
@@ -125,7 +125,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
   }, [settings]);
 
   const watchedLogoUrl = businessForm.watch('logoUrl');
-  const previewLogoUrl = normalizeLogoUrl(watchedLogoUrl);
+  const previewLogoUrl = normalizeLogoUrl(watchedLogoUrl) || '/logo.png';
 
   const handleLogoInputChange = (rawVal: string) => {
     setLogoLoadError(false);
@@ -172,7 +172,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
   };
 
   const handleRemoveLogo = () => {
-    businessForm.setValue('logoUrl', '', { shouldValidate: true });
+    businessForm.setValue('logoUrl', '/logo.png', { shouldValidate: true });
     setLogoLoadError(false);
   };
 

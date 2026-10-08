@@ -31,15 +31,17 @@
 }
 
 .sidebar .brand-logo {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--radius-sm);
-  background-color: var(--primary-sage);
-  color: white;
+  background-color: var(--bg-linen);
+  border: 1px solid var(--card-border);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+  padding: 2px;
 }
 
 .sidebar .brand-title {

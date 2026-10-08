@@ -56,17 +56,27 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         {/* Encabezado Marca */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{
-            width: '64px',
-            height: '64px',
-            borderRadius: '50%',
-            backgroundColor: '#F0F7F2',
+            width: '88px',
+            height: '88px',
+            borderRadius: '20px',
+            backgroundColor: '#FAF8F5',
+            border: '1px solid #E5E2DB',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
             marginBottom: '16px',
-            color: '#2E5339'
+            padding: '8px',
+            boxShadow: '0 4px 16px rgba(46, 83, 57, 0.08)',
+            overflow: 'hidden'
           }}>
-            <Leaf size={36} />
+            <img 
+              src="/logo.png" 
+              alt="Flor y Ser" 
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/logo-cream.png';
+              }}
+            />
           </div>
           <h1 style={{
             fontFamily: "'Libre Caslon Text', serif",
