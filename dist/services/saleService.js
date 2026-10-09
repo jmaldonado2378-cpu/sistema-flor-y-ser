@@ -1,15 +1,33 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SaleService = void 0;
+exports.SaleService = exports.PersistenceError = void 0;
 const customer_1 = require("../types/customer");
-const initialMockOrders = [
+const mysqlAdapter_1 = require("../database/mysqlAdapter");
+/**
+ * Error de persistencia: la operación NO se guardó en la base de datos.
+ * El controlador lo traduce a HTTP 503/500 para que el frontend nunca muestre un falso "guardado".
+ */
+class PersistenceError extends Error {
+    httpStatus;
+    constructor(message, httpStatus = 500) {
+        super(message);
+        this.httpStatus = httpStatus;
+        this.name = 'PersistenceError';
+    }
+}
+exports.PersistenceError = PersistenceError;
+/** En producción NUNCA se usa memoria como sustituto de MySQL (los datos se perderían al reiniciar). */
+const ALLOW_MEMORY_FALLBACK = process.env.ALLOW_MEMORY_FALLBACK === 'true' ||
+    (process.env.ALLOW_MEMORY_FALLBACK !== 'false' && process.env.NODE_ENV !== 'production');
+const VALID_CHANNELS = ['LOCAL', 'WHATSAPP', 'ONLINE_STORE', 'INSTAGRAM'];
+const initialMockOrders = ALLOW_MEMORY_FALLBACK ? [
     {
         id: 'ord-101',
         orderNumber: 'PED-20260720-0001',
         customerId: 'c1000000-0000-0000-0000-000000000001',
         customerName: 'Martina Gómez',
         channel: customer_1.AcquisitionChannel.WHATSAPP,
-        status: 'PENDING',
+        status: 'RECEIVED',
         paymentStatus: 'PAID',
         subtotal: 17500,
         discountAmount: 0,
@@ -24,29 +42,8 @@ const initialMockOrders = [
         ],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
-    },
-    {
-        id: 'ord-102',
-        orderNumber: 'PED-20260718-0002',
-        customerId: 'c2000000-0000-0000-0000-000000000002',
-        customerName: 'Lucas Benítez',
-        channel: customer_1.AcquisitionChannel.LOCAL,
-        status: 'DELIVERED',
-        paymentStatus: 'PAID',
-        subtotal: 12400,
-        discountAmount: 0,
-        deliveryFee: 0,
-        totalAmount: 12400,
-        paidAmount: 12400,
-        balanceDue: 0,
-        pointsEarned: 124,
-        items: [
-            { id: 'oi-3', productName: 'Nuez Mariposa 500g', productId: 'fp-002', isBulkFractioned: false, quantity: 2, unitPrice: 6200, subtotal: 12400 }
-        ],
-        createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-        updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     }
-];
+] : [];
 class SaleService {
     db;
     paymentService;
@@ -57,81 +54,160 @@ class SaleService {
         this.paymentService = paymentService;
         this.customerService = customerService;
     }
-    generateOrderNumberInMemory() {
-        const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-        const seq = (this.inMemoryOrders.length + 1).toString().padStart(4, '0');
-        return `PED-${todayStr}-${seq}`;
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
+    /** Decide qué hacer ante un error de BD: fallback sólo si es caída de conexión y está permitido. */
+    handleDbError(error, action) {
+        if ((0, mysqlAdapter_1.isConnectionError)(error)) {
+            if (ALLOW_MEMORY_FALLBACK) {
+                console.warn(`⚠️ [${action}] MySQL no disponible, usando memoria temporal (modo desarrollo).`);
+                return; // el llamador continúa con fallback
+            }
+            throw new PersistenceError(`Base de datos no disponible. La operación "${action}" NO se guardó. Detalle: ${error.code || error.message}`, 503);
+        }
+        throw new PersistenceError(`No se pudo ${action} en la base de datos: ${error.sqlMessage || error.message}`, 500);
     }
+    mapOrderRow(row, items = []) {
+        const fullName = [row.first_name, row.last_name].filter(Boolean).join(' ').trim();
+        return {
+            id: row.id,
+            orderNumber: row.order_number,
+            customerId: row.customer_id,
+            customerName: fullName || 'Consumidor Final',
+            sellerId: row.seller_id || undefined,
+            sellerName: row.seller_name || undefined,
+            quoteId: row.quote_id || undefined,
+            channel: row.channel,
+            status: row.status,
+            paymentStatus: row.payment_status,
+            subtotal: parseFloat(row.subtotal || 0),
+            discountAmount: parseFloat(row.discount_amount || 0),
+            deliveryFee: parseFloat(row.delivery_fee || 0),
+            totalAmount: parseFloat(row.total_amount || 0),
+            paidAmount: parseFloat(row.paid_amount || 0),
+            balanceDue: parseFloat(row.balance_due || 0),
+            pointsEarned: Number(row.points_earned || 0),
+            commissionAmount: parseFloat(row.commission_amount || 0),
+            commissionSettled: Boolean(row.commission_settled),
+            commissionSettlementId: row.commission_settlement_id || undefined,
+            deliveryAddress: row.delivery_address || undefined,
+            notes: row.notes || undefined,
+            items,
+            createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+            updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : (row.updated_at || row.created_at)
+        };
+    }
+    mapItemRow(iRow) {
+        return {
+            id: iRow.id,
+            orderId: iRow.order_id,
+            productName: iRow.product_name,
+            productId: iRow.product_id || undefined,
+            isBulkFractioned: Boolean(iRow.is_bulk_fractioned),
+            quantity: parseFloat(iRow.quantity),
+            unitPrice: parseFloat(iRow.unit_price),
+            subtotal: parseFloat(iRow.subtotal)
+        };
+    }
+    generateOrderNumber() {
+        const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const rand = Math.floor(1000 + Math.random() * 9000);
+        return `PED-${todayStr}-${rand}`; // 17 caracteres (columna VARCHAR(20))
+    }
+    // ------------------------------------------------------------------
+    // Crear venta
+    // ------------------------------------------------------------------
     async createOrder(dto) {
-        const channel = dto.channel || customer_1.AcquisitionChannel.LOCAL;
-        const subtotal = dto.items.reduce((sum, i) => sum + ((i.quantity || 0) * (i.unitPrice || 0)), 0);
-        const discountAmount = dto.discountAmount || 0;
-        const deliveryFee = dto.deliveryFee || 0;
+        const items = (dto.items || [])
+            .map((i) => ({
+            productName: String(i.productName || i.name || 'Producto').slice(0, 255),
+            productId: i.productId || null,
+            isBulkFractioned: Boolean(i.isBulkFractioned),
+            quantity: Number(i.quantity) || 0,
+            unitPrice: Number(i.unitPrice ?? i.price) || 0,
+            notes: i.notes || null
+        }))
+            .filter(i => i.quantity > 0);
+        if (items.length === 0) {
+            throw new PersistenceError('La venta debe contener al menos un producto con cantidad mayor a 0.', 400);
+        }
+        const rawChannel = String(dto.channel || 'LOCAL').toUpperCase();
+        const channel = (VALID_CHANNELS.includes(rawChannel) ? rawChannel : 'LOCAL');
+        const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
+        const discountAmount = Number(dto.discountAmount) || 0;
+        const deliveryFee = Number(dto.deliveryFee) || 0;
         const totalAmount = Math.max(0, subtotal - discountAmount + deliveryFee);
         const pointsEarned = Math.floor(totalAmount / 100);
-        let resolvedCustomerName = dto.customerName || 'Cliente Registrado';
-        if (!dto.customerName && this.customerService && dto.customerId) {
-            try {
-                const cust = await this.customerService.getById(dto.customerId);
-                if (cust) {
-                    resolvedCustomerName = `${cust.firstName} ${cust.lastName}`;
-                }
-            }
-            catch { }
-        }
+        const isCredit = /cuenta\s*corriente|fiado|credit/i.test(dto.paymentMethod || '');
+        const paymentStatus = isCredit ? 'UNPAID' : 'PAID';
+        const paidAmount = isCredit ? 0 : totalAmount;
+        const balanceDue = totalAmount - paidAmount;
+        const customerName = (dto.customerName || 'Consumidor Final').trim();
+        const orderNumber = this.generateOrderNumber();
         let client = null;
         try {
             client = await this.db.connect();
             await client.query('BEGIN');
-            const custRes = await client.query('SELECT id, first_name, last_name FROM customers WHERE id = $1', [
-                dto.customerId
-            ]);
-            const customerName = custRes.rows.length > 0
-                ? `${custRes.rows[0].first_name} ${custRes.rows[0].last_name}`
-                : resolvedCustomerName;
-            const orderNumber = `PED-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
-            // Obtener porcentaje de comisión para este vendedor y canal
-            let commissionPct = 3.0; // por defecto 3%
-            if (dto.sellerId) {
-                try {
-                    const commRes = await client.query('SELECT commission_percentage FROM seller_channel_commissions WHERE user_id = $1 AND channel = $2', [dto.sellerId, channel]);
-                    if (commRes.rows.length > 0) {
-                        commissionPct = parseFloat(commRes.rows[0].commission_percentage) || 0;
-                    }
-                }
-                catch { }
+            // 1. Garantizar que el cliente exista (FK orders.customer_id → customers.id)
+            const custRes = await client.query('SELECT id FROM customers WHERE id = $1', [dto.customerId]);
+            if (custRes.rows.length === 0) {
+                const [first, ...rest] = customerName.split(' ');
+                await client.query(`INSERT IGNORE INTO customers (id, first_name, last_name, phone_whatsapp, preferred_channel, notes)
+           VALUES ($1, $2, $3, $4, $5, $6)`, [
+                    dto.customerId,
+                    (first || 'Consumidor').slice(0, 100),
+                    (rest.join(' ') || 'Final').slice(0, 100),
+                    `SIN-${String(dto.customerId).slice(0, 24)}`,
+                    channel,
+                    'Creado automáticamente al registrar una venta (cliente no existía en la base de datos).'
+                ]);
             }
-            const commissionAmount = Math.round((totalAmount * (commissionPct / 100)) * 100) / 100;
-            const insertOrderQuery = `
-        INSERT INTO orders (
+            // 2. Comisión del vendedor
+            let commissionPct = 3.0;
+            if (dto.sellerId) {
+                const commRes = await client.query('SELECT commission_percentage FROM seller_channel_commissions WHERE user_id = $1 AND channel = $2', [dto.sellerId, channel]);
+                if (commRes.rows.length > 0) {
+                    commissionPct = parseFloat(commRes.rows[0].commission_percentage) || 0;
+                }
+            }
+            const commissionAmount = Math.round(totalAmount * commissionPct) / 100;
+            // 3. Cabecera del pedido
+            const orderRes = await client.query(`INSERT INTO orders (
           order_number, customer_id, seller_id, seller_name, quote_id, channel, status, payment_status,
           subtotal, discount_amount, delivery_fee, total_amount, paid_amount, balance_due,
           points_earned, commission_amount, commission_settled, delivery_address, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, 'PENDING', 'PAID', $7, $8, $9, $10, $10, 0, $11, $12, 0, $13, $14)
-        RETURNING id, created_at;
-      `;
-            const orderRes = await client.query(insertOrderQuery, [
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'RECEIVED', $7, $8, $9, $10, $11, $12, $13, $14, $15, 0, $16, $17)
+        RETURNING id`, [
                 orderNumber,
                 dto.customerId,
                 dto.sellerId || null,
                 dto.sellerName || null,
                 dto.quoteId || null,
                 channel,
+                paymentStatus,
                 subtotal,
                 discountAmount,
                 deliveryFee,
                 totalAmount,
+                paidAmount,
+                balanceDue,
                 pointsEarned,
                 commissionAmount,
                 dto.deliveryAddress || null,
-                dto.notes || null
+                [dto.paymentMethod ? `Pago: ${dto.paymentMethod}` : null, dto.notes || null].filter(Boolean).join(' | ') || null
             ]);
-            const orderId = orderRes.rows[0].id;
-            for (const item of dto.items) {
-                await client.query(`INSERT INTO order_items (order_id, product_name, product_id, is_bulk_fractioned, quantity, unit_price, subtotal)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`, [orderId, item.productName, item.productId || null, item.isBulkFractioned || false, item.quantity, item.unitPrice, (item.quantity * item.unitPrice)]);
+            const orderId = orderRes.rows[0]?.id;
+            if (!orderId) {
+                throw new Error('MySQL no devolvió el ID del pedido insertado.');
+            }
+            // 4. Ítems
+            for (const item of items) {
+                await client.query(`INSERT INTO order_items (order_id, product_name, product_id, is_bulk_fractioned, quantity, unit_price, subtotal, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [orderId, item.productName, item.productId, item.isBulkFractioned, item.quantity, item.unitPrice, item.quantity * item.unitPrice, item.notes]);
             }
             await client.query('COMMIT');
+            console.log(`💾 Venta ${orderNumber} guardada en MySQL (id=${orderId}, total=${totalAmount}).`);
             return await this.getOrderById(orderId);
         }
         catch (error) {
@@ -141,7 +217,44 @@ class SaleService {
                 }
                 catch { }
             }
-            return this.createOrderInMemory(dto, resolvedCustomerName, totalAmount, subtotal, pointsEarned, channel);
+            if (error instanceof PersistenceError)
+                throw error;
+            console.error('❌ Error al guardar venta:', error.code, error.sqlMessage || error.message);
+            this.handleDbError(error, 'registrar la venta'); // lanza si no corresponde fallback
+            // Fallback (sólo desarrollo sin MySQL)
+            const memOrder = {
+                id: 'ord-' + Date.now(),
+                orderNumber,
+                customerId: dto.customerId,
+                customerName,
+                sellerId: dto.sellerId,
+                sellerName: dto.sellerName,
+                channel,
+                status: 'RECEIVED',
+                paymentStatus,
+                subtotal,
+                discountAmount,
+                deliveryFee,
+                totalAmount,
+                paidAmount,
+                balanceDue,
+                pointsEarned,
+                commissionAmount: Math.round(totalAmount * 3) / 100,
+                commissionSettled: false,
+                items: items.map((i, idx) => ({
+                    id: `oi-${Date.now()}-${idx}`,
+                    productName: i.productName,
+                    productId: i.productId || undefined,
+                    isBulkFractioned: i.isBulkFractioned,
+                    quantity: i.quantity,
+                    unitPrice: i.unitPrice,
+                    subtotal: i.quantity * i.unitPrice
+                })),
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            this.inMemoryOrders.unshift(memOrder);
+            return memOrder;
         }
         finally {
             if (client) {
@@ -152,194 +265,114 @@ class SaleService {
             }
         }
     }
-    createOrderInMemory(dto, customerName, totalAmount, subtotal, pointsEarned, channel) {
-        const commissionAmount = Math.round((totalAmount * 0.03) * 100) / 100;
-        const newOrder = {
-            id: 'ord-' + Date.now(),
-            orderNumber: this.generateOrderNumberInMemory(),
-            customerId: dto.customerId,
-            customerName: customerName || 'Cliente Registrado',
-            sellerId: dto.sellerId,
-            sellerName: dto.sellerName || 'Vendedor General',
-            channel,
-            status: 'PENDING',
-            paymentStatus: 'PAID',
-            subtotal,
-            discountAmount: dto.discountAmount || 0,
-            deliveryFee: dto.deliveryFee || 0,
-            totalAmount,
-            paidAmount: totalAmount,
-            balanceDue: 0,
-            pointsEarned,
-            commissionAmount,
-            commissionSettled: false,
-            items: dto.items.map(i => ({
-                id: 'oi-' + Math.random(),
-                productName: i.productName,
-                productId: i.productId,
-                isBulkFractioned: i.isBulkFractioned || false,
-                quantity: i.quantity,
-                unitPrice: i.unitPrice,
-                subtotal: i.quantity * i.unitPrice,
-                notes: i.notes
-            })),
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        };
-        this.inMemoryOrders.unshift(newOrder);
-        return newOrder;
-    }
+    // ------------------------------------------------------------------
+    // Consultas
+    // ------------------------------------------------------------------
     async getOrderById(id) {
         try {
-            const orderQuery = `
-        SELECT 
-          o.id, o.order_number, o.customer_id, o.quote_id, o.channel, o.status, o.payment_status,
-          o.subtotal, o.discount_amount, o.delivery_fee, o.total_amount, o.paid_amount, o.balance_due,
-          o.points_earned, o.delivery_address, o.notes, o.created_at, o.updated_at,
-          c.first_name, c.last_name
-        FROM orders o
-        JOIN customers c ON c.id = o.customer_id
-        WHERE o.id = $1
-      `;
-            const res = await this.db.query(orderQuery, [id]);
+            const res = await this.db.query(`SELECT o.*, c.first_name, c.last_name
+         FROM orders o
+         LEFT JOIN customers c ON c.id = o.customer_id
+         WHERE o.id = $1`, [id]);
             if (res.rows.length > 0) {
-                const row = res.rows[0];
                 const itemsRes = await this.db.query(`SELECT id, order_id, product_name, product_id, is_bulk_fractioned, quantity, unit_price, subtotal
            FROM order_items WHERE order_id = $1`, [id]);
-                const items = itemsRes.rows.map((iRow) => ({
-                    id: iRow.id,
-                    orderId: iRow.order_id,
-                    productName: iRow.product_name,
-                    productId: iRow.product_id,
-                    isBulkFractioned: iRow.is_bulk_fractioned || false,
-                    quantity: parseFloat(iRow.quantity),
-                    unitPrice: parseFloat(iRow.unit_price),
-                    subtotal: parseFloat(iRow.subtotal)
-                }));
-                return {
-                    id: row.id,
-                    orderNumber: row.order_number,
-                    customerId: row.customer_id,
-                    customerName: `${row.first_name} ${row.last_name}`,
-                    sellerId: row.seller_id,
-                    sellerName: row.seller_name,
-                    channel: row.channel,
-                    status: row.status,
-                    paymentStatus: row.payment_status,
-                    subtotal: parseFloat(row.subtotal),
-                    discountAmount: parseFloat(row.discount_amount),
-                    deliveryFee: parseFloat(row.delivery_fee),
-                    totalAmount: parseFloat(row.total_amount),
-                    paidAmount: parseFloat(row.paid_amount),
-                    balanceDue: parseFloat(row.balance_due),
-                    pointsEarned: row.points_earned,
-                    commissionAmount: parseFloat(row.commission_amount || 0),
-                    commissionSettled: Boolean(row.commission_settled),
-                    commissionSettlementId: row.commission_settlement_id,
-                    items,
-                    createdAt: row.created_at,
-                    updatedAt: row.updated_at
-                };
+                return this.mapOrderRow(res.rows[0], itemsRes.rows.map((r) => this.mapItemRow(r)));
             }
         }
-        catch {
-            // Fallback
+        catch (error) {
+            this.handleDbError(error, 'consultar el pedido');
         }
         const found = this.inMemoryOrders.find(o => o.id === id);
         if (found)
             return found;
-        throw new Error(`Pedido con ID ${id} no encontrado.`);
+        throw new PersistenceError(`Pedido con ID ${id} no encontrado.`, 404);
     }
     async getOrders(filter = {}) {
         try {
-            const ordersQuery = `
-        SELECT 
-          o.id, o.order_number, o.customer_id, o.seller_id, o.seller_name, o.channel, o.status, o.payment_status,
-          o.subtotal, o.discount_amount, o.delivery_fee, o.total_amount, o.paid_amount, o.balance_due,
-          o.points_earned, o.commission_amount, o.commission_settled, o.commission_settlement_id, o.created_at, o.updated_at, c.first_name, c.last_name
-        FROM orders o
-        JOIN customers c ON c.id = o.customer_id
-        ORDER BY o.created_at DESC;
-      `;
-            const ordersRes = await this.db.query(ordersQuery);
-            if (ordersRes.rows.length > 0) {
-                const orders = ordersRes.rows.map((row) => ({
-                    id: row.id,
-                    orderNumber: row.order_number,
-                    customerId: row.customer_id,
-                    customerName: `${row.first_name} ${row.last_name}`,
-                    sellerId: row.seller_id,
-                    sellerName: row.seller_name,
-                    channel: row.channel,
-                    status: row.status,
-                    paymentStatus: row.payment_status,
-                    subtotal: parseFloat(row.subtotal),
-                    discountAmount: parseFloat(row.discount_amount),
-                    deliveryFee: parseFloat(row.delivery_fee),
-                    totalAmount: parseFloat(row.total_amount),
-                    paidAmount: parseFloat(row.paid_amount),
-                    balanceDue: parseFloat(row.balance_due),
-                    pointsEarned: row.points_earned || 0,
-                    commissionAmount: parseFloat(row.commission_amount || 0),
-                    commissionSettled: Boolean(row.commission_settled),
-                    commissionSettlementId: row.commission_settlement_id,
-                    items: [],
-                    createdAt: row.created_at,
-                    updatedAt: row.updated_at || row.created_at
-                }));
-                return { orders, total: orders.length };
+            const where = [];
+            const values = [];
+            let idx = 1;
+            if (filter.customerId) {
+                where.push(`o.customer_id = $${idx++}`);
+                values.push(filter.customerId);
             }
+            if (filter.status) {
+                where.push(`o.status = $${idx++}`);
+                values.push(filter.status);
+            }
+            if (filter.paymentStatus) {
+                where.push(`o.payment_status = $${idx++}`);
+                values.push(filter.paymentStatus);
+            }
+            if (filter.startDate) {
+                where.push(`o.created_at >= $${idx++}`);
+                values.push(filter.startDate);
+            }
+            if (filter.endDate) {
+                where.push(`o.created_at <= $${idx++}`);
+                values.push(`${filter.endDate} 23:59:59`);
+            }
+            if (filter.search) {
+                where.push(`(o.order_number LIKE $${idx} OR c.first_name LIKE $${idx} OR c.last_name LIKE $${idx})`);
+                values.push(`%${filter.search}%`);
+                idx++;
+            }
+            const limit = Math.min(Math.max(filter.limit || 500, 1), 2000);
+            const offset = Math.max(filter.offset || 0, 0);
+            const ordersRes = await this.db.query(`SELECT o.*, c.first_name, c.last_name
+         FROM orders o
+         LEFT JOIN customers c ON c.id = o.customer_id
+         ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+         ORDER BY o.created_at DESC
+         LIMIT ${limit} OFFSET ${offset}`, values);
+            // Cargar ítems de todos los pedidos en una sola consulta
+            const ids = ordersRes.rows.map((r) => r.id);
+            const itemsByOrder = {};
+            if (ids.length > 0) {
+                const placeholders = ids.map((_, i) => `$${i + 1}`).join(', ');
+                const itemsRes = await this.db.query(`SELECT id, order_id, product_name, product_id, is_bulk_fractioned, quantity, unit_price, subtotal
+           FROM order_items WHERE order_id IN (${placeholders})`, ids);
+                for (const r of itemsRes.rows) {
+                    (itemsByOrder[r.order_id] ||= []).push(this.mapItemRow(r));
+                }
+            }
+            const orders = ordersRes.rows.map((row) => this.mapOrderRow(row, itemsByOrder[row.id] || []));
+            return { orders, total: orders.length };
         }
-        catch {
-            // Fallback en memoria
+        catch (error) {
+            this.handleDbError(error, 'consultar las ventas');
         }
         return { orders: this.inMemoryOrders, total: this.inMemoryOrders.length };
     }
+    // ------------------------------------------------------------------
+    // Cambio de estado (Kanban)
+    // ------------------------------------------------------------------
     async updateOrderStatus(id, dto) {
-        const now = new Date().toISOString();
-        let updatedInDb = false;
-        if (this.db && dto.status) {
-            try {
-                let updateRes = null;
-                try {
-                    updateRes = await this.db.query(`UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [dto.status, id]);
-                }
-                catch (dbErr) {
-                    // Si falló por restricción de ENUM heredada en MySQL, adaptar columna a VARCHAR(50) o mapear
-                    if (dbErr.message?.includes('Data truncated') || dbErr.message?.includes('enum')) {
-                        try {
-                            await this.db.query("ALTER TABLE `orders` MODIFY COLUMN `status` VARCHAR(50) NOT NULL DEFAULT 'RECEIVED'");
-                            updateRes = await this.db.query(`UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [dto.status, id]);
-                        }
-                        catch {
-                            const fallbackMap = {
-                                'RECEIVED': 'PENDING',
-                                'IN_PREPARATION': 'PREPARING',
-                                'READY_FOR_DELIVERY': 'READY',
-                                'IN_DELIVERY': 'READY',
-                                'DELIVERED': 'DELIVERED',
-                            };
-                            const legacyStatus = fallbackMap[dto.status] || dto.status;
-                            updateRes = await this.db.query(`UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [legacyStatus, id]);
-                        }
-                    }
-                    else {
-                        throw dbErr;
-                    }
-                }
-                if (updateRes && (updateRes.rowCount > 0 || updateRes.rows?.length > 0)) {
-                    updatedInDb = true;
-                    const updated = await this.getOrderById(id);
-                    const memIdx = this.inMemoryOrders.findIndex(o => o.id === id);
-                    if (memIdx !== -1) {
-                        this.inMemoryOrders[memIdx] = updated;
-                    }
-                    return updated;
-                }
+        if (!dto.status && !dto.paymentStatus) {
+            throw new PersistenceError('Debe indicar status o paymentStatus.', 400);
+        }
+        try {
+            const sets = [];
+            const values = [];
+            let idx = 1;
+            if (dto.status) {
+                sets.push(`status = $${idx++}`);
+                values.push(dto.status);
             }
-            catch (err) {
-                // Continuar con fallback en memoria si la BD no estuviese disponible
+            if (dto.paymentStatus) {
+                sets.push(`payment_status = $${idx++}`);
+                values.push(dto.paymentStatus);
             }
+            sets.push('updated_at = CURRENT_TIMESTAMP');
+            values.push(id);
+            const updateRes = await this.db.query(`UPDATE orders SET ${sets.join(', ')} WHERE id = $${idx}`, values);
+            if (updateRes.rowCount > 0) {
+                return await this.getOrderById(id);
+            }
+        }
+        catch (error) {
+            this.handleDbError(error, 'actualizar el estado del pedido');
         }
         const order = this.inMemoryOrders.find(o => o.id === id);
         if (order) {
@@ -347,13 +380,10 @@ class SaleService {
                 order.status = dto.status;
             if (dto.paymentStatus)
                 order.paymentStatus = dto.paymentStatus;
-            order.updatedAt = now;
+            order.updatedAt = new Date().toISOString();
             return order;
         }
-        if (updatedInDb) {
-            return await this.getOrderById(id);
-        }
-        throw new Error(`Pedido con ID ${id} no encontrado.`);
+        throw new PersistenceError(`Pedido con ID ${id} no encontrado.`, 404);
     }
 }
 exports.SaleService = SaleService;

@@ -1,6 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SaleController = void 0;
+const saleService_1 = require("../services/saleService");
+function sendError(res, error, fallbackMsg) {
+    const status = error instanceof saleService_1.PersistenceError ? error.httpStatus : 500;
+    res.status(status).json({
+        error: status === 503 ? 'DATABASE_UNAVAILABLE' : status === 404 ? 'NOT_FOUND' : status === 400 ? 'BAD_REQUEST' : 'INTERNAL_SERVER_ERROR',
+        message: error?.message || fallbackMsg
+    });
+}
 class SaleController {
     saleService;
     constructor(saleService) {
@@ -21,7 +29,14 @@ class SaleController {
                 });
                 return;
             }
-            const order = await this.saleService.createOrder({ ...req.body, channel });
+            const order = await this.saleService.createOrder({
+                ...req.body,
+                channel,
+                discountAmount: req.body.discountAmount ?? req.body.discount ?? 0,
+                deliveryFee: req.body.deliveryFee ?? req.body.shippingFee ?? 0,
+                sellerId: req.body.sellerId || req.user?.userId,
+                sellerName: req.body.sellerName || req.user?.name
+            });
             res.status(201).json({
                 status: 'SUCCESS',
                 message: 'Pedido / Venta creado exitosamente.',
@@ -29,10 +44,7 @@ class SaleController {
             });
         }
         catch (error) {
-            res.status(500).json({
-                error: 'INTERNAL_SERVER_ERROR',
-                message: error.message || 'Error al procesar la venta o pedido.'
-            });
+            sendError(res, error, 'Error al procesar la venta o pedido.');
         }
     };
     /**
@@ -59,10 +71,7 @@ class SaleController {
             });
         }
         catch (error) {
-            res.status(500).json({
-                error: 'INTERNAL_SERVER_ERROR',
-                message: error.message || 'Error al consultar listado de pedidos.'
-            });
+            sendError(res, error, 'Error al consultar listado de pedidos.');
         }
     };
     /**
@@ -79,10 +88,7 @@ class SaleController {
             });
         }
         catch (error) {
-            res.status(404).json({
-                error: 'NOT_FOUND',
-                message: error.message || 'Pedido no encontrado.'
-            });
+            sendError(res, error, 'Pedido no encontrado.');
         }
     };
     /**
@@ -100,10 +106,7 @@ class SaleController {
             });
         }
         catch (error) {
-            res.status(500).json({
-                error: 'INTERNAL_SERVER_ERROR',
-                message: error.message || 'Error al actualizar el estado del pedido.'
-            });
+            sendError(res, error, 'Error al actualizar el estado del pedido.');
         }
     };
 }

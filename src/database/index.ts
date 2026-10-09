@@ -1,8 +1,8 @@
-import { MySQLAdapter, createDatabasePool } from './mysqlAdapter';
+import { MySQLAdapter, createDatabasePool, isConnectionError } from './mysqlAdapter';
 import { autoInitDatabase } from './autoInit';
 
-export type { QueryResult, PoolClient } from './mysqlAdapter';
-export { MySQLAdapter, createDatabasePool, autoInitDatabase };
+export type { QueryResult, PoolClient, DbConnectionStatus } from './mysqlAdapter';
+export { MySQLAdapter, createDatabasePool, autoInitDatabase, isConnectionError };
 
 /**
  * Pool type compatible — permite que los servicios existentes

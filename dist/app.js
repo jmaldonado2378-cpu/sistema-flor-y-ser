@@ -4,11 +4,26 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const dotenv_1 = __importDefault(require("dotenv"));
-dotenv_1.default.config();
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
+// Cargar .env o .env.production si existe
+if (fs_1.default.existsSync(path_1.default.join(__dirname, '../.env'))) {
+    dotenv_1.default.config({ path: path_1.default.join(__dirname, '../.env') });
+}
+else if (fs_1.default.existsSync(path_1.default.join(__dirname, '../../.env'))) {
+    dotenv_1.default.config({ path: path_1.default.join(__dirname, '../../.env') });
+}
+else if (fs_1.default.existsSync(path_1.default.join(__dirname, '../.env.production'))) {
+    dotenv_1.default.config({ path: path_1.default.join(__dirname, '../.env.production') });
+}
+else if (fs_1.default.existsSync(path_1.default.join(__dirname, '../../.env.production'))) {
+    dotenv_1.default.config({ path: path_1.default.join(__dirname, '../../.env.production') });
+}
+else {
+    dotenv_1.default.config();
+}
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
-const path_1 = __importDefault(require("path"));
-const fs_1 = __importDefault(require("fs"));
 const database_1 = require("./database");
 const auth_1 = require("./middleware/auth");
 const customerService_1 = require("./services/customerService");
@@ -136,12 +151,27 @@ const systemController = new systemController_1.SystemController(systemService);
 // =============================================
 // Autenticación
 app.post('/api/v1/auth/login', authController.login);
-// Health check
+// Health check con diagnóstico de conexión a BD
 app.get('/api/v1/health', (req, res) => {
+    const dbStatus = db.status || {
+        connected: null,
+        host: process.env.DB_HOST || '127.0.0.1',
+        database: process.env.DB_NAME || 'u829089200_floryser',
+        user: process.env.DB_USER || 'u829089200_Emilia_user',
+        lastError: null
+    };
     res.json({
         status: 'ONLINE',
         system: 'Flor y Ser Almacén Natural ERP/CRM v2.0',
-        database: 'MySQL (Hostinger)',
+        database: {
+            type: 'MySQL (Hostinger)',
+            connected: dbStatus.connected,
+            host: dbStatus.host,
+            name: dbStatus.database,
+            user: dbStatus.user,
+            lastError: dbStatus.lastError,
+            lastCheck: dbStatus.lastCheck
+        },
         timestamp: new Date().toISOString(),
         modules: [
             'CRM & Clientes',

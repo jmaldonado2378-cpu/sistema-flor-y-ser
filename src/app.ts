@@ -1,10 +1,22 @@
 import dotenv from 'dotenv';
-dotenv.config();
+import fs from 'fs';
+import path from 'path';
+
+// Cargar .env o .env.production si existe
+if (fs.existsSync(path.join(__dirname, '../.env'))) {
+  dotenv.config({ path: path.join(__dirname, '../.env') });
+} else if (fs.existsSync(path.join(__dirname, '../../.env'))) {
+  dotenv.config({ path: path.join(__dirname, '../../.env') });
+} else if (fs.existsSync(path.join(__dirname, '../.env.production'))) {
+  dotenv.config({ path: path.join(__dirname, '../.env.production') });
+} else if (fs.existsSync(path.join(__dirname, '../../.env.production'))) {
+  dotenv.config({ path: path.join(__dirname, '../../.env.production') });
+} else {
+  dotenv.config();
+}
 
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import path from 'path';
-import fs from 'fs';
 import { createDatabasePool, autoInitDatabase } from './database';
 import { requireAuth, requireRole } from './middleware/auth';
 
@@ -185,12 +197,28 @@ const systemController = new SystemController(systemService);
 // Autenticación
 app.post('/api/v1/auth/login', authController.login);
 
-// Health check
+// Health check con diagnóstico de conexión a BD
 app.get('/api/v1/health', (req: Request, res: Response) => {
+  const dbStatus = (db as any).status || {
+    connected: null,
+    host: process.env.DB_HOST || '127.0.0.1',
+    database: process.env.DB_NAME || 'u829089200_floryser',
+    user: process.env.DB_USER || 'u829089200_Emilia_user',
+    lastError: null
+  };
+
   res.json({
     status: 'ONLINE',
     system: 'Flor y Ser Almacén Natural ERP/CRM v2.0',
-    database: 'MySQL (Hostinger)',
+    database: {
+      type: 'MySQL (Hostinger)',
+      connected: dbStatus.connected,
+      host: dbStatus.host,
+      name: dbStatus.database,
+      user: dbStatus.user,
+      lastError: dbStatus.lastError,
+      lastCheck: dbStatus.lastCheck
+    },
     timestamp: new Date().toISOString(),
     modules: [
       'CRM & Clientes',

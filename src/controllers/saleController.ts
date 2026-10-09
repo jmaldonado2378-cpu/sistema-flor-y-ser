@@ -1,5 +1,13 @@
 import { Request, Response } from 'express';
-import { SaleService } from '../services/saleService';
+import { SaleService, PersistenceError } from '../services/saleService';
+
+function sendError(res: Response, error: any, fallbackMsg: string) {
+  const status = error instanceof PersistenceError ? error.httpStatus : 500;
+  res.status(status).json({
+    error: status === 503 ? 'DATABASE_UNAVAILABLE' : status === 404 ? 'NOT_FOUND' : status === 400 ? 'BAD_REQUEST' : 'INTERNAL_SERVER_ERROR',
+    message: error?.message || fallbackMsg
+  });
+}
 
 export class SaleController {
   constructor(private saleService: SaleService) {}
@@ -21,17 +29,21 @@ export class SaleController {
         return;
       }
 
-      const order = await this.saleService.createOrder({ ...req.body, channel });
+      const order = await this.saleService.createOrder({
+        ...req.body,
+        channel,
+        discountAmount: req.body.discountAmount ?? req.body.discount ?? 0,
+        deliveryFee: req.body.deliveryFee ?? req.body.shippingFee ?? 0,
+        sellerId: req.body.sellerId || req.user?.userId,
+        sellerName: req.body.sellerName || req.user?.name
+      });
       res.status(201).json({
         status: 'SUCCESS',
         message: 'Pedido / Venta creado exitosamente.',
         data: order
       });
     } catch (error: any) {
-      res.status(500).json({
-        error: 'INTERNAL_SERVER_ERROR',
-        message: error.message || 'Error al procesar la venta o pedido.'
-      });
+      sendError(res, error, 'Error al procesar la venta o pedido.');
     }
   };
 
@@ -60,10 +72,7 @@ export class SaleController {
         total: result.total
       });
     } catch (error: any) {
-      res.status(500).json({
-        error: 'INTERNAL_SERVER_ERROR',
-        message: error.message || 'Error al consultar listado de pedidos.'
-      });
+      sendError(res, error, 'Error al consultar listado de pedidos.');
     }
   };
 
@@ -80,10 +89,7 @@ export class SaleController {
         data: order
       });
     } catch (error: any) {
-      res.status(404).json({
-        error: 'NOT_FOUND',
-        message: error.message || 'Pedido no encontrado.'
-      });
+      sendError(res, error, 'Pedido no encontrado.');
     }
   };
 
@@ -101,10 +107,7 @@ export class SaleController {
         data: updatedOrder
       });
     } catch (error: any) {
-      res.status(500).json({
-        error: 'INTERNAL_SERVER_ERROR',
-        message: error.message || 'Error al actualizar el estado del pedido.'
-      });
+      sendError(res, error, 'Error al actualizar el estado del pedido.');
     }
   };
 }
