@@ -23,6 +23,7 @@ export function useCreateOrder() {
     mutationFn: (data: CreateOrderDTO) => createOrder(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['salesKanbanBoard'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });

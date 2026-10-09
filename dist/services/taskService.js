@@ -134,7 +134,9 @@ class TaskService {
                 dto.notes || null
             ];
             const res = await this.db.query(query, values);
-            return this.mapRowToTask(res.rows[0]);
+            const createdTask = this.mapRowToTask(res.rows[0]);
+            this.inMemoryTasks.unshift(createdTask);
+            return createdTask;
         }
         catch (error) {
             const newTask = {
@@ -197,15 +199,79 @@ class TaskService {
         }
     }
     async getTaskById(id) {
+        await this.ensureTableExists();
+        if (this.db) {
+            try {
+                const res = await this.db.query('SELECT * FROM operational_tasks WHERE id = $1', [id]);
+                if (res.rows && res.rows[0]) {
+                    return this.mapRowToTask(res.rows[0]);
+                }
+            }
+            catch { }
+        }
         const task = this.inMemoryTasks.find((t) => t.id === id);
         if (task)
             return task;
         throw new Error(`Tarea operativa con ID ${id} no encontrada.`);
     }
     async updateTask(id, dto) {
+        await this.ensureTableExists();
+        if (this.db) {
+            try {
+                const fields = [];
+                const values = [];
+                let idx = 1;
+                if (dto.title !== undefined) {
+                    fields.push(`title = $${idx++}`);
+                    values.push(dto.title);
+                }
+                if (dto.description !== undefined) {
+                    fields.push(`description = $${idx++}`);
+                    values.push(dto.description);
+                }
+                if (dto.type !== undefined) {
+                    fields.push(`type = $${idx++}`);
+                    values.push(dto.type);
+                }
+                if (dto.status !== undefined) {
+                    fields.push(`status = $${idx++}`);
+                    values.push(dto.status);
+                }
+                if (dto.priority !== undefined) {
+                    fields.push(`priority = $${idx++}`);
+                    values.push(dto.priority);
+                }
+                if (dto.assignedTo !== undefined) {
+                    fields.push(`assigned_to = $${idx++}`);
+                    values.push(dto.assignedTo);
+                }
+                if (dto.dueDate !== undefined) {
+                    fields.push(`due_date = $${idx++}`);
+                    values.push(dto.dueDate);
+                }
+                if (dto.notes !== undefined) {
+                    fields.push(`notes = $${idx++}`);
+                    values.push(dto.notes);
+                }
+                fields.push(`updated_at = CURRENT_TIMESTAMP`);
+                if (fields.length > 1) {
+                    values.push(id);
+                    const query = `UPDATE operational_tasks SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *;`;
+                    const res = await this.db.query(query, values);
+                    if (res.rows && res.rows[0]) {
+                        const updated = this.mapRowToTask(res.rows[0]);
+                        const memIdx = this.inMemoryTasks.findIndex(t => t.id === id);
+                        if (memIdx !== -1)
+                            this.inMemoryTasks[memIdx] = updated;
+                        return updated;
+                    }
+                }
+            }
+            catch { }
+        }
         const index = this.inMemoryTasks.findIndex((t) => t.id === id);
         if (index !== -1) {
-            this.inMemoryTasks[index] = { ...this.inMemoryTasks[index], ...dto };
+            this.inMemoryTasks[index] = { ...this.inMemoryTasks[index], ...dto, updatedAt: new Date().toISOString() };
             return this.inMemoryTasks[index];
         }
         throw new Error(`Tarea con ID ${id} no encontrada.`);
@@ -235,8 +301,13 @@ class TaskService {
           RETURNING *;
         `;
                 const res = await this.db.query(query, [dto.status, id]);
-                if (res.rows[0])
-                    return this.mapRowToTask(res.rows[0]);
+                if (res.rows && res.rows[0]) {
+                    const updated = this.mapRowToTask(res.rows[0]);
+                    const memIdx = this.inMemoryTasks.findIndex(t => t.id === id);
+                    if (memIdx !== -1)
+                        this.inMemoryTasks[memIdx] = updated;
+                    return updated;
+                }
             }
             catch { }
         }
@@ -251,12 +322,22 @@ class TaskService {
         throw new Error(`Tarea con ID ${id} no encontrada.`);
     }
     async deleteTask(id) {
+        await this.ensureTableExists();
+        let deletedFromDb = false;
+        if (this.db) {
+            try {
+                const res = await this.db.query('DELETE FROM operational_tasks WHERE id = $1', [id]);
+                if (res.rowCount && res.rowCount > 0)
+                    deletedFromDb = true;
+            }
+            catch { }
+        }
         const index = this.inMemoryTasks.findIndex((t) => t.id === id);
         if (index !== -1) {
             this.inMemoryTasks.splice(index, 1);
             return true;
         }
-        return false;
+        return deletedFromDb;
     }
     async getKanbanBoard() {
         const { tasks } = await this.getTasks({ limit: 500 });
@@ -266,13 +347,22 @@ class TaskService {
             QUALITY_CONTROL: [],
             COMPLETED: []
         };
+        const normalizeTaskStatus = (st) => {
+            const s = (st || '').toUpperCase().trim();
+            if (s === 'PACKAGING_IN_PROGRESS' || s === 'IN_PROGRESS' || s === 'PACKAGING')
+                return 'PACKAGING_IN_PROGRESS';
+            if (s === 'QUALITY_CONTROL' || s === 'CONTROL')
+                return 'QUALITY_CONTROL';
+            if (s === 'COMPLETED' || s === 'FINALIZADO' || s === 'DONE')
+                return 'COMPLETED';
+            return 'PENDING_FRACTIONING';
+        };
         tasks.forEach((task) => {
-            if (board[task.status]) {
-                board[task.status].push(task);
-            }
-            else {
-                board.PENDING_FRACTIONING.push(task);
-            }
+            const col = normalizeTaskStatus(task.status);
+            board[col].push({
+                ...task,
+                status: col
+            });
         });
         return board;
     }
@@ -333,13 +423,19 @@ class TaskService {
             READY: 'READY_FOR_DELIVERY',
             LISTO: 'READY_FOR_DELIVERY',
             IN_DELIVERY: 'IN_DELIVERY',
+            REPARTO: 'IN_DELIVERY',
+            'EN CAMINO': 'IN_DELIVERY',
             DELIVERED: 'DELIVERED',
             ENTREGADO: 'DELIVERED',
             COMPLETED: 'DELIVERED'
         };
         allOrders.forEach((order) => {
-            const mappedStatus = statusMap[order.status] || 'RECEIVED';
-            salesBoard[mappedStatus].push(order);
+            const normStatus = (order.status || '').toUpperCase().trim();
+            const mappedStatus = statusMap[normStatus] || 'RECEIVED';
+            salesBoard[mappedStatus].push({
+                ...order,
+                status: mappedStatus
+            });
         });
         return salesBoard;
     }

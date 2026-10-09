@@ -1,19 +1,64 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useSalesKanbanBoard, useUpdateOrderStatus } from '../hooks/useOrders';
 import { useCustomers } from '../hooks/useCustomers';
 import { Customer } from '../api/customers';
-import { Clock, PackageCheck, Truck, CheckCircle2, ChevronRight } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Search, RotateCcw, Package, AlertCircle } from 'lucide-react';
 
 interface OrdersKanbanPageProps {
   onTabChange?: (tab: string) => void;
 }
 
 const COLUMN_CONFIGS = [
-  { id: 'RECEIVED', key: 'RECEIVED', title: '📥 Pendiente / Recibido', nextStatus: 'IN_PREPARATION', nextLabel: 'Comenzar Preparación', badgeClass: 'gray' },
-  { id: 'IN_PREPARATION', key: 'IN_PREPARATION', title: '⏳ En Preparación', nextStatus: 'READY_FOR_DELIVERY', nextLabel: 'Marcar Listo', badgeClass: 'terracotta' },
-  { id: 'READY_FOR_DELIVERY', key: 'READY_FOR_DELIVERY', title: '📦 Listo para Despacho', nextStatus: 'IN_DELIVERY', nextLabel: 'Despachar / Enviar', badgeClass: 'green' },
-  { id: 'IN_DELIVERY', key: 'IN_DELIVERY', title: '🚚 En Camino / Reparto', nextStatus: 'DELIVERED', nextLabel: 'Marcar Entregado', badgeClass: 'green' },
-  { id: 'DELIVERED', key: 'DELIVERED', title: '✅ Entregado', nextStatus: null, nextLabel: null, badgeClass: 'green' },
+  { 
+    id: 'RECEIVED', 
+    key: 'RECEIVED', 
+    title: '📥 Pendiente / Recibido', 
+    prevStatus: null,
+    prevLabel: null,
+    nextStatus: 'IN_PREPARATION', 
+    nextLabel: 'Preparar', 
+    badgeClass: 'gray' 
+  },
+  { 
+    id: 'IN_PREPARATION', 
+    key: 'IN_PREPARATION', 
+    title: '⏳ En Preparación', 
+    prevStatus: 'RECEIVED',
+    prevLabel: 'Pendiente',
+    nextStatus: 'READY_FOR_DELIVERY', 
+    nextLabel: 'Marcar Listo', 
+    badgeClass: 'terracotta' 
+  },
+  { 
+    id: 'READY_FOR_DELIVERY', 
+    key: 'READY_FOR_DELIVERY', 
+    title: '📦 Listo para Despacho', 
+    prevStatus: 'IN_PREPARATION',
+    prevLabel: 'Preparación',
+    nextStatus: 'IN_DELIVERY', 
+    nextLabel: 'Despachar', 
+    badgeClass: 'terracotta' 
+  },
+  { 
+    id: 'IN_DELIVERY', 
+    key: 'IN_DELIVERY', 
+    title: '🚚 En Reparto', 
+    prevStatus: 'READY_FOR_DELIVERY',
+    prevLabel: 'Despacho',
+    nextStatus: 'DELIVERED', 
+    nextLabel: 'Entregar', 
+    badgeClass: 'green' 
+  },
+  { 
+    id: 'DELIVERED', 
+    key: 'DELIVERED', 
+    title: '✅ Entregado', 
+    prevStatus: 'IN_DELIVERY',
+    prevLabel: 'Reparto',
+    nextStatus: null, 
+    nextLabel: null, 
+    badgeClass: 'green' 
+  },
 ];
 
 export const OrdersKanbanPage: React.FC<OrdersKanbanPageProps> = () => {
@@ -21,108 +66,264 @@ export const OrdersKanbanPage: React.FC<OrdersKanbanPageProps> = () => {
   const { mutate: updateStatus, isPending: isUpdating } = useUpdateOrderStatus();
   const { data: customerResult } = useCustomers();
   const customers: Customer[] = customerResult?.data || [];
+  const [searchTerm, setSearchTerm] = useState('');
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   const formatCurrency = (val?: number) => (val || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
 
-  // Normalize boardData into columns
-  const normalizeColumns = () => {
-    if (!boardData) return [];
+  const normalizeStatus = (status?: string): string => {
+    if (!status) return 'RECEIVED';
+    const s = status.toUpperCase().trim();
+    if (s === 'PENDING' || s === 'RECEIVED') return 'RECEIVED';
+    if (s === 'IN_PREPARATION' || s === 'PREPARING' || s === 'EN PREPARACIÓN') return 'IN_PREPARATION';
+    if (s === 'READY_FOR_DELIVERY' || s === 'READY' || s === 'LISTO') return 'READY_FOR_DELIVERY';
+    if (s === 'IN_DELIVERY' || s === 'REPARTO' || s === 'EN CAMINO') return 'IN_DELIVERY';
+    if (s === 'DELIVERED' || s === 'ENTREGADO' || s === 'COMPLETED') return 'DELIVERED';
+    return 'RECEIVED';
+  };
 
-    // Case 1: Backend returns array of columns [ { id, title, items }, ... ]
-    if (Array.isArray(boardData)) {
-      return COLUMN_CONFIGS.map(cfg => {
-        const foundCol = boardData.find((c: any) => c.id === cfg.id || c.title === cfg.title);
-        return {
-          ...cfg,
-          items: foundCol?.items || []
-        };
+  // Normaliza boardData sea array de columnas, array plano de pedidos u objeto agrupado
+  const normalizeColumns = () => {
+    if (!boardData) return COLUMN_CONFIGS.map(c => ({ ...c, items: [] }));
+
+    let raw: any = boardData;
+    if (raw && typeof raw === 'object' && 'data' in raw && raw.data !== null && (typeof raw.data === 'object' || Array.isArray(raw.data))) {
+      raw = raw.data;
+    }
+
+    let allOrders: any[] = [];
+
+    // Caso 1: Array de columnas [ { id, items: [...] }, ... ]
+    if (Array.isArray(raw) && raw.length > 0 && Array.isArray((raw[0] as any)?.items)) {
+      raw.forEach((col: any) => {
+        if (Array.isArray(col.items)) {
+          col.items.forEach((item: any) => {
+            allOrders.push({
+              ...item,
+              status: item.status || col.id
+            });
+          });
+        }
+      });
+    }
+    // Caso 2: Array plano de pedidos [ { id, status, customerName }, ... ]
+    else if (Array.isArray(raw)) {
+      allOrders = [...raw];
+    }
+    // Caso 3: Objeto agrupado { RECEIVED: [...], IN_PREPARATION: [...], ... }
+    else if (typeof raw === 'object' && raw !== null) {
+      Object.entries(raw).forEach(([key, val]) => {
+        if (Array.isArray(val)) {
+          val.forEach((item: any) => {
+            allOrders.push({
+              ...item,
+              status: item.status || key
+            });
+          });
+        }
       });
     }
 
-    // Case 2: Backend returns object { RECEIVED: [...], IN_PREPARATION: [...], ... }
+    // Filtrar por término de búsqueda si existe
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim();
+      allOrders = allOrders.filter(o => 
+        (o.orderNumber && o.orderNumber.toLowerCase().includes(q)) ||
+        (o.customerName && o.customerName.toLowerCase().includes(q)) ||
+        (o.channel && o.channel.toLowerCase().includes(q))
+      );
+    }
+
     return COLUMN_CONFIGS.map(cfg => {
-      const items = boardData[cfg.key] || boardData[cfg.id] || [];
+      const colItems = allOrders.filter(o => normalizeStatus(o.status) === cfg.id);
       return {
         ...cfg,
-        items
+        items: colItems
       };
     });
   };
 
   const columns = normalizeColumns();
 
+  const handleMoveStatus = (orderId: string, targetStatus: string) => {
+    updateStatus(
+      { id: orderId, status: targetStatus },
+      {
+        onSuccess: () => refetch(),
+        onError: (err: any) => {
+          console.error('Error al actualizar estado:', err);
+          alert(`No se pudo mover el pedido: ${err.message || 'Error en el servidor'}`);
+        }
+      }
+    );
+  };
+
+  const handleDragStart = (e: React.DragEvent, orderId: string) => {
+    e.dataTransfer.setData('text/plain', orderId);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetStatus: string) => {
+    e.preventDefault();
+    const orderId = e.dataTransfer.getData('text/plain');
+    if (orderId) {
+      handleMoveStatus(orderId, targetStatus);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
   return (
     <div className="page-container">
-      <div className="page-header mb-6">
+      <div className="page-header flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-text-dark">Kanban de Estado de Pedidos</h1>
+          <h1 className="text-2xl font-bold text-text-dark flex items-center gap-2">
+            <span>📦</span> Kanban de Despacho y Pedidos
+          </h1>
           <p className="text-sm text-text-muted mt-1">
-            Seguimiento visual del flujo de despacho: desde la recepción de la venta hasta la entrega al cliente
+            Flujo logístico: desde la venta hasta la preparación, despacho y entrega al cliente. Arrastra las tarjetas o usa los botones.
           </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-2.5 text-text-muted" />
+            <input
+              type="text"
+              placeholder="Buscar por cliente o nro de pedido..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="input pl-9 pr-3 py-1.5 text-xs w-64"
+            />
+          </div>
+
+          <button onClick={() => refetch()} className="btn btn-secondary btn-sm flex items-center gap-1.5" title="Actualizar tablero">
+            <RotateCcw size={14} />
+            <span>Refrescar</span>
+          </button>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="card text-center py-12 text-text-muted">Cargando tablero kanban de ventas...</div>
+        <div className="card text-center py-16 text-text-muted">Cargando tablero kanban de ventas y despacho...</div>
       ) : isError ? (
         <div className="card text-center py-12 text-terracotta">
-          Error al consultar el tablero de pedidos.{' '}
-          <button onClick={() => refetch()} className="btn btn-secondary btn-sm mt-2">Reintentar</button>
+          <AlertCircle size={32} className="mx-auto mb-2 text-terracotta" />
+          <p className="font-semibold">Error al consultar el tablero de pedidos.</p>
+          <button onClick={() => refetch()} className="btn btn-secondary btn-sm mt-3">Reintentar</button>
         </div>
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-6">
           {columns.map((column) => (
-            <div key={column.id} className="card min-w-[300px] max-w-[340px] flex-shrink-0 flex flex-col bg-bg-linen border p-0 overflow-hidden">
+            <div 
+              key={column.id} 
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, column.id)}
+              className="card min-w-[290px] max-w-[320px] flex-shrink-0 flex flex-col bg-bg-linen border p-0 overflow-hidden shadow-xs"
+            >
               <div className="p-3 bg-white border-b flex justify-between items-center">
-                <h2 className="text-sm font-bold text-text-dark">{column.title}</h2>
-                <span className="badge gray text-xs font-semibold">{column.items.length}</span>
+                <h2 className="text-xs font-bold text-text-dark uppercase tracking-wider">{column.title}</h2>
+                <span className="badge gray text-xs font-semibold px-2 py-0.5 rounded-full">{column.items.length}</span>
               </div>
 
-              <div className="p-3 flex flex-col gap-3 flex-grow overflow-y-auto" style={{ minHeight: '380px', maxHeight: '650px' }}>
+              <div className="p-3 flex flex-col gap-3 flex-grow overflow-y-auto" style={{ minHeight: '420px', maxHeight: '680px' }}>
                 {column.items.map((item: any) => {
                   const cust = customers.find((c) => c.id === item.customerId);
                   const custName = item.customerName || (cust ? `${cust.firstName} ${cust.lastName}` : 'Cliente Mostrador');
                   const orderNum = item.orderNumber || `PED-${(item.id || '').slice(0, 6)}`;
                   const dateFormatted = item.createdAt ? new Date(item.createdAt).toLocaleDateString('es-AR') : '-';
+                  const isExpanded = expandedOrderId === item.id;
 
                   return (
-                    <div key={item.id} className="card p-3 border bg-white shadow-sm hover:shadow transition">
-                      <div className="flex justify-between items-start mb-2">
+                    <div 
+                      key={item.id} 
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, item.id)}
+                      className="card p-3 border bg-white shadow-sm hover:shadow transition cursor-grab active:cursor-grabbing flex flex-col gap-2"
+                    >
+                      <div className="flex justify-between items-start">
                         <span className="font-bold text-xs text-primary-sage">{orderNum}</span>
-                        <span className="text-xs text-text-muted">{dateFormatted}</span>
+                        <span className="text-[11px] text-text-muted">{dateFormatted}</span>
                       </div>
 
-                      <div className="text-sm font-semibold text-text-dark mb-1">{custName}</div>
+                      <div className="text-sm font-semibold text-text-dark">{custName}</div>
                       
-                      {item.channel && (
-                        <div className="text-xs text-text-muted mb-2">
-                          Canal: <span className="font-medium text-text-dark">{item.channel}</span>
+                      <div className="flex items-center justify-between text-xs text-text-muted">
+                        <span>Canal: <strong className="text-text-dark font-medium">{item.channel || 'LOCAL'}</strong></span>
+                        {item.paymentMethod && (
+                          <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">{item.paymentMethod}</span>
+                        )}
+                      </div>
+
+                      {item.items && item.items.length > 0 && (
+                        <div className="text-xs border-t pt-1.5 mt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedOrderId(isExpanded ? null : item.id)}
+                            className="text-[11px] text-primary-sage font-medium hover:underline flex items-center gap-1"
+                          >
+                            <Package size={12} />
+                            <span>{item.items.length} {item.items.length === 1 ? 'producto' : 'productos'} {isExpanded ? '▲' : '▼'}</span>
+                          </button>
+                          {isExpanded && (
+                            <ul className="mt-1.5 pl-2 space-y-1 text-[11px] text-text-dark bg-slate-50 p-1.5 rounded">
+                              {item.items.map((prod: any, pIdx: number) => (
+                                <li key={pIdx} className="flex justify-between">
+                                  <span>{prod.quantity}x {prod.productName || prod.name}</span>
+                                  <span className="text-text-muted">{formatCurrency(prod.unitPrice * prod.quantity)}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </div>
                       )}
 
-                      <div className="flex justify-between items-center pt-2 border-t mt-2">
+                      <div className="flex justify-between items-center pt-2 border-t mt-1">
                         <span className="text-xs text-text-muted">Total Venta</span>
-                        <span className="text-md font-bold text-primary-sage">
+                        <span className="text-sm font-bold text-primary-sage">
                           {formatCurrency(item.totalAmount)}
                         </span>
                       </div>
 
-                      {column.nextStatus && (
-                        <button 
-                          onClick={() => updateStatus({ id: item.id, status: column.nextStatus! }, { onSuccess: () => refetch() })} 
-                          disabled={isUpdating}
-                          className="btn btn-primary btn-sm mt-3 w-full flex items-center justify-center gap-1 text-xs"
-                        >
-                          <span>{column.nextLabel}</span>
-                          <ChevronRight size={14} />
-                        </button>
-                      )}
+                      {/* Botones de cambio de estado (Avanzar y Retroceder) */}
+                      <div className="flex items-center gap-1.5 mt-2 pt-2 border-t">
+                        {column.prevStatus && (
+                          <button 
+                            type="button"
+                            onClick={() => handleMoveStatus(item.id, column.prevStatus!)} 
+                            disabled={isUpdating}
+                            title={`Mover a ${column.prevLabel}`}
+                            className="btn btn-secondary btn-sm flex items-center justify-center gap-0.5 text-[11px] py-1 px-2 text-text-muted hover:text-text-dark"
+                          >
+                            <ChevronLeft size={13} />
+                            <span>{column.prevLabel}</span>
+                          </button>
+                        )}
+
+                        {column.nextStatus ? (
+                          <button 
+                            type="button"
+                            onClick={() => handleMoveStatus(item.id, column.nextStatus!)} 
+                            disabled={isUpdating}
+                            title={`Avanzar a ${column.nextLabel}`}
+                            className="btn btn-primary btn-sm flex-1 flex items-center justify-center gap-1 text-[11px] py-1 px-2"
+                          >
+                            <span>{column.nextLabel}</span>
+                            <ChevronRight size={13} />
+                          </button>
+                        ) : (
+                          <span className="text-xs text-green-700 font-bold flex-1 text-center py-1 bg-green-50 rounded">
+                            ✅ Entregado
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
 
                 {column.items.length === 0 && (
-                  <div className="py-12 text-center text-xs text-text-muted">
+                  <div className="py-12 text-center text-xs text-text-muted border-2 border-dashed border-gray-200 rounded-lg m-1">
                     Sin pedidos en este estado
                   </div>
                 )}

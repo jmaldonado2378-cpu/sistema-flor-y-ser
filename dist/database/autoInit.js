@@ -16,6 +16,39 @@ async function autoInitDatabase(db) {
         const checkResult = await db.query("SHOW TABLES LIKE 'system_users'");
         if (checkResult.rows && checkResult.rows.length > 0) {
             console.log('✅ Base de datos MySQL inicializada y tablas verificadas.');
+            // Migraciones de compatibilidad automáticas
+            try {
+                // Garantizar que la columna status de orders admita los estados completos de Kanban
+                await db.query("ALTER TABLE `orders` MODIFY COLUMN `status` VARCHAR(50) NOT NULL DEFAULT 'RECEIVED'");
+            }
+            catch (e) {
+                // Ignorar si ya está modificado o no aplica
+            }
+            try {
+                // Garantizar que exista la tabla operational_tasks si no estuviese creada
+                await db.query(`
+          CREATE TABLE IF NOT EXISTS operational_tasks (
+            id VARCHAR(64) NOT NULL PRIMARY KEY,
+            title VARCHAR(255) NOT NULL,
+            description TEXT,
+            type VARCHAR(50) NOT NULL DEFAULT 'GENERAL',
+            status VARCHAR(50) NOT NULL DEFAULT 'PENDING_FRACTIONING',
+            priority VARCHAR(20) NOT NULL DEFAULT 'MEDIUM',
+            assigned_to VARCHAR(150),
+            order_id VARCHAR(64),
+            product_id VARCHAR(64),
+            product_name VARCHAR(255),
+            quantity DECIMAL(12,3),
+            unit_of_measure VARCHAR(50),
+            due_date DATE,
+            completed_at DATETIME,
+            notes TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+            }
+            catch (e) { }
             return true;
         }
         console.log('⚡ Tablas no encontradas en MySQL. Ejecutando esquema automático schema_mysql.sql...');

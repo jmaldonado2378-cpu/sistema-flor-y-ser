@@ -296,14 +296,50 @@ class SaleService {
         return { orders: this.inMemoryOrders, total: this.inMemoryOrders.length };
     }
     async updateOrderStatus(id, dto) {
-        try {
-            if (dto.status) {
-                await this.db.query(`UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [dto.status, id]);
-                return this.getOrderById(id);
+        const now = new Date().toISOString();
+        let updatedInDb = false;
+        if (this.db && dto.status) {
+            try {
+                let updateRes = null;
+                try {
+                    updateRes = await this.db.query(`UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [dto.status, id]);
+                }
+                catch (dbErr) {
+                    // Si falló por restricción de ENUM heredada en MySQL, adaptar columna a VARCHAR(50) o mapear
+                    if (dbErr.message?.includes('Data truncated') || dbErr.message?.includes('enum')) {
+                        try {
+                            await this.db.query("ALTER TABLE `orders` MODIFY COLUMN `status` VARCHAR(50) NOT NULL DEFAULT 'RECEIVED'");
+                            updateRes = await this.db.query(`UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [dto.status, id]);
+                        }
+                        catch {
+                            const fallbackMap = {
+                                'RECEIVED': 'PENDING',
+                                'IN_PREPARATION': 'PREPARING',
+                                'READY_FOR_DELIVERY': 'READY',
+                                'IN_DELIVERY': 'READY',
+                                'DELIVERED': 'DELIVERED',
+                            };
+                            const legacyStatus = fallbackMap[dto.status] || dto.status;
+                            updateRes = await this.db.query(`UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [legacyStatus, id]);
+                        }
+                    }
+                    else {
+                        throw dbErr;
+                    }
+                }
+                if (updateRes && (updateRes.rowCount > 0 || updateRes.rows?.length > 0)) {
+                    updatedInDb = true;
+                    const updated = await this.getOrderById(id);
+                    const memIdx = this.inMemoryOrders.findIndex(o => o.id === id);
+                    if (memIdx !== -1) {
+                        this.inMemoryOrders[memIdx] = updated;
+                    }
+                    return updated;
+                }
             }
-        }
-        catch {
-            // Fallback
+            catch (err) {
+                // Continuar con fallback en memoria si la BD no estuviese disponible
+            }
         }
         const order = this.inMemoryOrders.find(o => o.id === id);
         if (order) {
@@ -311,8 +347,11 @@ class SaleService {
                 order.status = dto.status;
             if (dto.paymentStatus)
                 order.paymentStatus = dto.paymentStatus;
-            order.updatedAt = new Date().toISOString();
+            order.updatedAt = now;
             return order;
+        }
+        if (updatedInDb) {
+            return await this.getOrderById(id);
         }
         throw new Error(`Pedido con ID ${id} no encontrado.`);
     }

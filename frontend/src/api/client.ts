@@ -169,7 +169,7 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
       return { status: 'success', data: MOCK_DIETARY_PROFILES } as unknown as T;
     }
     if (cleanEndpoint.includes('sales-kanban') || cleanEndpoint.includes('orders/kanban')) {
-      const orders = getCollection('sales_orders', [
+      const defaultOrders = [
         {
           id: 'ord-101',
           orderNumber: 'PED-20260812-0001',
@@ -184,7 +184,11 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
             { productId: 'p1', productName: 'Almendras Nonpareil 1kg', quantity: 1, unitPrice: 8500 }
           ]
         }
-      ]);
+      ];
+      let orders = getCollection('sales_orders', defaultOrders);
+      if (!localStorage.getItem('floryser_sales_orders_v2')) {
+        saveCollection('sales_orders', defaultOrders);
+      }
 
       return {
         status: 'success',
@@ -624,7 +628,23 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
     if (cleanEndpoint.startsWith('/sales/orders/') && cleanEndpoint.endsWith('/status')) {
       const parts = cleanEndpoint.split('/');
       const orderId = parts[3];
-      const orders = getCollection('sales_orders', []);
+      const defaultSeedOrders = [
+        {
+          id: 'ord-101',
+          orderNumber: 'PED-20260812-0001',
+          customerId: 'cust-1',
+          customerName: 'María Clara Fernández',
+          totalAmount: 17500,
+          status: 'RECEIVED',
+          paymentMethod: 'Efectivo',
+          channel: 'LOCAL',
+          createdAt: new Date().toISOString(),
+          items: [
+            { productId: 'p1', productName: 'Almendras Nonpareil 1kg', quantity: 1, unitPrice: 8500 }
+          ]
+        }
+      ];
+      const orders = getCollection('sales_orders', defaultSeedOrders);
       const updatedOrders = orders.map((o: any) => {
         if (o.id === orderId) {
           return { ...o, status: bodyData?.status || o.status };
