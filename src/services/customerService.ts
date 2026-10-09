@@ -140,8 +140,8 @@ export class CustomerService {
           try {
             await this.db.query(`
               INSERT INTO customers (
-                id, first_name, last_name, phone_whatsapp, email, address, birth_date, preferred_channel, points_balance, notes, is_active
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1)
+                id, first_name, last_name, phone_whatsapp, email, instagram, address, birth_date, preferred_channel, points_balance, notes, is_active
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1)
               ON DUPLICATE KEY UPDATE first_name = VALUES(first_name);
             `, [
               c.id,
@@ -149,6 +149,7 @@ export class CustomerService {
               c.lastName,
               c.phoneWhatsapp,
               c.email || null,
+              c.instagram || null,
               c.address || null,
               c.birthDate || null,
               c.preferredChannel,
@@ -214,8 +215,8 @@ export class CustomerService {
 
       const customerInsertQuery = `
         INSERT INTO customers (
-          id, first_name, last_name, phone_whatsapp, email, address, birth_date, preferred_channel, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 'LOCAL'::acquisition_channel), $9)
+          id, first_name, last_name, phone_whatsapp, email, instagram, address, birth_date, preferred_channel, notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 'LOCAL'::acquisition_channel), $10)
         RETURNING id;
       `;
 
@@ -225,6 +226,7 @@ export class CustomerService {
         dto.lastName.trim(),
         cleanPhone,
         dto.email ? dto.email.trim().toLowerCase() : null,
+        dto.instagram ? dto.instagram.trim() : null,
         dto.address ? dto.address.trim() : null,
         dto.birthDate || null,
         dto.preferredChannel || AcquisitionChannel.LOCAL,
@@ -306,6 +308,7 @@ export class CustomerService {
       lastName: dto.lastName.trim(),
       phoneWhatsapp: cleanPhone,
       email: dto.email ? dto.email.trim().toLowerCase() : undefined,
+      instagram: dto.instagram ? dto.instagram.trim() : undefined,
       address: dto.address ? dto.address.trim() : undefined,
       birthDate: dto.birthDate || undefined,
       preferredChannel: dto.preferredChannel || AcquisitionChannel.LOCAL,
@@ -334,7 +337,7 @@ export class CustomerService {
   async getUnifiedProfile(customerId: string): Promise<UnifiedCustomerProfile> {
     const customerQuery = `
       SELECT 
-        id, first_name, last_name, phone_whatsapp, email, address, 
+        id, first_name, last_name, phone_whatsapp, email, instagram, address, 
         birth_date, preferred_channel, points_balance, is_active, notes,
         created_at, updated_at
       FROM customers
@@ -415,6 +418,7 @@ export class CustomerService {
           lastName: customer.last_name,
           phoneWhatsapp: customer.phone_whatsapp,
           email: customer.email || undefined,
+          instagram: customer.instagram || undefined,
           address: customer.address || undefined,
           birthDate: toSafeDateString(customer.birth_date),
           preferredChannel: customer.preferred_channel || AcquisitionChannel.LOCAL,
@@ -464,7 +468,8 @@ export class CustomerService {
         const p2 = params.push(pattern);
         const p3 = params.push(pattern);
         const p4 = params.push(pattern);
-        sql += ` AND (c.first_name ILIKE $${p1} OR c.last_name ILIKE $${p2} OR c.phone_whatsapp ILIKE $${p3} OR c.email ILIKE $${p4})`;
+        const p5 = params.push(pattern);
+        sql += ` AND (c.first_name ILIKE $${p1} OR c.last_name ILIKE $${p2} OR c.phone_whatsapp ILIKE $${p3} OR c.email ILIKE $${p4} OR c.instagram ILIKE $${p5})`;
       }
 
       if (filters.channel) {
@@ -496,7 +501,8 @@ export class CustomerService {
         c.firstName.toLowerCase().includes(q) ||
         c.lastName.toLowerCase().includes(q) ||
         c.phoneWhatsapp.includes(q) ||
-        (c.email && c.email.toLowerCase().includes(q))
+        (c.email && c.email.toLowerCase().includes(q)) ||
+        (c.instagram && c.instagram.toLowerCase().includes(q))
       );
     }
 
@@ -525,6 +531,7 @@ export class CustomerService {
     const lastName = dto.lastName !== undefined ? dto.lastName.trim() : existing.lastName;
     const phoneWhatsapp = dto.phoneWhatsapp !== undefined ? dto.phoneWhatsapp.trim().replace(/\s+/g, '') : existing.phoneWhatsapp;
     const email = dto.email !== undefined ? (dto.email ? dto.email.trim().toLowerCase() : null) : (existing.email || null);
+    const instagram = dto.instagram !== undefined ? (dto.instagram ? dto.instagram.trim() : null) : (existing.instagram || null);
     const address = dto.address !== undefined ? (dto.address ? dto.address.trim() : null) : (existing.address || null);
     const birthDate = dto.birthDate !== undefined ? dto.birthDate : (existing.birthDate || null);
     const preferredChannel = dto.preferredChannel !== undefined ? dto.preferredChannel : existing.preferredChannel;
@@ -533,14 +540,14 @@ export class CustomerService {
 
     const query = `
       UPDATE customers
-      SET first_name = $1, last_name = $2, phone_whatsapp = $3, email = $4, address = $5,
-          birth_date = $6, preferred_channel = $7, notes = $8, is_active = $9, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $10;
+      SET first_name = $1, last_name = $2, phone_whatsapp = $3, email = $4, instagram = $5, address = $6,
+          birth_date = $7, preferred_channel = $8, notes = $9, is_active = $10, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $11;
     `;
 
     try {
       await this.db.query(query, [
-        firstName, lastName, phoneWhatsapp, email, address,
+        firstName, lastName, phoneWhatsapp, email, instagram, address,
         birthDate || null, preferredChannel, notes, isActive, customerId
       ]);
 
@@ -582,6 +589,7 @@ export class CustomerService {
         lastName,
         phoneWhatsapp,
         email: email || undefined,
+        instagram: instagram || undefined,
         address: address || undefined,
         birthDate: birthDate || undefined,
         preferredChannel,

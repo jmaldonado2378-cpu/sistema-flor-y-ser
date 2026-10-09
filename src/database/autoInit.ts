@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { importCatalogSeed } from './seedCatalog';
 
 /**
  * AutoInitDatabase - Verfica y crea automáticamente la estructura de tablas MySQL
@@ -18,6 +19,14 @@ export async function autoInitDatabase(db: any): Promise<boolean> {
         await db.query("ALTER TABLE `orders` MODIFY COLUMN `status` VARCHAR(50) NOT NULL DEFAULT 'RECEIVED'");
       } catch (e: any) {
         // Ignorar si ya está modificado o no aplica
+      }
+
+      try {
+        // Garantizar que la columna instagram exista en customers
+        await db.query("ALTER TABLE `customers` ADD COLUMN `instagram` VARCHAR(100) NULL AFTER `email`");
+        console.log("✅ Columna 'instagram' añadida a tabla customers");
+      } catch (e: any) {
+        // Ignorar si ya existe
       }
 
       try {
@@ -44,6 +53,18 @@ export async function autoInitDatabase(db: any): Promise<boolean> {
           )
         `);
       } catch (e: any) {}
+
+      // Sincronizar catálogo base de Costos SISTEMA si faltan productos
+      try {
+        const prodCheck = await db.query('SELECT COUNT(*) AS total FROM final_products');
+        const prodTotal = parseInt(prodCheck.rows[0]?.total ?? prodCheck.rows[0]?.['COUNT(*)'] ?? '0', 10);
+        if (prodTotal < 50) {
+          console.log(`📦 Catálogo de productos inicial (${prodTotal} productos). Sincronizando catálogo completo desde Costos SISTEMA...`);
+          await importCatalogSeed(db);
+        }
+      } catch (err: any) {
+        console.warn('⚠️ Nota al verificar importación de catálogo:', err.message);
+      }
 
       return true;
     }
@@ -82,6 +103,7 @@ export async function autoInitDatabase(db: any): Promise<boolean> {
 
     await db.query('SET FOREIGN_KEY_CHECKS = 1');
     console.log(`🚀 Esquema de MySQL inicializado exitosamente (${executed} sentencias ejecutadas)!`);
+    await importCatalogSeed(db);
     return true;
   } catch (error: any) {
     console.error('❌ No se pudo auto-inicializar la base de datos MySQL:', error.message);

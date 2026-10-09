@@ -77,6 +77,7 @@ CREATE TABLE customers (
     last_name VARCHAR(100) NOT NULL,
     phone_whatsapp VARCHAR(20) NOT NULL UNIQUE,
     email VARCHAR(150) UNIQUE,
+    instagram VARCHAR(100),
     address TEXT,
     birth_date DATE,
     preferred_channel acquisition_channel NOT NULL DEFAULT 'LOCAL',

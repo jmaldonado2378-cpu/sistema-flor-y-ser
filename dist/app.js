@@ -289,6 +289,15 @@ app.delete('/api/v1/marketing/campaigns/:id', auth_1.requireAuth, marketingContr
 // Diagnóstico de Sistema & Purga de Datos Semilla
 app.get('/api/v1/system/db-status', auth_1.requireAuth, systemController.getDbStatus);
 app.post('/api/v1/system/purge-seed-data', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), systemController.purgeSeedData);
+app.post('/api/v1/system/import-catalog', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), async (_req, res) => {
+    try {
+        const result = await (0, database_1.importCatalogSeed)(db);
+        res.json({ success: result.success, message: result.message || 'Catálogo importado exitosamente', data: result.counts });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
 // Módulo de Inventario: Materias Primas
 app.get('/api/v1/raw-materials', auth_1.requireAuth, rawMaterialController.getAll);
 app.post('/api/v1/raw-materials', auth_1.requireAuth, rawMaterialController.create);

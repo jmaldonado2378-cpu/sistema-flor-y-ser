@@ -17,7 +17,7 @@ if (fs.existsSync(path.join(__dirname, '../.env'))) {
 
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import { createDatabasePool, autoInitDatabase } from './database';
+import { createDatabasePool, autoInitDatabase, importCatalogSeed } from './database';
 import { requireAuth, requireRole } from './middleware/auth';
 
 import { CustomerService } from './services/customerService';
@@ -354,6 +354,14 @@ app.delete('/api/v1/marketing/campaigns/:id', requireAuth, marketingController.d
 // Diagnóstico de Sistema & Purga de Datos Semilla
 app.get('/api/v1/system/db-status', requireAuth, systemController.getDbStatus);
 app.post('/api/v1/system/purge-seed-data', requireAuth, requireRole('ADMIN'), systemController.purgeSeedData);
+app.post('/api/v1/system/import-catalog', requireAuth, requireRole('ADMIN'), async (_req: Request, res: Response) => {
+  try {
+    const result = await importCatalogSeed(db);
+    res.json({ success: result.success, message: result.message || 'Catálogo importado exitosamente', data: result.counts });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // Módulo de Inventario: Materias Primas
 app.get('/api/v1/raw-materials', requireAuth, rawMaterialController.getAll);

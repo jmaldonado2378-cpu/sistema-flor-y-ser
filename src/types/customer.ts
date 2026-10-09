@@ -29,6 +29,7 @@ export interface CreateCustomerDTO {
   lastName: string;
   phoneWhatsapp: string;
   email?: string;
+  instagram?: string;
   address?: string;
   birthDate?: string; // YYYY-MM-DD
   preferredChannel?: AcquisitionChannel;
@@ -42,6 +43,7 @@ export interface UpdateCustomerDTO {
   lastName?: string;
   phoneWhatsapp?: string;
   email?: string;
+  instagram?: string;
   address?: string;
   birthDate?: string;
   preferredChannel?: AcquisitionChannel;
@@ -76,6 +78,7 @@ export interface UnifiedCustomerProfile {
   lastName: string;
   phoneWhatsapp: string;
   email?: string;
+  instagram?: string;
   address?: string;
   birthDate?: string;
   preferredChannel: AcquisitionChannel;

@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS `customers` (
   `last_name` VARCHAR(100) NOT NULL,
   `phone_whatsapp` VARCHAR(30) NOT NULL UNIQUE,
   `email` VARCHAR(150) NULL UNIQUE,
+  `instagram` VARCHAR(100) NULL,
   `address` TEXT NULL,
   `birth_date` DATE NULL,
   `preferred_channel` ENUM('LOCAL', 'WHATSAPP', 'ONLINE_STORE', 'INSTAGRAM') NOT NULL DEFAULT 'LOCAL',
