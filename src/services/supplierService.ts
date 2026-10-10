@@ -319,7 +319,41 @@ export class SupplierService {
                WHERE id = $3;`,
               [item.quantity, item.unitCost, productId]
             );
+            try {
+              await client.query(
+                `UPDATE final_products 
+                 SET current_stock = current_stock + $1, cost_price = $2, updated_at = CURRENT_TIMESTAMP 
+                 WHERE id = $3 OR code = $3;`,
+                [item.quantity, item.unitCost, productId]
+              );
+            } catch {}
+            try {
+              await client.query(
+                `UPDATE raw_materials 
+                 SET current_stock = current_stock + $1, cost_per_unit = $2, updated_at = CURRENT_TIMESTAMP 
+                 WHERE id = $3 OR code = $3;`,
+                [item.quantity, item.unitCost, productId]
+              );
+            } catch {}
           } else {
+            // Si no vino productId, intentar asociar por nombre a final_products o raw_materials
+            try {
+              const fpByName = await client.query(
+                `UPDATE final_products 
+                 SET current_stock = current_stock + $1, cost_price = $2, updated_at = CURRENT_TIMESTAMP 
+                 WHERE LOWER(name) = LOWER($3);`,
+                [item.quantity, item.unitCost, item.itemName.trim()]
+              );
+              if (fpByName.rowCount === 0) {
+                await client.query(
+                  `UPDATE raw_materials 
+                   SET current_stock = current_stock + $1, cost_per_unit = $2, updated_at = CURRENT_TIMESTAMP 
+                   WHERE LOWER(name) = LOWER($3);`,
+                  [item.quantity, item.unitCost, item.itemName.trim()]
+                );
+              }
+            } catch {}
+
             const sku = 'PROD-' + Date.now().toString().slice(-6) + Math.floor(Math.random() * 100);
             const newProdRes = await client.query(
               `INSERT INTO products (sku, name, product_type, unit_of_measure, current_stock, cost_price, supplier_id)
@@ -622,7 +656,7 @@ export class SupplierService {
       const query = `
         SELECT r.*, s.business_name AS supplier_name, s.tax_id AS supplier_tax_id
         FROM merchandise_receipts r
-        JOIN suppliers s ON r.supplier_id = s.id
+        LEFT JOIN suppliers s ON r.supplier_id = s.id
         WHERE r.id = $1;
       `;
       const res = await this.db.query(query, [receiptId]);
@@ -653,7 +687,7 @@ export class SupplierService {
           id: row.id,
           receiptNumber: row.receipt_number,
           supplierId: row.supplier_id,
-          supplierName: row.supplier_name,
+          supplierName: row.supplier_name || 'Proveedor General',
           supplierTaxId: row.supplier_tax_id,
           receiptType: row.receipt_type as ReceiptType,
           issueDate: row.issue_date.toISOString().split('T')[0],
@@ -688,7 +722,7 @@ export class SupplierService {
       let sql = `
         SELECT r.id
         FROM merchandise_receipts r
-        JOIN suppliers s ON r.supplier_id = s.id
+        LEFT JOIN suppliers s ON r.supplier_id = s.id
         WHERE 1=1
       `;
       const params: any[] = [];

@@ -10,6 +10,7 @@ import {
 import { AcquisitionChannel } from '../types/customer';
 import { PaymentService } from './paymentService';
 import { CustomerService } from './customerService';
+import { CheckingAccountService } from './checkingAccountService';
 import { isConnectionError } from '../database/mysqlAdapter';
 
 /**
@@ -61,7 +62,8 @@ export class SaleService {
   constructor(
     private db: any,
     private paymentService: PaymentService,
-    private customerService?: CustomerService
+    private customerService?: CustomerService,
+    private checkingAccountService?: CheckingAccountService
   ) {}
 
   // ------------------------------------------------------------------
@@ -239,12 +241,46 @@ export class SaleService {
         throw new Error('MySQL no devolvió el ID del pedido insertado.');
       }
 
-      // 4. Ítems
+      // 4. Ítems y Descuento de Stock
       for (const item of items) {
         await client.query(
           `INSERT INTO order_items (order_id, product_name, product_id, is_bulk_fractioned, quantity, unit_price, subtotal, notes)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
           [orderId, item.productName, item.productId, item.isBulkFractioned, item.quantity, item.unitPrice, item.quantity * item.unitPrice, item.notes]
+        );
+
+        // Descontar inventario del producto si está asociado
+        if (item.productId) {
+          try {
+            await client.query(
+              `UPDATE final_products 
+               SET current_stock = GREATEST(0, current_stock - $1), updated_at = CURRENT_TIMESTAMP 
+               WHERE id = $2`,
+              [item.quantity, item.productId]
+            );
+            await client.query(
+              `UPDATE products 
+               SET current_stock = GREATEST(0, current_stock - $1), updated_at = CURRENT_TIMESTAMP 
+               WHERE id = $2`,
+              [item.quantity, item.productId]
+            );
+          } catch (stockErr: any) {
+            console.warn(`⚠️ No se pudo actualizar stock para producto ${item.productId}:`, stockErr.message);
+          }
+        }
+      }
+
+      // 5. Imputar en Cuenta Corriente si la venta es a crédito / cuenta corriente / fiado
+      if (isCredit && this.checkingAccountService) {
+        const desc = `Compra a Cta Cte Pedido ${orderNumber}`;
+        await this.checkingAccountService.addMovement(
+          dto.customerId,
+          'DEBIT',
+          totalAmount,
+          'ORDER',
+          desc,
+          orderId,
+          client
         );
       }
 

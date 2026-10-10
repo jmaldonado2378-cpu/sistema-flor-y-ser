@@ -122,7 +122,7 @@ const checkingAccountController = new CheckingAccountController(checkingAccountS
 const paymentService = new PaymentService(db, checkingAccountService);
 const paymentController = new PaymentController(paymentService);
 
-const saleService = new SaleService(db, paymentService, customerService);
+const saleService = new SaleService(db, paymentService, customerService, checkingAccountService);
 const saleController = new SaleController(saleService);
 
 const quoteService = new QuoteService(db, saleService);
