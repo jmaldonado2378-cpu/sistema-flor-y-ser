@@ -237,6 +237,7 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
               <option value="WHATSAPP">WhatsApp</option>
               <option value="LOCAL">Local / Mostrador</option>
               <option value="ONLINE_STORE">Tienda Online</option>
+              <option value="INSTAGRAM">Instagram</option>
             </select>
             <select 
               className="input" 
@@ -280,10 +281,13 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
                       {customer.firstName || customer.lastName 
                         ? `${customer.firstName || ''} ${customer.lastName || ''}`.trim() 
                         : ((customer as any).fullName || (customer as any).name || 'Cliente')}
+                      {customer.instagram && (
+                        <div className="text-xs text-text-muted" style={{ fontWeight: 400 }}>📷 {customer.instagram}</div>
+                      )}
                     </td>
                     <td>
                       <span className="badge gray">
-                        {customer.preferredChannel === 'WHATSAPP' ? '📱 WhatsApp' : customer.preferredChannel === 'ONLINE_STORE' ? '🌐 Online' : '🏪 Local'}
+                        {customer.preferredChannel === 'WHATSAPP' ? '📱 WhatsApp' : customer.preferredChannel === 'ONLINE_STORE' ? '🌐 Online' : customer.preferredChannel === 'INSTAGRAM' ? '📷 Instagram' : '🏪 Local'}
                       </span>
                     </td>
                     <td><span className="badge green">{customer.segment || 'FRECUENTE'}</span></td>
@@ -422,6 +426,7 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
                 <option value="LOCAL">Local / Mostrador</option>
                 <option value="WHATSAPP">WhatsApp</option>
                 <option value="ONLINE_STORE">Tienda Online</option>
+                <option value="INSTAGRAM">Instagram</option>
               </select>
             </div>
           </div>
@@ -511,6 +516,7 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
                 <option value="LOCAL">Local / Mostrador</option>
                 <option value="WHATSAPP">WhatsApp</option>
                 <option value="ONLINE_STORE">Tienda Online</option>
+                <option value="INSTAGRAM">Instagram</option>
               </select>
             </div>
           </div>
@@ -556,13 +562,14 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
               </div>
               <div className="text-right">
                 <div className="text-xs text-text-muted">Puntos de Fidelización</div>
-                <div className="text-xl font-bold text-primary-sage"><Award size={18} /> {viewingCustomer.points || 0} pts</div>
+                <div className="text-xl font-bold text-primary-sage"><Award size={18} /> {(viewingCustomer as any).pointsBalance ?? viewingCustomer.points ?? 0} pts</div>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div className="flex items-center gap-2"><Phone size={16} className="text-primary-sage" /> <span>{viewingCustomer.phoneWhatsapp}</span></div>
               <div className="flex items-center gap-2"><Mail size={16} className="text-primary-sage" /> <span>{viewingCustomer.email || 'Sin correo registrado'}</span></div>
+              <div className="flex items-center gap-2"><span className="text-primary-sage">📷</span> <span>{viewingCustomer.instagram || 'Sin Instagram registrado'}</span></div>
               <div className="flex items-center gap-2"><MapPin size={16} className="text-primary-sage" /> <span>{viewingCustomer.address || 'Sin dirección registrada'}</span></div>
               <div className="flex items-center gap-2"><Calendar size={16} className="text-primary-sage" /> <span>Nac: {viewingCustomer.birthDate || 'No informada'}</span></div>
             </div>

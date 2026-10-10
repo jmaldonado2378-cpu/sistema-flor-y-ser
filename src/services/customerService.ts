@@ -38,147 +38,23 @@ function toSafeDateString(val: any): string | undefined {
 export class CustomerService {
   private seeded = false;
 
-  private inMemoryCustomers: UnifiedCustomerProfile[] = [
-    {
-      id: 'c1000000-0000-0000-0000-000000000001',
-      firstName: 'Martina',
-      lastName: 'Gómez',
-      phoneWhatsapp: '+5491155439821',
-      email: 'martina.gomez@email.com',
-      address: 'Av. Corrientes 3421, CABA',
-      birthDate: '1992-07-25',
-      preferredChannel: AcquisitionChannel.WHATSAPP,
-      segment: CustomerSegment.FRECUENTE,
-      pointsBalance: 1250,
-      equivalentDiscountAmount: 1250,
-      isActive: true,
-      notes: 'Prefiere entregas los días martes por la tarde. Compradora habitual de avena y leches vegetales.',
-      dietaryProfiles: [
-        { id: '10000000-0000-0000-0000-000000000001', code: 'VEGAN', name: 'Vegano', badgeColorHex: '#5E7055' },
-        { id: '10000000-0000-0000-0000-000000000002', code: 'CELIAC', name: 'Sin TACC / Celíaco', badgeColorHex: '#C87053', specificNotes: 'Diagnóstico celíaco confirmado. Evitar contaminación cruzada.' },
-        { id: '10000000-0000-0000-0000-000000000003', code: 'ORGANIC', name: 'Orgánico / Agroecológico', badgeColorHex: '#8B9A46' }
-      ],
-      purchaseStats: {
-        totalOrders: 6,
-        totalSpent: 62250,
-        averageTicket: 10375,
-        lastPurchaseDate: '2026-07-20T14:30:00Z',
-        daysSinceLastPurchase: 2,
-        purchaseFrequencyDays: 8
-      },
-      createdAt: '2026-05-10T10:00:00Z',
-      updatedAt: '2026-07-20T14:30:00Z'
-    },
-    {
-      id: 'c2000000-0000-0000-0000-000000000002',
-      firstName: 'Lucas',
-      lastName: 'Benítez',
-      phoneWhatsapp: '+5491144321199',
-      email: 'lucas.benitez@email.com',
-      address: 'Calle Florida 890, CABA',
-      birthDate: '1988-11-15',
-      preferredChannel: AcquisitionChannel.LOCAL,
-      segment: CustomerSegment.VIP,
-      pointsBalance: 3400,
-      equivalentDiscountAmount: 3400,
-      isActive: true,
-      notes: 'Cliente VIP de mostrador. Compra grandes volúmenes de frutos secos a granel.',
-      dietaryProfiles: [
-        { id: '10000000-0000-0000-0000-000000000006', code: 'KETO', name: 'Dieta Keto / Cetogénica', badgeColorHex: '#10B981' }
-      ],
-      purchaseStats: {
-        totalOrders: 15,
-        totalSpent: 185000,
-        averageTicket: 12333,
-        lastPurchaseDate: '2026-07-18T11:20:00Z',
-        daysSinceLastPurchase: 4,
-        purchaseFrequencyDays: 6
-      },
-      createdAt: '2026-01-15T09:15:00Z',
-      updatedAt: '2026-07-18T11:20:00Z'
-    },
-    {
-      id: 'c3000000-0000-0000-0000-000000000003',
-      firstName: 'Camila',
-      lastName: 'Sosa',
-      phoneWhatsapp: '+5491166778899',
-      email: 'camila.sosa@email.com',
-      address: 'Av. Cabildo 1540, Belgrano, CABA',
-      birthDate: '1995-07-22',
-      preferredChannel: AcquisitionChannel.ONLINE_STORE,
-      segment: CustomerSegment.OCASIONAL,
-      pointsBalance: 450,
-      equivalentDiscountAmount: 450,
-      isActive: true,
-      notes: 'Cumpleaños en el mes corriente.',
-      dietaryProfiles: [
-        { id: '10000000-0000-0000-0000-000000000004', code: 'DIABETIC', name: 'Apto Diabéticos', badgeColorHex: '#6A5ACD' }
-      ],
-      purchaseStats: {
-        totalOrders: 2,
-        totalSpent: 14500,
-        averageTicket: 7250,
-        lastPurchaseDate: '2026-06-01T16:00:00Z',
-        daysSinceLastPurchase: 51,
-        purchaseFrequencyDays: 30
-      },
-      createdAt: '2026-04-01T12:00:00Z',
-      updatedAt: '2026-06-01T16:00:00Z'
-    }
-  ];
-
   constructor(private db: any) {}
 
+  /**
+   * Persistencia estricta: ya NO se insertan clientes de ejemplo en la base real.
+   * Se mantiene el método por compatibilidad con otros servicios que lo invocan.
+   */
   public async ensureSeedCustomers(): Promise<void> {
-    if (this.seeded) return;
-    try {
-      const checkRes = await this.db.query('SELECT COUNT(*) AS total FROM customers');
-      const total = parseInt(checkRes.rows[0]?.total ?? checkRes.rows[0]?.['COUNT(*)'] ?? '0', 10);
-      if (total === 0) {
-        console.log('🌱 Inicializando clientes base en MySQL...');
-        for (const c of this.inMemoryCustomers) {
-          try {
-            await this.db.query(`
-              INSERT INTO customers (
-                id, first_name, last_name, phone_whatsapp, email, instagram, address, birth_date, preferred_channel, points_balance, notes, is_active
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1)
-              ON DUPLICATE KEY UPDATE first_name = VALUES(first_name);
-            `, [
-              c.id,
-              c.firstName,
-              c.lastName,
-              c.phoneWhatsapp,
-              c.email || null,
-              c.instagram || null,
-              c.address || null,
-              c.birthDate || null,
-              c.preferredChannel,
-              c.pointsBalance,
-              c.notes || null
-            ]);
+    this.seeded = true;
+  }
 
-            if (c.dietaryProfiles && c.dietaryProfiles.length > 0) {
-              for (const dp of c.dietaryProfiles) {
-                const dpId = dp.id.startsWith('dp-') ? dp.id : (DIETARY_CODE_TO_ID[dp.id] || `dp-${dp.id.slice(-1)}`);
-                try {
-                  await this.db.query(`
-                    INSERT INTO customer_dietary_profiles (customer_id, dietary_profile_id, specific_notes)
-                    VALUES ($1, $2, $3)
-                    ON DUPLICATE KEY UPDATE specific_notes = VALUES(specific_notes);
-                  `, [c.id, dpId, dp.specificNotes || null]);
-                } catch {}
-              }
-            }
-          } catch (e: any) {
-            console.warn(`Aviso al insertar cliente inicial ${c.firstName}:`, e.message);
-          }
-        }
-        console.log('✅ Clientes base inicializados exitosamente en MySQL.');
-      }
-      this.seeded = true;
-    } catch (err: any) {
-      console.warn('⚠️ No se pudo inicializar clientes base en BD:', err?.message || err);
-    }
+  /** Error explícito de persistencia: nunca se simula éxito si MySQL no guardó. */
+  private persistenceError(action: string, error: any): Error {
+    const detail = error?.sqlMessage || error?.message || 'error desconocido';
+    console.error(`❌ [Clientes] Error al ${action} en MySQL:`, detail);
+    const err: any = new Error(`No se pudo ${action} en la base de datos: ${detail}`);
+    err.statusCode = 503;
+    return err;
   }
 
   /**
@@ -216,8 +92,7 @@ export class CustomerService {
       const customerInsertQuery = `
         INSERT INTO customers (
           id, first_name, last_name, phone_whatsapp, email, instagram, address, birth_date, preferred_channel, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 'LOCAL'::acquisition_channel), $10)
-        RETURNING id;
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
       `;
 
       const customerValues = [
@@ -234,7 +109,10 @@ export class CustomerService {
       ];
 
       const customerResult = await client.query(customerInsertQuery, customerValues);
-      const insertedId = customerResult.rows[0]?.id || customerId;
+      if (!customerResult || customerResult.rowCount === 0) {
+        throw new Error('MySQL no confirmó la inserción del cliente.');
+      }
+      const insertedId = customerId;
 
       // Asociar perfiles dietéticos si existen
       if (dto.dietaryProfileIds && dto.dietaryProfileIds.length > 0) {
@@ -276,59 +154,12 @@ export class CustomerService {
       ) {
         throw new Error(`Ya existe un cliente registrado con el número de teléfono o correo especificado.`);
       }
-      console.error('Error al registrar cliente en MySQL, usando fallback:', error);
-      // Fallback a almacenamiento en memoria si no hay servidor BD activo o falla la BD
-      return this.createCustomerInMemory(dto);
+      throw this.persistenceError('registrar el cliente', error);
     } finally {
       if (client) {
         try { client.release(); } catch {}
       }
     }
-  }
-
-  private createCustomerInMemory(dto: CreateCustomerDTO): UnifiedCustomerProfile {
-    const cleanPhone = dto.phoneWhatsapp.trim().replace(/\s+/g, '');
-    const duplicate = this.inMemoryCustomers.find(c => c.phoneWhatsapp === cleanPhone);
-    if (duplicate) {
-      throw new Error(`Ya existe un cliente registrado con el WhatsApp ${cleanPhone}.`);
-    }
-
-    const newId = 'c-' + Date.now();
-    const dietaryProfiles: DietaryProfileSummary[] = (dto.dietaryProfileIds || []).map(id => ({
-      id,
-      code: 'CUSTOM_DIET',
-      name: 'Preferencia Personalizada',
-      badgeColorHex: '#5E7055',
-      specificNotes: dto.dietaryNotes ? dto.dietaryNotes[id] : undefined
-    }));
-
-    const newCustomer: UnifiedCustomerProfile = {
-      id: newId,
-      firstName: dto.firstName.trim(),
-      lastName: dto.lastName.trim(),
-      phoneWhatsapp: cleanPhone,
-      email: dto.email ? dto.email.trim().toLowerCase() : undefined,
-      instagram: dto.instagram ? dto.instagram.trim() : undefined,
-      address: dto.address ? dto.address.trim() : undefined,
-      birthDate: dto.birthDate || undefined,
-      preferredChannel: dto.preferredChannel || AcquisitionChannel.LOCAL,
-      segment: CustomerSegment.OCASIONAL,
-      pointsBalance: 0,
-      equivalentDiscountAmount: 0,
-      isActive: true,
-      notes: dto.notes ? dto.notes.trim() : undefined,
-      dietaryProfiles,
-      purchaseStats: {
-        totalOrders: 0,
-        totalSpent: 0,
-        averageTicket: 0
-      },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    this.inMemoryCustomers.unshift(newCustomer);
-    return newCustomer;
   }
 
   /**
@@ -434,14 +265,10 @@ export class CustomerService {
         };
       }
     } catch (err) {
-      console.warn('Error al buscar cliente en BD:', err);
+      throw this.persistenceError('consultar el cliente', err);
     }
 
-    const found = this.inMemoryCustomers.find(c => c.id === customerId);
-    if (!found) {
-      throw new Error(`Cliente con ID ${customerId} no encontrado.`);
-    }
-    return found;
+    throw new Error(`Cliente con ID ${customerId} no encontrado.`);
   }
 
   async getById(customerId: string): Promise<UnifiedCustomerProfile> {
@@ -489,36 +316,8 @@ export class CustomerService {
       return { customers: profiles, total: profiles.length };
 
     } catch (err) {
-      console.error('Error en searchCustomers DB:', err);
-      // Fallback en memoria
+      throw this.persistenceError('listar los clientes', err);
     }
-
-    let result = [...this.inMemoryCustomers];
-
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
-      result = result.filter(c => 
-        c.firstName.toLowerCase().includes(q) ||
-        c.lastName.toLowerCase().includes(q) ||
-        c.phoneWhatsapp.includes(q) ||
-        (c.email && c.email.toLowerCase().includes(q)) ||
-        (c.instagram && c.instagram.toLowerCase().includes(q))
-      );
-    }
-
-    if (filters.channel) {
-      result = result.filter(c => c.preferredChannel === filters.channel);
-    }
-
-    if (filters.isActive !== undefined) {
-      result = result.filter(c => c.isActive === filters.isActive);
-    }
-
-    if (filters.dietaryProfileId) {
-      result = result.filter(c => c.dietaryProfiles.some(dp => dp.id === filters.dietaryProfileId || dp.code === filters.dietaryProfileId));
-    }
-
-    return { customers: result, total: result.length };
   }
 
   /**
@@ -577,30 +376,11 @@ export class CustomerService {
       return await this.getUnifiedProfile(customerId);
 
     } catch (error: any) {
-      console.error('Error al actualizar cliente en MySQL:', error);
-      // Fallback
+      if (error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062) {
+        throw new Error('Ya existe otro cliente con ese teléfono o correo.');
+      }
+      throw this.persistenceError('actualizar el cliente', error);
     }
-
-    const index = this.inMemoryCustomers.findIndex(c => c.id === customerId);
-    if (index !== -1) {
-      this.inMemoryCustomers[index] = {
-        ...this.inMemoryCustomers[index],
-        firstName,
-        lastName,
-        phoneWhatsapp,
-        email: email || undefined,
-        instagram: instagram || undefined,
-        address: address || undefined,
-        birthDate: birthDate || undefined,
-        preferredChannel,
-        notes: notes || undefined,
-        isActive: !!isActive,
-        updatedAt: new Date().toISOString()
-      };
-      return this.inMemoryCustomers[index];
-    }
-
-    throw new Error(`Cliente con ID ${customerId} no pudo ser actualizado.`);
   }
 
   /**
@@ -609,13 +389,8 @@ export class CustomerService {
   async deleteCustomer(customerId: string): Promise<void> {
     try {
       await this.db.query(`UPDATE customers SET is_active = 0 WHERE id = $1;`, [customerId]);
-    } catch {
-      // Fallback
-    }
-
-    const index = this.inMemoryCustomers.findIndex(c => c.id === customerId);
-    if (index !== -1) {
-      this.inMemoryCustomers[index].isActive = false;
+    } catch (error) {
+      throw this.persistenceError('desactivar el cliente', error);
     }
   }
 }

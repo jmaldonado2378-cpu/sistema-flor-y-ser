@@ -140,9 +140,10 @@ class CustomerController {
                 });
                 return;
             }
-            res.status(500).json({
+            const status = error.message?.includes('Ya existe') ? 409 : (error.statusCode || 500);
+            res.status(status).json({
                 success: false,
-                error: 'Error al actualizar los datos del cliente.',
+                error: error.message || 'Error al actualizar los datos del cliente.',
                 details: error.message
             });
         }

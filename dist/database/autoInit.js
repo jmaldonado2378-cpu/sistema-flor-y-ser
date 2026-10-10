@@ -14,7 +14,20 @@ const seedCatalog_1 = require("./seedCatalog");
 async function autoInitDatabase(db) {
     try {
         // 1. Probar si la base de datos responde y si existe la tabla de usuarios
-        const checkResult = await db.query("SHOW TABLES LIKE 'system_users'");
+        //    Reintenta hasta 6 veces (≈30s) para no saltear migraciones si MySQL tarda al arrancar.
+        let checkResult = null;
+        for (let attempt = 1; attempt <= 6; attempt++) {
+            try {
+                checkResult = await db.query("SHOW TABLES LIKE 'system_users'");
+                break;
+            }
+            catch (e) {
+                console.warn(`⏳ MySQL aún no responde (intento ${attempt}/6): ${e.message}`);
+                if (attempt === 6)
+                    throw e;
+                await new Promise(r => setTimeout(r, 5000));
+            }
+        }
         if (checkResult.rows && checkResult.rows.length > 0) {
             console.log('✅ Base de datos MySQL inicializada y tablas verificadas.');
             // Migraciones de compatibilidad automáticas
@@ -82,11 +95,14 @@ async function autoInitDatabase(db) {
         // Desactivar claves foráneas temporalmente durante la creación de tablas
         await db.query('SET FOREIGN_KEY_CHECKS = 0');
         // Limpiar comentarios de bloque y dividir por punto y coma
+        // PROTECCIÓN DE DATOS: el arranque automático NUNCA ejecuta sentencias destructivas
+        // (DROP / TRUNCATE / DELETE). Solo crea lo que falta.
         const cleanSql = schemaSql.replace(/--.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
         const statements = cleanSql
             .split(';')
             .map(s => s.trim())
-            .filter(s => s.length > 0);
+            .filter(s => s.length > 0)
+            .filter(s => !/^(DROP|TRUNCATE|DELETE)\b/i.test(s));
         let executed = 0;
         for (const statement of statements) {
             try {
