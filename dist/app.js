@@ -287,7 +287,7 @@ app.post('/api/v1/marketing/campaigns/audience-preview', auth_1.requireAuth, mar
 app.post('/api/v1/marketing/campaigns/:id/send', auth_1.requireAuth, marketingController.sendCampaign);
 app.delete('/api/v1/marketing/campaigns/:id', auth_1.requireAuth, marketingController.deleteCampaign);
 // Diagnóstico de Sistema & Purga de Datos Semilla
-app.get('/api/v1/system/db-status', auth_1.requireAuth, systemController.getDbStatus);
+app.get('/api/v1/system/db-status', systemController.getDbStatus);
 app.post('/api/v1/system/purge-seed-data', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), systemController.purgeSeedData);
 app.post('/api/v1/system/import-catalog', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), async (_req, res) => {
     try {

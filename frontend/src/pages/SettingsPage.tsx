@@ -554,7 +554,21 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
                     headers: token ? { 'Authorization': `Bearer ${token}` } : {}
                   });
                   const json = await res.json();
-                  alert(`🔍 Estado de Base de Datos:\n\n${json.data?.message || 'OK'}\nBase: ${json.data?.databaseName}\nTablas activas: ${json.data?.tablesCount}`);
+                  if (res.ok && json.data) {
+                    const d = json.data;
+                    const tables = d.tables || {};
+                    const tablesList = Object.entries(tables)
+                      .map(([t, count]) => `  • ${t}: ${count}`)
+                      .join('\n');
+                    alert(`🔍 Estado de Base de Datos MySQL:\n\n` +
+                          `Estado: ${d.connected ? '✅ Conexión Activa y Operativa' : '⚠️ En modo local'}\n` +
+                          `Base de Datos: ${d.databaseName}\n` +
+                          `Servidor / Socket: ${d.host}\n` +
+                          `Tablas Verificadas: ${d.tablesCount}\n\n` +
+                          `Registros en Tablas Principales:\n${tablesList}`);
+                  } else {
+                    alert(`⚠️ Diagnóstico de Base de Datos:\n\n${json.error || json.message || 'No se pudo obtener información del servidor.'}`);
+                  }
                 } catch (e: any) {
                   alert('Error al probar conexión: ' + e.message);
                 }

@@ -23,7 +23,7 @@ const MODULE_LABELS: { key: ModuleKey; label: string; group: string }[] = [
 ];
 
 export const UserManagement: React.FC = () => {
-  const { users, createUser, updateUser, deleteUser, user: currentUser } = useAuth();
+  const { users, createUser, updateUser, deleteUser, syncPendingUsers, user: currentUser } = useAuth();
   
   const [activeTab, setActiveTab] = useState<'users' | 'audit'>('users');
   const [showModal, setShowModal] = useState(false);
@@ -40,6 +40,8 @@ export const UserManagement: React.FC = () => {
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [auditFilter, setAuditFilter] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   if (currentUser?.role !== 'ADMIN') {
     return (
@@ -96,7 +98,33 @@ export const UserManagement: React.FC = () => {
     setShowModal(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const res = await syncPendingUsers();
+      if (res.synced > 0) {
+        alert(`🎉 ¡Sincronización Exitosa!\n\nSe subieron ${res.synced} usuarios a la base de datos MySQL de Hostinger. Ahora pueden conectarse sin problemas desde cualquier teléfono o dispositivo.`);
+      } else {
+        alert(`✅ Todos los usuarios están sincronizados y al día en MySQL.`);
+      }
+    } catch (e: any) {
+      alert(`Error al sincronizar: ${e.message}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleDeleteUser = async (u: User) => {
+    if (!window.confirm(`¿Estás seguro de que deseas desactivar / eliminar al usuario "${u.name}" (${u.email})?`)) {
+      return;
+    }
+    const res = await deleteUser(u.id);
+    if (!res.success) {
+      alert(`Error al eliminar usuario: ${res.error}`);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email) return;
 
@@ -113,13 +141,28 @@ export const UserManagement: React.FC = () => {
       active
     };
 
-    if (editingUser) {
-      updateUser(editingUser.id, userData);
-    } else {
-      createUser(userData);
+    setSaving(true);
+    try {
+      if (editingUser) {
+        const res = await updateUser(editingUser.id, userData);
+        if (res.success) {
+          alert(`✅ Usuario "${name}" actualizado correctamente en la base de datos MySQL.`);
+          setShowModal(false);
+        } else {
+          alert(`❌ Error al actualizar usuario: ${res.error}`);
+        }
+      } else {
+        const res = await createUser(userData);
+        if (res.success) {
+          alert(`✅ ¡Usuario creado exitosamente en MySQL de Hostinger!\n\n• Nombre: ${name}\n• Email: ${email}\n• Clave: ${password}\n\nEste usuario ya puede iniciar sesión desde cualquier teléfono celular, tablet o computadora.`);
+          setShowModal(false);
+        } else {
+          alert(`❌ No se pudo guardar el usuario en la base de datos:\n\n${res.error}\n\nVerifica que tu sesión de Administrador no haya expirado.`);
+        }
+      }
+    } finally {
+      setSaving(false);
     }
-
-    setShowModal(false);
   };
 
   const toggleModuleForUser = (user: User, moduleKey: ModuleKey) => {
@@ -163,15 +206,39 @@ export const UserManagement: React.FC = () => {
         </div>
 
         {activeTab === 'users' && (
-          <button
-            onClick={handleOpenCreateModal}
-            style={{
-              backgroundColor: '#2E5339', color: '#FFFFFF', border: 'none', padding: '10px 18px', borderRadius: '10px', fontWeight: 600, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
-            }}
-          >
-            <UserPlus size={18} />
-            Nuevo Vendedor / Usuario
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              title="Sincronizar usuarios creados localmente con la base de datos MySQL en Hostinger"
+              style={{
+                backgroundColor: '#F1F5F9',
+                color: '#2E5339',
+                border: '1px solid #CBD5E1',
+                padding: '10px 16px',
+                borderRadius: '10px',
+                fontWeight: 600,
+                fontSize: '14px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                opacity: syncing ? 0.7 : 1
+              }}
+            >
+              <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
+              {syncing ? 'Sincronizando...' : 'Sincronizar con MySQL'}
+            </button>
+            <button
+              onClick={handleOpenCreateModal}
+              style={{
+                backgroundColor: '#2E5339', color: '#FFFFFF', border: 'none', padding: '10px 18px', borderRadius: '10px', fontWeight: 600, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
+              }}
+            >
+              <UserPlus size={18} />
+              Nuevo Vendedor / Usuario
+            </button>
+          </div>
         )}
       </div>
 
@@ -218,7 +285,7 @@ export const UserManagement: React.FC = () => {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <button onClick={() => handleOpenEditModal(u)} title="Editar usuario" style={{ border: 'none', background: '#F1F5F9', padding: '6px', borderRadius: '6px', cursor: 'pointer', color: '#475569' }}><Edit size={15} /></button>
-                    {u.id !== currentUser.id && <button onClick={() => deleteUser(u.id)} title="Eliminar usuario" style={{ border: 'none', background: '#FEE2E2', padding: '6px', borderRadius: '6px', cursor: 'pointer', color: '#DC2626' }}><Trash2 size={15} /></button>}
+                    {u.id !== currentUser.id && <button onClick={() => handleDeleteUser(u)} title="Eliminar usuario" style={{ border: 'none', background: '#FEE2E2', padding: '6px', borderRadius: '6px', cursor: 'pointer', color: '#DC2626' }}><Trash2 size={15} /></button>}
                   </div>
                 </div>
                 <div style={{ backgroundColor: '#F8FAFC', borderRadius: '8px', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #F1F5F9' }}>
@@ -285,8 +352,10 @@ export const UserManagement: React.FC = () => {
                 </div>
               )}
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button type="button" onClick={() => setShowModal(false)}>Cancelar</button>
-                <button type="submit">Guardar</button>
+                <button type="button" onClick={() => setShowModal(false)} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #CBD5E1', background: '#F8FAFC', cursor: 'pointer' }}>Cancelar</button>
+                <button type="submit" disabled={saving} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: '#2E5339', color: '#FFFFFF', fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
+                  {saving ? 'Guardando en MySQL...' : 'Guardar en la Nube'}
+                </button>
               </div>
             </form>
           </div>

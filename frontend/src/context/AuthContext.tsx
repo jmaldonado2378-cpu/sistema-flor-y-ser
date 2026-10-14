@@ -2,14 +2,21 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, ModuleKey, AuthState } from '../types/auth';
 import { addAuditLog } from '../api/client';
 
+export interface UserMutationResult {
+  success: boolean;
+  error?: string;
+}
+
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   hasPermission: (module: ModuleKey) => boolean;
   users: User[];
-  createUser: (user: Omit<User, 'id' | 'createdAt'>) => Promise<void>;
-  updateUser: (userId: string, updates: Partial<User>) => void;
-  deleteUser: (userId: string) => void;
+  createUser: (user: Omit<User, 'id' | 'createdAt'>) => Promise<UserMutationResult>;
+  updateUser: (userId: string, updates: Partial<User>) => Promise<UserMutationResult>;
+  deleteUser: (userId: string) => Promise<UserMutationResult>;
+  syncPendingUsers: () => Promise<{ synced: number; failed: number }>;
+  fetchUsers: (activeToken?: string | null) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -64,45 +71,75 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUsers = async (activeToken?: string | null) => {
     const currentToken = activeToken !== undefined ? activeToken : token;
+    if (!currentToken || currentToken.startsWith('jwt-local-')) return;
+
     try {
       const response = await fetch(`${API_BASE}/auth/users`, {
         headers: {
           'Content-Type': 'application/json',
-          ...(currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {}),
+          'Authorization': `Bearer ${currentToken}`
         }
       });
+
+      if (response.status === 401) {
+        console.warn('⚠️ Token de sesión expirado en el servidor');
+        localStorage.removeItem('floryser_jwt_token');
+        localStorage.removeItem('floryser_current_user_v2');
+        setCurrentUser(null);
+        setToken(null);
+        return;
+      }
+
       if (response.ok) {
         const result = await response.json();
         const apiUsers: User[] = result.data || result;
         if (Array.isArray(apiUsers) && apiUsers.length > 0) {
-          setUsers(apiUsers);
-          localStorage.setItem('floryser_users_v2', JSON.stringify(apiUsers));
-          return;
+          // Fusionar preservando contraseñas conocidas localmente para comodidad del admin
+          setUsers(prev => {
+            const passMap = new Map<string, string>();
+            prev.forEach(u => {
+              if (u.password) passMap.set(u.email.toLowerCase(), u.password);
+            });
+            const merged = apiUsers.map(u => ({
+              ...u,
+              password: passMap.get(u.email.toLowerCase()) || u.password
+            }));
+            localStorage.setItem('floryser_users_v2', JSON.stringify(merged));
+            return merged;
+          });
         }
       }
     } catch (e) {
-      // Fallback a los usuarios locales
+      console.warn('No se pudo sincronizar la lista de usuarios desde MySQL:', e);
     }
   };
 
-  // Restaurar sesión desde localStorage al cargar y sincronizar usuarios desde backend
+  // Restaurar sesión desde localStorage al cargar
   useEffect(() => {
     const savedToken = localStorage.getItem('floryser_jwt_token');
     const savedUser = localStorage.getItem('floryser_current_user_v2');
-    
+
+    // Si el token guardado es el demo local obsoleto, limpiarlo para forzar sesión real JWT
+    if (savedToken && savedToken.startsWith('jwt-local-')) {
+      console.warn('🧹 Token demo obsoleto detectado. Purgando para solicitar autenticación real en la nube...');
+      localStorage.removeItem('floryser_jwt_token');
+      localStorage.removeItem('floryser_current_user_v2');
+      setCurrentUser(null);
+      setToken(null);
+      return;
+    }
+
     if (savedToken && savedUser) {
       try {
         const user = JSON.parse(savedUser);
         setCurrentUser(user);
         setToken(savedToken);
+        fetchUsers(savedToken);
       } catch (e) {
-        // Token o usuario corrupto, limpiar
         localStorage.removeItem('floryser_jwt_token');
         localStorage.removeItem('floryser_current_user_v2');
       }
     }
-
-    fetchUsers(savedToken);
   }, []);
 
   useEffect(() => {
@@ -116,7 +153,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cleanPass = passwordInput.trim();
 
     try {
-      // Autenticación real contra el backend API
+      // Autenticación real contra el backend API de Hostinger
       const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -139,16 +176,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setCurrentUser(user);
         setToken(data.token);
 
-        // Persistir sesión
+        // Persistir sesión oficial con JWT
         localStorage.setItem('floryser_jwt_token', data.token);
         localStorage.setItem('floryser_current_user_v2', JSON.stringify(user));
-
-        // Actualizar lista de usuarios local si no existe
-        setUsers(prev => {
-          const exists = prev.find(u => u.id === user.id);
-          if (!exists) return [...prev, user];
-          return prev.map(u => u.id === user.id ? user : u);
-        });
 
         addAuditLog({
           userName: user.name,
@@ -159,70 +189,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           details: `Inicio de sesión exitoso de ${user.name}`
         });
 
+        // Cargar inmediatamente la lista de usuarios actualizada desde la base de datos
+        fetchUsers(data.token);
+
         return true;
       }
 
-      // Si el backend devuelve error, intentar fallback local
-      return loginFallback(cleanEmail, cleanPass);
+      // Si las credenciales fueron rechazadas por el servidor
+      return false;
     } catch (err) {
-      // Error de red — intentar fallback local
-      console.warn('⚠️ Backend no disponible, usando autenticación local');
-      return loginFallback(cleanEmail, cleanPass);
+      console.error('Error de conexión en login:', err);
+      return false;
     }
-  };
-
-  /**
-   * Fallback local cuando el backend no está disponible
-   */
-  const loginFallback = (email: string, password: string): boolean => {
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanPass = password.trim();
-
-    // Credenciales de Administrador (Juan Pablo)
-    if (cleanEmail === 'jmaldonado2378@gmail.com' && (cleanPass === 'admin123' || cleanPass.toLowerCase() === 'admin123')) {
-      const adminUser: User = DEFAULT_INITIAL_USERS[0];
-      setCurrentUser(adminUser);
-      const demoToken = `jwt-local-${adminUser.id}-${Date.now()}`;
-      setToken(demoToken);
-      localStorage.setItem('floryser_jwt_token', demoToken);
-      localStorage.setItem('floryser_current_user_v2', JSON.stringify(adminUser));
-      return true;
-    }
-
-    // Credenciales de Vendedora (Emilia)
-    if (cleanEmail === 'memimaldonado05@gmail.com' && (cleanPass === 'LaJefa3012' || cleanPass.toLowerCase() === 'lajefa3012')) {
-      const sellerUser: User = DEFAULT_INITIAL_USERS[1];
-      setCurrentUser(sellerUser);
-      const demoToken = `jwt-local-${sellerUser.id}-${Date.now()}`;
-      setToken(demoToken);
-      localStorage.setItem('floryser_jwt_token', demoToken);
-      localStorage.setItem('floryser_current_user_v2', JSON.stringify(sellerUser));
-      return true;
-    }
-
-    // Buscar en pool local de usuarios
-    const pool = users.length > 0 ? users : DEFAULT_INITIAL_USERS;
-    let foundUser = pool.find(u => u.email.toLowerCase() === cleanEmail);
-    if (!foundUser) {
-      foundUser = DEFAULT_INITIAL_USERS.find(u => u.email.toLowerCase() === cleanEmail);
-    }
-
-    if (foundUser) {
-      const defaultPass = cleanEmail === 'jmaldonado2378@gmail.com' ? 'admin123' : 'LaJefa3012';
-      const validPass = foundUser.password || defaultPass;
-
-      if (cleanPass === validPass || cleanPass === defaultPass || cleanPass.toLowerCase() === validPass.toLowerCase()) {
-        const activeUser = { ...foundUser, active: true };
-        setCurrentUser(activeUser);
-        const demoToken = `jwt-local-${activeUser.id}-${Date.now()}`;
-        setToken(demoToken);
-        localStorage.setItem('floryser_jwt_token', demoToken);
-        localStorage.setItem('floryser_current_user_v2', JSON.stringify(activeUser));
-        return true;
-      }
-    }
-
-    return false;
   };
 
   const logout = () => {
@@ -248,14 +226,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return currentUser.allowedModules.includes(module);
   };
 
-  const createUser = async (userData: Omit<User, 'id' | 'createdAt'>) => {
+  /**
+   * Crea un usuario guardándolo directamente en MySQL de Hostinger
+   */
+  const createUser = async (userData: Omit<User, 'id' | 'createdAt'>): Promise<UserMutationResult> => {
+    if (!token || token.startsWith('jwt-local-')) {
+      return {
+        success: false,
+        error: 'Tu sesión no está conectada a la nube. Por favor, cierra sesión y vuelve a ingresar como Administrador con tu clave oficial.'
+      };
+    }
+
     try {
-      // Intentar crear en el backend
       const response = await fetch(`${API_BASE}/auth/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(userData),
       });
@@ -267,87 +254,207 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: data.data?.id || `usr-${Date.now()}`,
           createdAt: data.data?.createdAt || new Date().toISOString(),
         };
-        setUsers(prev => [...prev, newUser]);
-      } else {
-        throw new Error('Backend error');
-      }
-    } catch {
-      // Fallback local
-      const newUser: User = {
-        ...userData,
-        id: `usr-${Date.now()}`,
-        createdAt: new Date().toISOString()
-      };
-      setUsers(prev => [...prev, newUser]);
-    }
 
-    if (currentUser) {
-      addAuditLog({
-        userName: currentUser.name,
-        userEmail: currentUser.email,
-        userRole: currentUser.role,
-        action: 'CREAR_USUARIO',
-        module: 'Usuarios & Permisos',
-        details: `Nuevo usuario creado: ${userData.name} (${userData.email}) con rol ${userData.role}`
-      });
+        setUsers(prev => {
+          const filtered = prev.filter(u => u.email.toLowerCase() !== newUser.email.toLowerCase());
+          const updated = [...filtered, newUser];
+          localStorage.setItem('floryser_users_v2', JSON.stringify(updated));
+          return updated;
+        });
+
+        if (currentUser) {
+          addAuditLog({
+            userName: currentUser.name,
+            userEmail: currentUser.email,
+            userRole: currentUser.role,
+            action: 'CREAR_USUARIO',
+            module: 'Usuarios & Permisos',
+            details: `Nuevo usuario creado en MySQL: ${userData.name} (${userData.email}) con rol ${userData.role}`
+          });
+        }
+
+        return { success: true };
+      } else {
+        const errJson = await response.json().catch(() => ({}));
+        return {
+          success: false,
+          error: errJson.error || errJson.message || `Error del servidor (${response.status})`
+        };
+      }
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message || 'Error de conexión con el servidor al crear usuario'
+      };
     }
   };
 
-  const updateUser = (userId: string, updates: Partial<User>) => {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updates } : u));
-    if (currentUser && currentUser.id === userId) {
-      setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
+  /**
+   * Actualiza un usuario en la base de datos de Hostinger
+   */
+  const updateUser = async (userId: string, updates: Partial<User>): Promise<UserMutationResult> => {
+    if (!token || token.startsWith('jwt-local-')) {
+      return {
+        success: false,
+        error: 'Sesión expirada o no autorizada. Reingresa como Administrador.'
+      };
     }
 
-    // Intentar actualizar en backend (fire-and-forget)
-    if (token) {
-      fetch(`${API_BASE}/auth/users/${userId}`, {
+    try {
+      const response = await fetch(`${API_BASE}/auth/users/${userId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(updates),
-      }).catch(() => { /* silent fallback */ });
-    }
-
-    if (currentUser) {
-      addAuditLog({
-        userName: currentUser.name,
-        userEmail: currentUser.email,
-        userRole: currentUser.role,
-        action: 'ACTUALIZAR_USUARIO',
-        module: 'Usuarios & Permisos',
-        details: `Actualización de datos/permisos para usuario ID #${userId}`
       });
+
+      if (response.ok) {
+        setUsers(prev => {
+          const updated = prev.map(u => u.id === userId ? { ...u, ...updates } : u);
+          localStorage.setItem('floryser_users_v2', JSON.stringify(updated));
+          return updated;
+        });
+
+        if (currentUser && currentUser.id === userId) {
+          setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
+        }
+
+        if (currentUser) {
+          addAuditLog({
+            userName: currentUser.name,
+            userEmail: currentUser.email,
+            userRole: currentUser.role,
+            action: 'ACTUALIZAR_USUARIO',
+            module: 'Usuarios & Permisos',
+            details: `Actualización de usuario ID #${userId} guardada en MySQL`
+          });
+        }
+
+        return { success: true };
+      } else {
+        const errJson = await response.json().catch(() => ({}));
+        return {
+          success: false,
+          error: errJson.error || `Error ${response.status}`
+        };
+      }
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message || 'Error al conectar con el servidor'
+      };
     }
   };
 
-  const deleteUser = (userId: string) => {
-    const targetUser = users.find(u => u.id === userId);
-    setUsers(prev => prev.filter(u => u.id !== userId));
+  /**
+   * Elimina / desactiva un usuario en la base de datos
+   */
+  const deleteUser = async (userId: string): Promise<UserMutationResult> => {
+    if (!token || token.startsWith('jwt-local-')) {
+      return {
+        success: false,
+        error: 'Sesión expirada o no autorizada.'
+      };
+    }
 
-    // Intentar eliminar en backend
-    if (token) {
-      fetch(`${API_BASE}/auth/users/${userId}`, {
+    try {
+      const targetUser = users.find(u => u.id === userId);
+      const response = await fetch(`${API_BASE}/auth/users/${userId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
-      }).catch(() => { /* silent fallback */ });
-    }
-
-    if (currentUser) {
-      addAuditLog({
-        userName: currentUser.name,
-        userEmail: currentUser.email,
-        userRole: currentUser.role,
-        action: 'ELIMINAR_USUARIO',
-        module: 'Usuarios & Permisos',
-        details: `Eliminación de usuario ${targetUser?.name || userId}`
       });
+
+      if (response.ok) {
+        setUsers(prev => {
+          const updated = prev.filter(u => u.id !== userId);
+          localStorage.setItem('floryser_users_v2', JSON.stringify(updated));
+          return updated;
+        });
+
+        if (currentUser) {
+          addAuditLog({
+            userName: currentUser.name,
+            userEmail: currentUser.email,
+            userRole: currentUser.role,
+            action: 'ELIMINAR_USUARIO',
+            module: 'Usuarios & Permisos',
+            details: `Eliminación de usuario ${targetUser?.name || userId} en MySQL`
+          });
+        }
+
+        if (currentUser && currentUser.id === userId) {
+          logout();
+        }
+
+        return { success: true };
+      } else {
+        const errJson = await response.json().catch(() => ({}));
+        return {
+          success: false,
+          error: errJson.error || `Error ${response.status}`
+        };
+      }
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message || 'Error al conectar con el servidor'
+      };
+    }
+  };
+
+  /**
+   * Sincroniza usuarios creados localmente que aún no estén en MySQL de Hostinger
+   */
+  const syncPendingUsers = async (): Promise<{ synced: number; failed: number }> => {
+    if (!token || token.startsWith('jwt-local-')) {
+      return { synced: 0, failed: 0 };
     }
 
-    if (currentUser && currentUser.id === userId) {
-      logout();
+    try {
+      const resp = await fetch(`${API_BASE}/auth/users`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!resp.ok) return { synced: 0, failed: 0 };
+
+      const json = await resp.json();
+      const dbUsers: User[] = json.data || [];
+      const dbEmails = new Set(dbUsers.map(u => u.email.toLowerCase()));
+
+      let synced = 0;
+      let failed = 0;
+
+      for (const localUser of users) {
+        if (!dbEmails.has(localUser.email.toLowerCase())) {
+          const createRes = await fetch(`${API_BASE}/auth/users`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              name: localUser.name,
+              email: localUser.email,
+              password: localUser.password || 'vendedor123',
+              role: localUser.role,
+              allowedModules: localUser.allowedModules,
+              avatarInitials: localUser.avatarInitials
+            })
+          });
+
+          if (createRes.ok) {
+            synced++;
+          } else {
+            failed++;
+          }
+        }
+      }
+
+      await fetchUsers(token);
+      return { synced, failed };
+    } catch {
+      return { synced: 0, failed: 0 };
     }
   };
 
@@ -362,7 +469,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       users,
       createUser,
       updateUser,
-      deleteUser
+      deleteUser,
+      syncPendingUsers,
+      fetchUsers
     }}>
       {children}
     </AuthContext.Provider>
