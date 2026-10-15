@@ -291,3 +291,97 @@ input:focus, select:focus, textarea:focus, .input:focus {
   padding: 20px;
   overflow-y: auto;
 }
+
+/* Print Utilities */
+.print-only {
+  display: none !important;
+}
+
+@media print {
+  @page {
+    size: auto;
+    margin: 12mm;
+  }
+
+  body, html, #root, .app-container {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .sidebar,
+  .top-navbar,
+  .no-print,
+  .modal-overlay,
+  .page-header .flex,
+  button,
+  .btn,
+  .form-actions {
+    display: none !important;
+  }
+
+  .app-container {
+    display: block !important;
+  }
+
+  .main-content {
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .page-container {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 12px !important;
+  }
+
+  .card {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+
+  .card-header {
+    border-bottom: 2px solid #2E5339 !important;
+    padding-bottom: 8px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .data-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 10pt !important;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 6px 8px !important;
+    border: 1px solid #D1D5DB !important;
+  }
+
+  .data-table th {
+    background-color: #F3F4F6 !important;
+    color: #111827 !important;
+    font-weight: 700 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .badge {
+    border: 1px solid #9CA3AF !important;
+    background: transparent !important;
+    color: #000000 !important;
+    font-size: 8pt !important;
+    padding: 2px 4px !important;
+  }
+}
+
