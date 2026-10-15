@@ -183,7 +183,15 @@ class AuthService {
         const modulesJson = JSON.stringify(data.allowedModules);
         try {
             await this.db.query(`INSERT INTO system_users (id, name, email, password_hash, role, allowed_modules_json, avatar_initials, active, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 1, NOW())`, [id, data.name, data.email.toLowerCase(), passwordHash, data.role, modulesJson, initials]);
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1, NOW())
+         ON DUPLICATE KEY UPDATE
+           name = VALUES(name),
+           password_hash = VALUES(password_hash),
+           role = VALUES(role),
+           allowed_modules_json = VALUES(allowed_modules_json),
+           avatar_initials = VALUES(avatar_initials),
+           active = 1`, [id, data.name, data.email.toLowerCase(), passwordHash, data.role, modulesJson, initials]);
+            console.log(`✅ Usuario ${data.name} (${data.email}) guardado exitosamente en MySQL.`);
             return {
                 id,
                 name: data.name,
@@ -196,29 +204,8 @@ class AuthService {
             };
         }
         catch (err) {
-            // Fallback: crear en memoria
-            const newUser = {
-                id,
-                name: data.name,
-                email: data.email.toLowerCase(),
-                password_hash: passwordHash,
-                role: data.role,
-                allowed_modules_json: modulesJson,
-                avatar_initials: initials,
-                active: true,
-                created_at: new Date().toISOString()
-            };
-            this.inMemoryUsers.push(newUser);
-            return {
-                id,
-                name: data.name,
-                email: data.email.toLowerCase(),
-                role: data.role,
-                allowedModules: data.allowedModules,
-                avatarInitials: initials,
-                active: true,
-                createdAt: newUser.created_at
-            };
+            console.error('❌ Error al guardar usuario en MySQL:', err);
+            throw new Error(`Error al persistir usuario en MySQL: ${err.message}`);
         }
     }
     /**

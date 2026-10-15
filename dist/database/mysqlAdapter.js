@@ -354,15 +354,21 @@ class MySQLAdapter {
             }
         }
         // 2. Convertir placeholders $N → ? reordenando parámetros según aparición
-        //    (soporta reutilización "$10, $10" y orden arbitrario)
+        //    (soporta reutilización "$10, $10" y orden arbitrario).
+        //    Si la consulta ya utiliza placeholders '?' nativos de MySQL, preservar los parámetros originales intactos.
         if (originalParams) {
-            const ordered = [];
-            translatedSql = translatedSql.replace(/\$(\d+)/g, (_m, n) => {
-                const v = originalParams[parseInt(n, 10) - 1];
-                ordered.push(v === undefined ? null : v);
-                return '?';
-            });
-            translatedParams = ordered;
+            if (/\$\d+/.test(translatedSql)) {
+                const ordered = [];
+                translatedSql = translatedSql.replace(/\$(\d+)/g, (_m, n) => {
+                    const v = originalParams[parseInt(n, 10) - 1];
+                    ordered.push(v === undefined ? null : v);
+                    return '?';
+                });
+                translatedParams = ordered;
+            }
+            else {
+                translatedParams = [...originalParams];
+            }
         }
         else {
             translatedSql = translatedSql.replace(/\$\d+/g, '?');
