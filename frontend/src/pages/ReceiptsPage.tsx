@@ -2,8 +2,13 @@ import React, { useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Trash2, Eye, FileText, Calendar, Building, PackageCheck } from 'lucide-react';
-import { useMerchandiseReceipts, useCreateMerchandiseReceipt } from '../hooks/useReceipts';
+import { Plus, Trash2, Eye, Pencil, FileText, Calendar, Building, PackageCheck } from 'lucide-react';
+import {
+  useMerchandiseReceipts,
+  useCreateMerchandiseReceipt,
+  useUpdateMerchandiseReceipt,
+  useDeleteMerchandiseReceipt,
+} from '../hooks/useReceipts';
 import { useSuppliers } from '../hooks/useSuppliers';
 import { useRawMaterials } from '../hooks/useInventory';
 import { Modal } from '../components/ui/Modal';
@@ -30,12 +35,15 @@ type ReceiptFormValues = z.infer<typeof receiptSchema>;
 
 export const ReceiptsPage: React.FC<{ onTabChange?: (tab: string) => void }> = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingReceiptId, setEditingReceiptId] = useState<string | null>(null);
   const [viewingReceipt, setViewingReceipt] = useState<MerchandiseReceipt | null>(null);
   
   const { data: receipts, isLoading, isError, refetch } = useMerchandiseReceipts();
   const { data: suppliers } = useSuppliers();
   const { data: rawMaterials } = useRawMaterials();
   const createReceipt = useCreateMerchandiseReceipt();
+  const updateReceipt = useUpdateMerchandiseReceipt();
+  const deleteReceipt = useDeleteMerchandiseReceipt();
 
   const { register, control, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<ReceiptFormValues>({
     resolver: zodResolver(receiptSchema),
@@ -65,6 +73,7 @@ export const ReceiptsPage: React.FC<{ onTabChange?: (tab: string) => void }> = (
   };
 
   const handleOpenModal = () => {
+    setEditingReceiptId(null);
     reset({
       receiptNumber: `FC-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(100000 + Math.random() * 900000)}`,
       supplierId: suppliers && suppliers.length > 0 ? suppliers[0].id : '',
@@ -76,6 +85,47 @@ export const ReceiptsPage: React.FC<{ onTabChange?: (tab: string) => void }> = (
     setIsModalOpen(true);
   };
 
+  const handleEditModal = (receipt: MerchandiseReceipt) => {
+    setEditingReceiptId(receipt.id);
+    const dateFormatted = receipt.receptionDate 
+      ? new Date(receipt.receptionDate).toISOString().split('T')[0]
+      : (receipt.receiptDate ? new Date(receipt.receiptDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+
+    const formattedItems = (receipt.items && receipt.items.length > 0)
+      ? receipt.items.map(item => ({
+          productId: item.productId || '',
+          itemName: item.itemName,
+          quantity: item.quantity,
+          unitOfMeasure: item.unitOfMeasure || 'KG',
+          unitCost: item.unitCost || 0,
+        }))
+      : [{ productId: '', itemName: '', quantity: 1, unitOfMeasure: 'KG', unitCost: 0 }];
+
+    reset({
+      receiptNumber: receipt.receiptNumber || '',
+      supplierId: receipt.supplierId,
+      receiptType: receipt.receiptType || 'FACTURA',
+      receptionDate: dateFormatted,
+      notes: receipt.notes || '',
+      items: formattedItems,
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteReceipt = (receipt: MerchandiseReceipt) => {
+    const confirmMsg = `⚠️ ¿Confirmas eliminar/anular el comprobante "${receipt.receiptNumber || receipt.id}"?\n\nEl stock de los ítems recibidos se descontará automáticamente y se registrará la anulación en el Kardex.`;
+    if (window.confirm(confirmMsg)) {
+      deleteReceipt.mutate(receipt.id, {
+        onSuccess: () => {
+          alert('Comprobante anulado y stock revertido correctamente.');
+        },
+        onError: (err: any) => {
+          alert(`Error al anular: ${err.message || 'Ocurrió un error inesperado'}`);
+        }
+      });
+    }
+  };
+
   const onSubmit = (data: ReceiptFormValues) => {
     const payload = {
       ...data,
@@ -83,12 +133,29 @@ export const ReceiptsPage: React.FC<{ onTabChange?: (tab: string) => void }> = (
       totalCost: calculatedTotal,
     };
 
-    createReceipt.mutate(payload, {
-      onSuccess: () => {
-        setIsModalOpen(false);
-        reset();
-      },
-    });
+    if (editingReceiptId) {
+      updateReceipt.mutate({ id: editingReceiptId, data: payload }, {
+        onSuccess: () => {
+          setIsModalOpen(false);
+          setEditingReceiptId(null);
+          reset();
+          alert('¡Comprobante actualizado y stock recalculado con éxito!');
+        },
+        onError: (err: any) => {
+          alert(`Error al actualizar el comprobante: ${err.message || 'Error desconocido'}`);
+        }
+      });
+    } else {
+      createReceipt.mutate(payload, {
+        onSuccess: () => {
+          setIsModalOpen(false);
+          reset();
+        },
+        onError: (err: any) => {
+          alert(`Error al crear el comprobante: ${err.message || 'Error desconocido'}`);
+        }
+      });
+    }
   };
 
   const supplierList = Array.isArray(suppliers) ? suppliers : [];
@@ -154,26 +221,70 @@ export const ReceiptsPage: React.FC<{ onTabChange?: (tab: string) => void }> = (
                         </span>
                       </td>
                       <td className="text-center">
-                        <button 
-                          type="button"
-                          onClick={() => setViewingReceipt(receipt)}
-                          title="Ver Detalle de Recepción"
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '8px',
-                            border: '1px solid #D1D5DB',
-                            backgroundColor: '#FFFFFF',
-                            cursor: 'pointer',
-                            padding: 0,
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                          }}
-                        >
-                          <Eye size={16} style={{ color: '#2E5339', strokeWidth: 2.2 }} />
-                        </button>
+                        <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                          <button 
+                            type="button"
+                            onClick={() => setViewingReceipt(receipt)}
+                            title="Ver Detalle de Recepción"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '8px',
+                              border: '1px solid #D1D5DB',
+                              backgroundColor: '#FFFFFF',
+                              cursor: 'pointer',
+                              padding: 0,
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                            }}
+                          >
+                            <Eye size={16} style={{ color: '#2E5339', strokeWidth: 2.2 }} />
+                          </button>
+
+                          <button 
+                            type="button"
+                            onClick={() => handleEditModal(receipt)}
+                            title="Editar Comprobante e Ítems"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '8px',
+                              border: '1px solid #D1D5DB',
+                              backgroundColor: '#FFFFFF',
+                              cursor: 'pointer',
+                              padding: 0,
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                            }}
+                          >
+                            <Pencil size={15} style={{ color: '#2563EB', strokeWidth: 2.2 }} />
+                          </button>
+
+                          <button 
+                            type="button"
+                            onClick={() => handleDeleteReceipt(receipt)}
+                            title="Anular/Eliminar Recepción (Revierte Stock)"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '8px',
+                              border: '1px solid #FECACA',
+                              backgroundColor: '#FEF2F2',
+                              cursor: 'pointer',
+                              padding: 0,
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                            }}
+                          >
+                            <Trash2 size={15} style={{ color: '#DC2626', strokeWidth: 2.2 }} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -191,8 +302,13 @@ export const ReceiptsPage: React.FC<{ onTabChange?: (tab: string) => void }> = (
         )}
       </div>
 
-      {/* Modal Nueva Recepción */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="📦 Ingreso / Recepción de Mercadería" maxWidth="680px">
+      {/* Modal Ingreso o Edición de Recepción */}
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={() => { setIsModalOpen(false); setEditingReceiptId(null); }} 
+        title={editingReceiptId ? "✏️ Modificar Recepción de Mercadería / Corregir Carga" : "📦 Ingreso / Recepción de Mercadería"} 
+        maxWidth="680px"
+      >
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="form-field">
@@ -332,11 +448,13 @@ export const ReceiptsPage: React.FC<{ onTabChange?: (tab: string) => void }> = (
           </div>
 
           <div className="form-actions flex justify-end gap-3 mt-4 border-t pt-4">
-            <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>
+            <button type="button" className="btn btn-secondary" onClick={() => { setIsModalOpen(false); setEditingReceiptId(null); }}>
               Cancelar
             </button>
-            <button type="submit" className="btn btn-primary" disabled={createReceipt.isPending}>
-              {createReceipt.isPending ? 'Guardando...' : 'Confirmar Recepción'}
+            <button type="submit" className="btn btn-primary" disabled={createReceipt.isPending || updateReceipt.isPending}>
+              {createReceipt.isPending || updateReceipt.isPending
+                ? 'Guardando...'
+                : (editingReceiptId ? 'Guardar Cambios y Ajustar Stock' : 'Confirmar Recepción')}
             </button>
           </div>
         </form>

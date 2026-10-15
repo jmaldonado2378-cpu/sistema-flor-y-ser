@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SupplierService = void 0;
 const supplier_1 = require("../types/supplier");
+const uuid_1 = require("uuid");
 class SupplierService {
     db;
     inMemorySuppliers = [];
@@ -645,6 +646,232 @@ class SupplierService {
                 r.supplierName.toLowerCase().includes(q));
         }
         return { receipts: result, total: result.length };
+    }
+    /**
+     * Actualiza / Corrige un comprobante de recepción de mercadería existente.
+     * Revierte el stock anterior y aplica el nuevo stock, registrando la auditoría en stock_movements.
+     */
+    async updateMerchandiseReceipt(receiptId, dto, userName = 'Administrador') {
+        const existing = await this.getMerchandiseReceiptById(receiptId);
+        if (!existing) {
+            throw new Error(`Recepción con ID ${receiptId} no encontrada.`);
+        }
+        let client = null;
+        try {
+            client = await this.db.connect();
+            await client.query('BEGIN');
+            // 1. Revertir el stock de los ítems anteriores
+            for (const oldItem of existing.items) {
+                if (oldItem.productId) {
+                    try {
+                        await client.query(`UPDATE final_products SET current_stock = GREATEST(0, current_stock - $1) WHERE id = $2 OR code = $2`, [oldItem.quantity, oldItem.productId]);
+                    }
+                    catch { }
+                    try {
+                        await client.query(`UPDATE raw_materials SET current_stock = GREATEST(0, current_stock - $1) WHERE id = $2 OR code = $2`, [oldItem.quantity, oldItem.productId]);
+                    }
+                    catch { }
+                    try {
+                        await client.query(`UPDATE products SET current_stock = GREATEST(0, current_stock - $1) WHERE id = $2`, [oldItem.quantity, oldItem.productId]);
+                    }
+                    catch { }
+                }
+            }
+            // 2. Eliminar ítems anteriores del comprobante
+            await client.query(`DELETE FROM merchandise_receipt_items WHERE receipt_id = $1`, [receiptId]);
+            // 3. Procesar nuevos ítems y subtotales
+            const itemsProcessed = (dto.items || []).map((i) => ({
+                ...i,
+                quantity: parseFloat(i.quantity) || 0,
+                unitCost: parseFloat(i.unitCost) || 0,
+                subtotal: (parseFloat(i.quantity) || 0) * (parseFloat(i.unitCost) || 0)
+            }));
+            const totalAmount = itemsProcessed.reduce((acc, item) => acc + item.subtotal, 0);
+            const issueDate = dto.issueDate || existing.issueDate;
+            const receptionDate = dto.receptionDate || existing.receptionDate;
+            const dueDate = dto.dueDate || existing.dueDate;
+            const termsDays = dto.paymentTermsDays !== undefined ? dto.paymentTermsDays : existing.paymentTermsDays;
+            // 4. Actualizar cabecera de la recepción
+            await client.query(`
+        UPDATE merchandise_receipts
+        SET receipt_number = $1,
+            supplier_id = $2,
+            receipt_type = $3,
+            issue_date = $4,
+            reception_date = $5,
+            due_date = $6,
+            payment_terms_days = $7,
+            total_amount = $8,
+            notes = $9,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $10
+      `, [
+                dto.receiptNumber ? dto.receiptNumber.trim() : existing.receiptNumber,
+                dto.supplierId || existing.supplierId,
+                dto.receiptType || existing.receiptType,
+                issueDate,
+                receptionDate,
+                dueDate,
+                termsDays,
+                totalAmount,
+                dto.notes !== undefined ? dto.notes : existing.notes,
+                receiptId
+            ]);
+            // 5. Insertar nuevos ítems y sumar su nuevo stock
+            for (const item of itemsProcessed) {
+                let productId = item.productId || null;
+                if (productId) {
+                    try {
+                        await client.query(`UPDATE final_products SET current_stock = current_stock + $1, cost_price = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 OR code = $3`, [item.quantity, item.unitCost, productId]);
+                    }
+                    catch { }
+                    try {
+                        await client.query(`UPDATE raw_materials SET current_stock = current_stock + $1, cost_per_unit = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 OR code = $3`, [item.quantity, item.unitCost, productId]);
+                    }
+                    catch { }
+                    try {
+                        await client.query(`UPDATE products SET current_stock = current_stock + $1, cost_price = $2 WHERE id = $3`, [item.quantity, item.unitCost, productId]);
+                    }
+                    catch { }
+                }
+                await client.query(`
+          INSERT INTO merchandise_receipt_items (
+            receipt_id, product_id, item_name, item_type, quantity, unit_of_measure,
+            unit_cost, subtotal, lot_number, expiration_date
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `, [
+                    receiptId,
+                    productId,
+                    item.itemName,
+                    item.itemType || 'ELABORADO',
+                    item.quantity,
+                    item.unitOfMeasure || 'KG',
+                    item.unitCost,
+                    item.subtotal,
+                    item.lotNumber || null,
+                    item.expirationDate || null
+                ]);
+                // Registrar en stock_movements
+                try {
+                    await client.query(`
+            INSERT INTO stock_movements (
+              id, item_type, item_id, item_name, movement_type, quantity,
+              previous_stock, resulting_stock, unit_of_measure, unit_cost,
+              reference_type, reference_id, reference_number, reason, user_name, notes, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, 0, 0, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP)
+          `, [
+                        (0, uuid_1.v4)(),
+                        item.itemType === 'GRANEL' ? 'RAW_MATERIAL' : 'FINAL_PRODUCT',
+                        productId || 'N/A',
+                        item.itemName,
+                        'PURCHASE_RECEIPT',
+                        item.quantity,
+                        item.unitOfMeasure || 'KG',
+                        item.unitCost,
+                        'RECEIPT',
+                        receiptId,
+                        dto.receiptNumber || existing.receiptNumber,
+                        'Edición / Corrección de Comprobante de Recepción',
+                        userName,
+                        dto.notes || null
+                    ]);
+                }
+                catch { }
+            }
+            await client.query('COMMIT');
+            return await this.getMerchandiseReceiptById(receiptId);
+        }
+        catch (err) {
+            if (client) {
+                try {
+                    await client.query('ROLLBACK');
+                }
+                catch { }
+            }
+            throw err;
+        }
+        finally {
+            if (client)
+                client.release();
+        }
+    }
+    /**
+     * Elimina / Anula un comprobante de recepción y revierte el stock asociado.
+     */
+    async deleteMerchandiseReceipt(receiptId, userName = 'Administrador') {
+        const existing = await this.getMerchandiseReceiptById(receiptId);
+        if (!existing) {
+            throw new Error(`Recepción con ID ${receiptId} no encontrada.`);
+        }
+        let client = null;
+        try {
+            client = await this.db.connect();
+            await client.query('BEGIN');
+            // 1. Revertir el stock sumado por cada ítem
+            for (const item of existing.items) {
+                if (item.productId) {
+                    try {
+                        await client.query(`UPDATE final_products SET current_stock = GREATEST(0, current_stock - $1) WHERE id = $2 OR code = $2`, [item.quantity, item.productId]);
+                    }
+                    catch { }
+                    try {
+                        await client.query(`UPDATE raw_materials SET current_stock = GREATEST(0, current_stock - $1) WHERE id = $2 OR code = $2`, [item.quantity, item.productId]);
+                    }
+                    catch { }
+                    try {
+                        await client.query(`UPDATE products SET current_stock = GREATEST(0, current_stock - $1) WHERE id = $2`, [item.quantity, item.productId]);
+                    }
+                    catch { }
+                }
+                // Registrar anulación en stock_movements
+                try {
+                    await client.query(`
+            INSERT INTO stock_movements (
+              id, item_type, item_id, item_name, movement_type, quantity,
+              previous_stock, resulting_stock, unit_of_measure, unit_cost,
+              reference_type, reference_id, reference_number, reason, user_name, notes, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, 0, 0, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP)
+          `, [
+                        (0, uuid_1.v4)(),
+                        item.itemType === 'GRANEL' ? 'RAW_MATERIAL' : 'FINAL_PRODUCT',
+                        item.productId || 'N/A',
+                        item.itemName,
+                        'PURCHASE_RETURN',
+                        -item.quantity,
+                        item.unitOfMeasure || 'KG',
+                        item.unitCost,
+                        'RECEIPT',
+                        receiptId,
+                        existing.receiptNumber,
+                        `Anulación de comprobante de compra ${existing.receiptNumber}`,
+                        userName,
+                        'Reversión automática de stock por eliminación de comprobante'
+                    ]);
+                }
+                catch { }
+            }
+            // 2. Eliminar ítems y comprobante
+            await client.query(`DELETE FROM merchandise_receipt_items WHERE receipt_id = $1`, [receiptId]);
+            await client.query(`DELETE FROM merchandise_receipts WHERE id = $1`, [receiptId]);
+            await client.query('COMMIT');
+            return {
+                success: true,
+                message: `Comprobante ${existing.receiptNumber} eliminado y stock revertido correctamente.`
+            };
+        }
+        catch (err) {
+            if (client) {
+                try {
+                    await client.query('ROLLBACK');
+                }
+                catch { }
+            }
+            throw err;
+        }
+        finally {
+            if (client)
+                client.release();
+        }
     }
     // =========================================================================
     // 3. CUENTAS POR PAGAR Y REGISTRO DE PAGOS A PROVEEDORES

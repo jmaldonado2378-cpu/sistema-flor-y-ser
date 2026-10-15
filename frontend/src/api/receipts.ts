@@ -89,3 +89,30 @@ export const createRawMaterialReceipt = async (data: CreateReceiptDTO): Promise<
   });
   return res.data || res;
 };
+
+export const updateMerchandiseReceipt = async (id: string, data: Partial<CreateReceiptDTO>): Promise<MerchandiseReceipt> => {
+  const payload = {
+    ...data,
+    totalAmount: data.totalAmount || data.totalCost || 0,
+    items: data.items?.map(i => ({
+      ...i,
+      itemName: i.itemName || 'Insumo',
+      itemType: i.itemType || 'GRANEL',
+      unitOfMeasure: i.unitOfMeasure || 'KG',
+      subtotal: (i.quantity || 0) * (i.unitCost || 0)
+    }))
+  };
+  const res = await apiRequest<any>(`/merchandise-receipts/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+  return res.data || res;
+};
+
+export const deleteMerchandiseReceipt = async (id: string): Promise<{ status: string; message: string }> => {
+  const res = await apiRequest<any>(`/merchandise-receipts/${id}`, {
+    method: 'DELETE',
+  });
+  return res;
+};
+

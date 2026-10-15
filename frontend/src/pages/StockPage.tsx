@@ -2,7 +2,7 @@ import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'rea
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Wand2, Package, Tag, Box, Pencil, Trash2, Layers } from 'lucide-react';
+import { Plus, Wand2, Package, Tag, Box, Pencil, Trash2, Layers, History, SlidersHorizontal, ArrowUpRight, ArrowDownRight, RefreshCw, AlertCircle } from 'lucide-react';
 import {
   useRawMaterials,
   useFinalProducts,
@@ -14,6 +14,8 @@ import {
 import { usePackagingMaterials, useCreatePackagingMaterial, useUpdatePackagingMaterial } from '../hooks/usePackaging';
 import { useSuppliers } from '../hooks/useSuppliers';
 import { useArticleFamilies } from '../hooks/useArticleFamilies';
+import { useStockMovements, useCreateStockAdjustment } from '../hooks/useStockMovements';
+import { StockItemType, StockMovementType, StockMovement } from '../api/stockMovements';
 import { Modal } from '../components/ui/Modal';
 import { BulkImportModal } from '../components/common/BulkImportModal';
 
@@ -59,13 +61,27 @@ const finalProductSchema = z.object({
 });
 
 export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () => {
-  const [activeTab, setActiveTab] = useState<'raw' | 'pkg' | 'final'>('raw');
+  const [activeTab, setActiveTab] = useState<'raw' | 'pkg' | 'final' | 'movements'>('raw');
   const [isRawModalOpen, setIsRawModalOpen] = useState(false);
   const [isPkgModalOpen, setIsPkgModalOpen] = useState(false);
   const [isFinalModalOpen, setIsFinalModalOpen] = useState(false);
   const [isCustomSupplier, setIsCustomSupplier] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [bulkImportType, setBulkImportType] = useState<'raw_materials' | 'final_products'>('raw_materials');
+
+  // Estado Ajuste de Stock Manual
+  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+  const [adjustItemType, setAdjustItemType] = useState<StockItemType>('RAW_MATERIAL');
+  const [adjustItemId, setAdjustItemId] = useState<string>('');
+  const [adjustType, setAdjustType] = useState<'ADD' | 'SUBTRACT' | 'SET_EXACT'>('ADD');
+  const [adjustQuantity, setAdjustQuantity] = useState<number>(1);
+  const [adjustReason, setAdjustReason] = useState<string>('CONTEO_FISICO');
+  const [adjustNotes, setAdjustNotes] = useState<string>('');
+
+  // Estado Filtros Kardex
+  const [movementItemTypeFilter, setMovementItemTypeFilter] = useState<string>('');
+  const [movementTypeFilter, setMovementTypeFilter] = useState<string>('');
+  const [movementSearch, setMovementSearch] = useState<string>('');
 
   const [isBlendProduct, setIsBlendProduct] = useState(false);
   const [blendIngredients, setBlendIngredients] = useState<Array<{ rawMaterialId: string; percentage: number }>>([
@@ -127,6 +143,86 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
 
   const createFinal = useCreateFinalProduct();
   const updateFinal = useUpdateFinalProduct();
+
+  const { 
+    data: movementsResponse, 
+    isLoading: loadingMovements, 
+    isError: errorMovements, 
+    refetch: refetchMovements 
+  } = useStockMovements({
+    itemType: (movementItemTypeFilter || undefined) as any,
+    movementType: (movementTypeFilter || undefined) as any,
+    search: movementSearch || undefined,
+  });
+
+  const stockMovementsList: StockMovement[] = movementsResponse?.data || [];
+  const createAdjustment = useCreateStockAdjustment();
+
+  const getSelectedAdjustItem = () => {
+    if (adjustItemType === 'RAW_MATERIAL') return rawMaterialsList.find(i => i.id === adjustItemId);
+    if (adjustItemType === 'PACKAGING') return packagingMaterialsList.find(i => i.id === adjustItemId);
+    if (adjustItemType === 'FINAL_PRODUCT') return finalProductsList.find(i => i.id === adjustItemId);
+    return null;
+  };
+
+  const selectedAdjustItem = getSelectedAdjustItem();
+  const currentStockOfSelectedItem = selectedAdjustItem ? (parseFloat(selectedAdjustItem.currentStock) || 0) : 0;
+  const unitOfSelectedItem = selectedAdjustItem?.unit || (adjustItemType === 'FINAL_PRODUCT' ? 'UN' : 'UN');
+
+  const calculatePreviewStock = () => {
+    if (!selectedAdjustItem) return 0;
+    const qty = Number(adjustQuantity) || 0;
+    if (adjustType === 'ADD') return currentStockOfSelectedItem + qty;
+    if (adjustType === 'SUBTRACT') return Math.max(0, currentStockOfSelectedItem - qty);
+    if (adjustType === 'SET_EXACT') return Math.max(0, qty);
+    return currentStockOfSelectedItem;
+  };
+
+  const handleOpenAdjustModal = (itemType?: StockItemType, itemId?: string) => {
+    const targetType = itemType || 'RAW_MATERIAL';
+    setAdjustItemType(targetType);
+    if (itemId) {
+      setAdjustItemId(itemId);
+    } else {
+      if (targetType === 'FINAL_PRODUCT' && finalProductsList.length > 0) setAdjustItemId(finalProductsList[0].id);
+      else if (targetType === 'PACKAGING' && packagingMaterialsList.length > 0) setAdjustItemId(packagingMaterialsList[0].id);
+      else if (rawMaterialsList.length > 0) setAdjustItemId(rawMaterialsList[0].id);
+      else setAdjustItemId('');
+    }
+    setAdjustType('ADD');
+    setAdjustQuantity(1);
+    setAdjustReason('CONTEO_FISICO');
+    setAdjustNotes('');
+    setIsAdjustModalOpen(true);
+  };
+
+  const handleSaveAdjustment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adjustItemId) {
+      alert('Por favor seleccione un artículo para ajustar.');
+      return;
+    }
+    if (adjustQuantity <= 0 && adjustType !== 'SET_EXACT') {
+      alert('La cantidad a ajustar debe ser mayor a 0.');
+      return;
+    }
+    createAdjustment.mutate({
+      itemType: adjustItemType,
+      itemId: adjustItemId,
+      adjustmentType: adjustType,
+      quantity: adjustQuantity,
+      reason: adjustReason,
+      notes: adjustNotes
+    }, {
+      onSuccess: () => {
+        setIsAdjustModalOpen(false);
+        alert('✅ Ajuste de inventario registrado y auditado correctamente en el Kardex.');
+      },
+      onError: (err: any) => {
+        alert(`Error al registrar el ajuste: ${err.message || 'Error en el servidor'}`);
+      }
+    });
+  };
 
   const rawForm = useForm({
     resolver: zodResolver(rawMaterialSchema),
@@ -462,6 +558,12 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
           >
             Productos Finales
           </button>
+          <button
+            className={`btn ${activeTab === 'movements' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setActiveTab('movements')}
+          >
+            📊 Movimientos / Kardex
+          </button>
         </div>
       </div>
 
@@ -472,9 +574,18 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               ? 'Listado de Materias Primas' 
               : activeTab === 'pkg' 
               ? 'Listado de Materiales de Empaque & Etiquetas' 
-              : 'Listado de Productos Finales'}
+              : activeTab === 'final'
+              ? 'Listado de Productos Finales'
+              : 'Kardex Centralizado & Trazabilidad de Stock'}
           </h2>
           <div className="flex gap-2">
+            <button
+              className="btn btn-secondary flex items-center gap-2"
+              style={{ borderColor: '#8B5CF6', color: '#6D28D9', backgroundColor: '#F5F3FF', fontWeight: 600 }}
+              onClick={() => handleOpenAdjustModal()}
+            >
+              ⚖️ Ajustar Stock Manual
+            </button>
             {(activeTab === 'raw' || activeTab === 'final') && (
               <button
                 className="btn btn-secondary flex items-center gap-2"
@@ -486,75 +597,77 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                 📊 Carga Masiva Google Sheets / Excel
               </button>
             )}
-            <button
-              className="btn btn-primary flex items-center gap-2"
-              onClick={() => {
-                if (activeTab === 'raw') {
-                setEditingRawItem(null);
-                rawForm.reset({
-                  code: '',
-                  name: '',
-                  unit: 'KG',
-                  currentStock: 0,
-                  minStock: 5,
-                  costPerUnit: 0,
-                  supplierName: allSupplierNames[0] || '',
-                  storageLocation: 'Depósito A',
-                  familyId: '',
-                });
-                setIsCustomSupplier(false);
-                setIsRawModalOpen(true);
-              } else if (activeTab === 'pkg') {
-                setEditingPkgItem(null);
-                pkgForm.reset({
-                  code: '',
-                  name: '',
-                  category: 'DOYPACK',
-                  unit: 'UN',
-                  currentStock: 0,
-                  minStock: 50,
-                  costPerUnit: 0,
-                  supplierName: allSupplierNames[0] || '',
-                  storageLocation: 'Depósito C',
-                  familyId: '',
-                });
-                setIsCustomSupplier(false);
-                setIsPkgModalOpen(true);
-              } else {
-                setEditingFinalItem(null);
-                setIsBlendProduct(false);
-                setBlendIngredients([
-                  { rawMaterialId: rawMaterialsList.length > 0 ? rawMaterialsList[0]?.id || '' : '', percentage: 50 },
-                  { rawMaterialId: rawMaterialsList.length > 1 ? rawMaterialsList[1]?.id || '' : '', percentage: 50 },
-                ]);
-                finalForm.reset({
-                  rawMaterialId: rawMaterialsList.length > 0 ? rawMaterialsList[0]?.id || '' : '',
-                  code: '',
-                  barcode: '',
-                  name: '',
-                  unitWeightGrams: 500,
-                  netContentLabel: '500g',
-                  currentStock: 0,
-                  minStock: 10,
-                  price: 0,
-                  ingredients: '',
-                  dietaryBadgeCodes: '',
-                  defaultExpirationDays: 180,
-                  familyId: '',
-                });
-                setIsFinalModalOpen(true);
-              }
-            }}
-          >
-            <Plus size={16} />
-            {activeTab === 'raw' 
-              ? 'Nueva Materia Prima' 
-              : activeTab === 'pkg' 
-              ? 'Nuevo Material de Empaque / Etiqueta' 
-              : 'Nuevo Producto Final'}
-          </button>
+            {activeTab !== 'movements' && (
+              <button
+                className="btn btn-primary flex items-center gap-2"
+                onClick={() => {
+                  if (activeTab === 'raw') {
+                    setEditingRawItem(null);
+                    rawForm.reset({
+                      code: '',
+                      name: '',
+                      unit: 'KG',
+                      currentStock: 0,
+                      minStock: 5,
+                      costPerUnit: 0,
+                      supplierName: allSupplierNames[0] || '',
+                      storageLocation: 'Depósito A',
+                      familyId: '',
+                    });
+                    setIsCustomSupplier(false);
+                    setIsRawModalOpen(true);
+                  } else if (activeTab === 'pkg') {
+                    setEditingPkgItem(null);
+                    pkgForm.reset({
+                      code: '',
+                      name: '',
+                      category: 'DOYPACK',
+                      unit: 'UN',
+                      currentStock: 0,
+                      minStock: 50,
+                      costPerUnit: 0,
+                      supplierName: allSupplierNames[0] || '',
+                      storageLocation: 'Depósito C',
+                      familyId: '',
+                    });
+                    setIsCustomSupplier(false);
+                    setIsPkgModalOpen(true);
+                  } else {
+                    setEditingFinalItem(null);
+                    setIsBlendProduct(false);
+                    setBlendIngredients([
+                      { rawMaterialId: rawMaterialsList.length > 0 ? rawMaterialsList[0]?.id || '' : '', percentage: 50 },
+                      { rawMaterialId: rawMaterialsList.length > 1 ? rawMaterialsList[1]?.id || '' : '', percentage: 50 },
+                    ]);
+                    finalForm.reset({
+                      rawMaterialId: rawMaterialsList.length > 0 ? rawMaterialsList[0]?.id || '' : '',
+                      code: '',
+                      barcode: '',
+                      name: '',
+                      unitWeightGrams: 500,
+                      netContentLabel: '500g',
+                      currentStock: 0,
+                      minStock: 10,
+                      price: 0,
+                      ingredients: '',
+                      dietaryBadgeCodes: '',
+                      defaultExpirationDays: 180,
+                      familyId: '',
+                    });
+                    setIsFinalModalOpen(true);
+                  }
+                }}
+              >
+                <Plus size={16} />
+                {activeTab === 'raw' 
+                  ? 'Nueva Materia Prima' 
+                  : activeTab === 'pkg' 
+                  ? 'Nuevo Material de Empaque / Etiqueta' 
+                  : 'Nuevo Producto Final'}
+              </button>
+            )}
+          </div>
         </div>
-      </div>
 
         {/* Tab 1: Materias Primas */}
         {activeTab === 'raw' && (
@@ -790,6 +903,154 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       <tr>
                         <td colSpan={8} className="text-center py-6 text-text-muted">
                           No hay productos finales registrados
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 4: Movimientos / Kardex */}
+        {activeTab === 'movements' && (
+          <div>
+            {/* Filter Bar */}
+            <div className="bg-bg-linen p-3 rounded mb-4 border flex flex-wrap gap-3 items-center justify-between">
+              <div className="flex flex-wrap gap-3 items-center flex-1">
+                <div style={{ minWidth: '180px' }}>
+                  <label className="text-xs text-text-muted mb-1 block">Tipo de Artículo</label>
+                  <select 
+                    value={movementItemTypeFilter} 
+                    onChange={(e) => setMovementItemTypeFilter(e.target.value)}
+                    className="w-full text-sm"
+                  >
+                    <option value="">Todos los artículos</option>
+                    <option value="RAW_MATERIAL">Materias Primas (Granel)</option>
+                    <option value="PACKAGING">Empaques & Etiquetas</option>
+                    <option value="FINAL_PRODUCT">Productos Finales</option>
+                  </select>
+                </div>
+
+                <div style={{ minWidth: '200px' }}>
+                  <label className="text-xs text-text-muted mb-1 block">Tipo de Movimiento</label>
+                  <select 
+                    value={movementTypeFilter} 
+                    onChange={(e) => setMovementTypeFilter(e.target.value)}
+                    className="w-full text-sm"
+                  >
+                    <option value="">Todos los movimientos</option>
+                    <option value="PURCHASE_RECEIPT">📦 Ingreso por Compra</option>
+                    <option value="PURCHASE_RETURN">↩️ Anulación / Devolución Compra</option>
+                    <option value="SALE">🛍️ Despacho por Venta</option>
+                    <option value="SALE_CANCEL">🔄 Anulación / Retorno Venta</option>
+                    <option value="MANUAL_ADJUSTMENT">⚖️ Ajuste Manual de Stock</option>
+                  </select>
+                </div>
+
+                <div className="flex-1" style={{ minWidth: '220px' }}>
+                  <label className="text-xs text-text-muted mb-1 block">Buscar por Nombre / Ítem</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej: Avena, Frasco, FC-001..." 
+                    value={movementSearch}
+                    onChange={(e) => setMovementSearch(e.target.value)}
+                    className="w-full text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-end gap-2 pt-4">
+                <button 
+                  type="button" 
+                  className="btn btn-secondary btn-sm flex items-center gap-1"
+                  onClick={() => refetchMovements()}
+                >
+                  <RefreshCw size={14} /> Refrescar
+                </button>
+              </div>
+            </div>
+
+            {loadingMovements && <div className="py-8 text-center text-text-muted">Cargando trazabilidad de movimientos (Kardex)...</div>}
+            {errorMovements && <div className="py-8 text-center text-terracotta">Error al consultar el Kardex.</div>}
+            {!loadingMovements && !errorMovements && (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="data-table w-full text-sm">
+                  <thead>
+                    <tr>
+                      <th>Fecha / Hora</th>
+                      <th>Movimiento</th>
+                      <th>Categoría</th>
+                      <th>Ítem / Insumo</th>
+                      <th className="text-right">Variación Cant.</th>
+                      <th className="text-center">Stock Antes ➔ Después</th>
+                      <th>Comprobante / Ref.</th>
+                      <th>Motivo / Auditoría</th>
+                      <th>Responsable</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stockMovementsList.map((m: StockMovement) => {
+                      const dateFormatted = m.createdAt ? new Date(m.createdAt).toLocaleString('es-AR') : '-';
+                      const isPositive = m.quantity > 0;
+
+                      let badgeClass = 'badge gray';
+                      let badgeLabel: string = m.movementType;
+                      if (m.movementType === 'PURCHASE_RECEIPT') {
+                        badgeClass = 'badge green';
+                        badgeLabel = 'Ingreso Compra';
+                      } else if (m.movementType === 'PURCHASE_RETURN') {
+                        badgeClass = 'badge orange';
+                        badgeLabel = 'Anulación Compra';
+                      } else if (m.movementType === 'SALE') {
+                        badgeClass = 'badge red';
+                        badgeLabel = 'Venta Despacho';
+                      } else if (m.movementType === 'SALE_CANCEL') {
+                        badgeClass = 'badge blue';
+                        badgeLabel = 'Anulación Venta';
+                      } else if (m.movementType === 'MANUAL_ADJUSTMENT') {
+                        badgeClass = 'badge purple';
+                        badgeLabel = 'Ajuste Stock';
+                      }
+
+                      return (
+                        <tr key={m.id}>
+                          <td className="text-xs text-text-muted whitespace-nowrap">{dateFormatted}</td>
+                          <td>
+                            <span className={badgeClass}>{badgeLabel}</span>
+                          </td>
+                          <td className="text-xs text-text-muted">
+                            {m.itemType === 'RAW_MATERIAL' ? 'Granel' : m.itemType === 'PACKAGING' ? 'Empaque' : 'Elaborado'}
+                          </td>
+                          <td className="font-semibold text-text-dark">{m.itemName}</td>
+                          <td className={`text-right font-bold whitespace-nowrap ${isPositive ? 'text-primary-sage' : 'text-terracotta'}`}>
+                            {isPositive ? `+${m.quantity}` : `${m.quantity}`} {m.unitOfMeasure}
+                          </td>
+                          <td className="text-center font-medium text-xs whitespace-nowrap">
+                            <span className="text-text-muted">{m.previousStock}</span>
+                            <span className="mx-1 text-primary-sage font-bold">➔</span>
+                            <span className="font-bold text-text-dark">{m.resultingStock}</span> {m.unitOfMeasure}
+                          </td>
+                          <td className="text-xs">
+                            {m.referenceNumber ? (
+                              <span className="font-medium text-primary-sage">{m.referenceNumber}</span>
+                            ) : (
+                              <span className="text-text-muted">-</span>
+                            )}
+                          </td>
+                          <td className="text-xs">
+                            <div>{m.reason || '-'}</div>
+                            {m.notes && <div className="text-text-muted italic text-[11px]">{m.notes}</div>}
+                          </td>
+                          <td className="text-xs text-text-muted whitespace-nowrap">{m.userName || 'Sistema'}</td>
+                        </tr>
+                      );
+                    })}
+                    {stockMovementsList.length === 0 && (
+                      <tr>
+                        <td colSpan={9} className="text-center py-6 text-text-muted">
+                          No se registran movimientos para los filtros seleccionados
                         </td>
                       </tr>
                     )}
@@ -1233,6 +1494,138 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
             </button>
             <button type="submit" className="btn btn-primary" disabled={createFinal.isPending}>
               {createFinal.isPending ? 'Guardando...' : 'Guardar Producto Final'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal Ajuste Manual de Stock */}
+      <Modal 
+        isOpen={isAdjustModalOpen} 
+        onClose={() => setIsAdjustModalOpen(false)} 
+        title="⚖️ Ajuste Manual de Inventario (Kardex)" 
+        maxWidth="580px"
+      >
+        <form onSubmit={handleSaveAdjustment} className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="form-field">
+              <label>Tipo de Artículo *</label>
+              <select 
+                value={adjustItemType} 
+                onChange={(e) => {
+                  const newType = e.target.value as StockItemType;
+                  setAdjustItemType(newType);
+                  if (newType === 'FINAL_PRODUCT' && finalProductsList.length > 0) setAdjustItemId(finalProductsList[0].id);
+                  else if (newType === 'PACKAGING' && packagingMaterialsList.length > 0) setAdjustItemId(packagingMaterialsList[0].id);
+                  else if (rawMaterialsList.length > 0) setAdjustItemId(rawMaterialsList[0].id);
+                  else setAdjustItemId('');
+                }}
+              >
+                <option value="RAW_MATERIAL">Materia Prima (Granel)</option>
+                <option value="PACKAGING">Empaque / Etiqueta</option>
+                <option value="FINAL_PRODUCT">Producto Final Elaborado</option>
+              </select>
+            </div>
+
+            <div className="form-field">
+              <label>Artículo / Insumo *</label>
+              <select 
+                value={adjustItemId} 
+                onChange={(e) => setAdjustItemId(e.target.value)}
+                required
+              >
+                <option value="">Seleccione artículo...</option>
+                {adjustItemType === 'RAW_MATERIAL' && rawMaterialsList.map(item => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} ({item.code || 'S/C'}) - Stock: {item.currentStock} {item.unit || 'KG'}
+                  </option>
+                ))}
+                {adjustItemType === 'PACKAGING' && packagingMaterialsList.map(item => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} ({item.code || 'S/C'}) - Stock: {item.currentStock} {item.unit || 'UN'}
+                  </option>
+                ))}
+                {adjustItemType === 'FINAL_PRODUCT' && finalProductsList.map(item => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} ({item.code || 'S/C'}) - Stock: {item.currentStock} un.
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Current Stock Banner */}
+          {selectedAdjustItem && (
+            <div className="p-3 bg-bg-linen border rounded flex justify-between items-center text-sm">
+              <div>
+                <span className="text-text-muted">Stock actual registrado:</span>{' '}
+                <strong className="text-text-dark text-base">{currentStockOfSelectedItem} {unitOfSelectedItem}</strong>
+              </div>
+              <div className="text-right">
+                <span className="text-text-muted">Stock resultante estimado:</span>{' '}
+                <strong className="text-primary-sage text-base">{calculatePreviewStock()} {unitOfSelectedItem}</strong>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="form-field">
+              <label>Operación de Ajuste *</label>
+              <select 
+                value={adjustType} 
+                onChange={(e) => setAdjustType(e.target.value as any)}
+              >
+                <option value="ADD">➕ Sumar al stock actual</option>
+                <option value="SUBTRACT">➖ Restar del stock actual</option>
+                <option value="SET_EXACT">🎯 Fijar stock exacto (Conteo Físico)</option>
+              </select>
+            </div>
+
+            <div className="form-field">
+              <label>Cantidad a {adjustType === 'SET_EXACT' ? 'Fijar' : (adjustType === 'ADD' ? 'Sumar' : 'Restar')} *</label>
+              <input 
+                type="number" 
+                step="any" 
+                min={adjustType === 'SET_EXACT' ? '0' : '0.001'}
+                value={adjustQuantity}
+                onChange={(e) => setAdjustQuantity(parseFloat(e.target.value) || 0)}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="form-field">
+            <label>Motivo del Ajuste *</label>
+            <select 
+              value={adjustReason} 
+              onChange={(e) => setAdjustReason(e.target.value)}
+            >
+              <option value="CONTEO_FISICO">Conteo físico / Auditoría periódica</option>
+              <option value="MERMA">Merma en fraccionamiento / Manipulación</option>
+              <option value="ROTURA">Rotura de envase / Deterioro de mercadería</option>
+              <option value="VENCIMIENTO">Vencimiento de lote</option>
+              <option value="DEVOLUCION">Devolución / Reingreso de cliente</option>
+              <option value="CORRECCION_CARGA">Corrección de error de carga inicial</option>
+              <option value="OTRO">Otro motivo justificado</option>
+            </select>
+          </div>
+
+          <div className="form-field">
+            <label>Notas / Justificación (Opcional)</label>
+            <textarea 
+              rows={2} 
+              placeholder="Detalles adicionales, responsable, número de lote..."
+              value={adjustNotes}
+              onChange={(e) => setAdjustNotes(e.target.value)}
+            />
+          </div>
+
+          <div className="form-actions flex justify-end gap-3 mt-4 border-t pt-4">
+            <button type="button" className="btn btn-secondary" onClick={() => setIsAdjustModalOpen(false)}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={createAdjustment.isPending}>
+              {createAdjustment.isPending ? 'Guardando Ajuste...' : 'Confirmar Ajuste en Kardex'}
             </button>
           </div>
         </form>

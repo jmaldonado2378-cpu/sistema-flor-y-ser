@@ -65,6 +65,37 @@ export async function autoInitDatabase(db: any): Promise<boolean> {
         `);
       } catch (e: any) {}
 
+      try {
+        // Garantizar que exista la tabla stock_movements (Kardex Centralizado)
+        await db.query(`
+          CREATE TABLE IF NOT EXISTS stock_movements (
+            id VARCHAR(64) NOT NULL PRIMARY KEY,
+            item_type VARCHAR(50) NOT NULL,
+            item_id VARCHAR(64) NOT NULL,
+            item_name VARCHAR(255) NOT NULL,
+            movement_type VARCHAR(50) NOT NULL,
+            quantity DECIMAL(12,3) NOT NULL,
+            previous_stock DECIMAL(12,3) NOT NULL DEFAULT 0.000,
+            resulting_stock DECIMAL(12,3) NOT NULL DEFAULT 0.000,
+            unit_of_measure VARCHAR(20) NOT NULL DEFAULT 'KG',
+            unit_cost DECIMAL(12,2) NULL,
+            reference_type VARCHAR(50) NULL,
+            reference_id VARCHAR(64) NULL,
+            reference_number VARCHAR(100) NULL,
+            reason VARCHAR(255) NULL,
+            user_name VARCHAR(150) NULL,
+            notes TEXT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_sm_item (item_id, item_type),
+            INDEX idx_sm_created (created_at),
+            INDEX idx_sm_type (movement_type)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        `);
+        console.log("✅ Tabla 'stock_movements' (Kardex) verificada / inicializada.");
+      } catch (e: any) {
+        console.warn("⚠️ Nota al verificar tabla stock_movements:", e.message);
+      }
+
       // Sincronizar catálogo base de Costos SISTEMA si faltan productos
       try {
         const prodCheck = await db.query('SELECT COUNT(*) AS total FROM final_products');

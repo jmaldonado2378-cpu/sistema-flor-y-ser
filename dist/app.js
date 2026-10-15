@@ -70,6 +70,8 @@ const authService_1 = require("./services/authService");
 const authController_1 = require("./controllers/authController");
 const systemService_1 = require("./services/systemService");
 const systemController_1 = require("./controllers/systemController");
+const stockMovementService_1 = require("./services/stockMovementService");
+const stockMovementController_1 = require("./controllers/stockMovementController");
 const app = (0, express_1.default)();
 const PORT = Number(process.env.PORT) || 3000;
 // Configuración de MySQL Pool via adapter compatible con pg.Pool interface
@@ -146,6 +148,9 @@ const authController = new authController_1.AuthController(authService);
 // Inicialización Módulo Diagnóstico de Sistema & Mantenimiento
 const systemService = new systemService_1.SystemService(db);
 const systemController = new systemController_1.SystemController(systemService);
+// Inicialización Módulo Kardex & Trazabilidad de Stock
+const stockMovementService = new stockMovementService_1.StockMovementService(db);
+const stockMovementController = new stockMovementController_1.StockMovementController(stockMovementService);
 // =============================================
 // RUTAS PÚBLICAS (sin autenticación)
 // =============================================
@@ -235,6 +240,8 @@ app.post('/api/v1/merchandise-receipts', auth_1.requireAuth, supplierController.
 app.post('/api/v1/merchandise-receipts/raw', auth_1.requireAuth, supplierController.createRawMaterialReceipt);
 app.get('/api/v1/merchandise-receipts', auth_1.requireAuth, supplierController.searchMerchandiseReceipts);
 app.get('/api/v1/merchandise-receipts/:id', auth_1.requireAuth, supplierController.getMerchandiseReceiptById);
+app.put('/api/v1/merchandise-receipts/:id', auth_1.requireAuth, supplierController.updateMerchandiseReceipt);
+app.delete('/api/v1/merchandise-receipts/:id', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), supplierController.deleteMerchandiseReceipt);
 app.post('/api/v1/accounts-payable/payments', auth_1.requireAuth, supplierController.registerPayment);
 app.get('/api/v1/accounts-payable/receipts/:id/payments', auth_1.requireAuth, supplierController.getPaymentsByReceipt);
 app.get('/api/v1/accounts-payable/calendar', auth_1.requireAuth, supplierController.getAccountsPayableCalendar);
@@ -298,6 +305,9 @@ app.post('/api/v1/system/import-catalog', auth_1.requireAuth, (0, auth_1.require
         res.status(500).json({ success: false, error: error.message });
     }
 });
+// Módulo de Kardex & Trazabilidad de Movimientos de Stock
+app.get('/api/v1/inventory/movements', auth_1.requireAuth, stockMovementController.getMovements);
+app.post('/api/v1/inventory/adjustments', auth_1.requireAuth, stockMovementController.adjustStock);
 // Módulo de Inventario: Materias Primas
 app.get('/api/v1/raw-materials', auth_1.requireAuth, rawMaterialController.getAll);
 app.post('/api/v1/raw-materials', auth_1.requireAuth, rawMaterialController.create);

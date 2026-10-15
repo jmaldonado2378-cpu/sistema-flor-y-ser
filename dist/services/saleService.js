@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SaleService = exports.PersistenceError = void 0;
 const customer_1 = require("../types/customer");
 const mysqlAdapter_1 = require("../database/mysqlAdapter");
+const uuid_1 = require("uuid");
 /**
  * Error de persistencia: la operación NO se guardó en la base de datos.
  * El controlador lo traduce a HTTP 503/500 para que el frontend nunca muestre un falso "guardado".
@@ -210,12 +211,38 @@ class SaleService {
                 // Descontar inventario del producto si está asociado
                 if (item.productId) {
                     try {
+                        const stockCheck = await client.query('SELECT current_stock FROM final_products WHERE id = $1', [item.productId]);
+                        const prevStock = stockCheck.rows.length > 0 ? parseFloat(stockCheck.rows[0].current_stock || '0') : 0;
+                        const resStock = Math.max(0, prevStock - item.quantity);
                         await client.query(`UPDATE final_products 
                SET current_stock = GREATEST(0, current_stock - $1), updated_at = CURRENT_TIMESTAMP 
                WHERE id = $2`, [item.quantity, item.productId]);
-                        await client.query(`UPDATE products 
-               SET current_stock = GREATEST(0, current_stock - $1), updated_at = CURRENT_TIMESTAMP 
-               WHERE id = $2`, [item.quantity, item.productId]);
+                        try {
+                            await client.query(`UPDATE products 
+                 SET current_stock = GREATEST(0, current_stock - $1), updated_at = CURRENT_TIMESTAMP 
+                 WHERE id = $2`, [item.quantity, item.productId]);
+                        }
+                        catch { }
+                        // Registrar movimiento de salida en el Kardex
+                        await client.query(`
+              INSERT INTO stock_movements (
+                id, item_type, item_id, item_name, movement_type, quantity,
+                previous_stock, resulting_stock, unit_of_measure, unit_cost,
+                reference_type, reference_id, reference_number, reason, user_name, notes, created_at
+              ) VALUES ($1, 'FINAL_PRODUCT', $2, $3, 'SALE', $4, $5, $6, 'UN', $7, 'ORDER', $8, $9, 'Venta realizada', $10, $11, CURRENT_TIMESTAMP)
+            `, [
+                            (0, uuid_1.v4)(),
+                            item.productId,
+                            item.productName,
+                            -item.quantity,
+                            prevStock,
+                            resStock,
+                            item.unitPrice,
+                            orderId,
+                            orderNumber,
+                            dto.sellerName || 'Vendedor',
+                            `Pedido N° ${orderNumber}`
+                        ]);
                     }
                     catch (stockErr) {
                         console.warn(`⚠️ No se pudo actualizar stock para producto ${item.productId}:`, stockErr.message);
@@ -374,6 +401,40 @@ class SaleService {
             throw new PersistenceError('Debe indicar status o paymentStatus.', 400);
         }
         try {
+            const order = await this.getOrderById(id);
+            const isCancelling = dto.status === 'CANCELLED' && order.status !== 'CANCELLED';
+            if (isCancelling && order.items && order.items.length > 0) {
+                for (const item of order.items) {
+                    if (item.productId) {
+                        try {
+                            await this.db.query(`UPDATE final_products SET current_stock = current_stock + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [item.quantity, item.productId]);
+                            try {
+                                await this.db.query(`UPDATE products SET current_stock = current_stock + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [item.quantity, item.productId]);
+                            }
+                            catch { }
+                            await this.db.query(`
+                INSERT INTO stock_movements (
+                  id, item_type, item_id, item_name, movement_type, quantity,
+                  previous_stock, resulting_stock, unit_of_measure, unit_cost,
+                  reference_type, reference_id, reference_number, reason, user_name, notes, created_at
+                ) VALUES ($1, 'FINAL_PRODUCT', $2, $3, 'SALE_CANCEL', $4, 0, 0, 'UN', $5, 'ORDER', $6, $7, 'Cancelación de venta y reincorporación de stock', 'Sistema', $8, CURRENT_TIMESTAMP)
+              `, [
+                                (0, uuid_1.v4)(),
+                                item.productId,
+                                item.productName,
+                                item.quantity,
+                                item.unitPrice,
+                                order.id,
+                                order.orderNumber,
+                                `Cancelación de pedido N° ${order.orderNumber}`
+                            ]);
+                        }
+                        catch (err) {
+                            console.warn(`⚠️ Error al revertir stock por cancelación de pedido ${order.orderNumber}:`, err.message);
+                        }
+                    }
+                }
+            }
             const sets = [];
             const values = [];
             let idx = 1;

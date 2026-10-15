@@ -86,6 +86,9 @@ import { AuthController } from './controllers/authController';
 import { SystemService } from './services/systemService';
 import { SystemController } from './controllers/systemController';
 
+import { StockMovementService } from './services/stockMovementService';
+import { StockMovementController } from './controllers/stockMovementController';
+
 const app = express();
 const PORT: number = Number(process.env.PORT) || 3000;
 
@@ -190,6 +193,10 @@ const authController = new AuthController(authService);
 const systemService = new SystemService(db);
 const systemController = new SystemController(systemService);
 
+// Inicialización Módulo Kardex & Trazabilidad de Stock
+const stockMovementService = new StockMovementService(db);
+const stockMovementController = new StockMovementController(stockMovementService);
+
 // =============================================
 // RUTAS PÚBLICAS (sin autenticación)
 // =============================================
@@ -291,6 +298,8 @@ app.post('/api/v1/merchandise-receipts', requireAuth, supplierController.createM
 app.post('/api/v1/merchandise-receipts/raw', requireAuth, supplierController.createRawMaterialReceipt);
 app.get('/api/v1/merchandise-receipts', requireAuth, supplierController.searchMerchandiseReceipts);
 app.get('/api/v1/merchandise-receipts/:id', requireAuth, supplierController.getMerchandiseReceiptById);
+app.put('/api/v1/merchandise-receipts/:id', requireAuth, supplierController.updateMerchandiseReceipt);
+app.delete('/api/v1/merchandise-receipts/:id', requireAuth, requireRole('ADMIN'), supplierController.deleteMerchandiseReceipt);
 
 app.post('/api/v1/accounts-payable/payments', requireAuth, supplierController.registerPayment);
 app.get('/api/v1/accounts-payable/receipts/:id/payments', requireAuth, supplierController.getPaymentsByReceipt);
@@ -362,6 +371,10 @@ app.post('/api/v1/system/import-catalog', requireAuth, requireRole('ADMIN'), asy
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+// Módulo de Kardex & Trazabilidad de Movimientos de Stock
+app.get('/api/v1/inventory/movements', requireAuth, stockMovementController.getMovements);
+app.post('/api/v1/inventory/adjustments', requireAuth, stockMovementController.adjustStock);
 
 // Módulo de Inventario: Materias Primas
 app.get('/api/v1/raw-materials', requireAuth, rawMaterialController.getAll);

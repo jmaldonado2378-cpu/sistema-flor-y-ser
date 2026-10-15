@@ -230,6 +230,49 @@ class SupplierController {
             });
         }
     };
+    /**
+     * PUT /api/v1/merchandise-receipts/:id
+     * Actualiza una recepción de mercadería existente recalculando stock.
+     */
+    updateMerchandiseReceipt = async (req, res) => {
+        try {
+            const receiptId = req.params.id;
+            const userName = req.user?.name || 'Administrador';
+            const updated = await this.supplierService.updateMerchandiseReceipt(receiptId, req.body, userName);
+            res.json({
+                success: true,
+                message: 'Comprobante de recepción y stock actualizados correctamente.',
+                data: updated
+            });
+        }
+        catch (error) {
+            res.status(400).json({
+                success: false,
+                error: error.message || 'Error al actualizar el comprobante de recepción.'
+            });
+        }
+    };
+    /**
+     * DELETE /api/v1/merchandise-receipts/:id
+     * Anula y elimina una recepción de mercadería revirtiendo el stock.
+     */
+    deleteMerchandiseReceipt = async (req, res) => {
+        try {
+            const receiptId = req.params.id;
+            const userName = req.user?.name || 'Administrador';
+            const result = await this.supplierService.deleteMerchandiseReceipt(receiptId, userName);
+            res.json({
+                success: true,
+                message: result.message
+            });
+        }
+        catch (error) {
+            res.status(400).json({
+                success: false,
+                error: error.message || 'Error al anular la recepción de mercadería.'
+            });
+        }
+    };
     // =========================================================================
     // 3. CUENTAS POR PAGAR Y REGISTRO DE PAGOS A PROVEEDORES
     // =========================================================================
