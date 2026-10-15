@@ -7,9 +7,12 @@ import {
 } from '../hooks/usePricing';
 import { useFinalProducts, useRawMaterials } from '../hooks/useInventory';
 import { usePackagingMaterials } from '../hooks/usePackaging';
+import { useArticleFamilies } from '../hooks/useArticleFamilies';
+import { useSettings } from '../hooks/useSettings';
 import { Modal } from '../components/ui/Modal';
+import { PriceListGeneratorModal } from '../components/pricing/PriceListGeneratorModal';
 import { PricingStructure } from '../api/pricing';
-import { Calculator, Settings, RefreshCw, DollarSign, CheckCircle2, AlertCircle, PlusCircle, Layers, CheckSquare, Square } from 'lucide-react';
+import { Calculator, Settings, RefreshCw, DollarSign, CheckCircle2, AlertCircle, PlusCircle, Layers, CheckSquare, Square, Printer } from 'lucide-react';
 
 interface PricingPageProps {
   onTabChange?: (tab: string) => void;
@@ -20,6 +23,7 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
   const [selectedProductPricing, setSelectedProductPricing] = useState<PricingStructure | null>(null);
   const [selectedRawMaterialId, setSelectedRawMaterialId] = useState<string>('');
   const [selectedPackagingIds, setSelectedPackagingIds] = useState<string[]>([]);
+  const [isPriceListModalOpen, setIsPriceListModalOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -27,6 +31,10 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
   const { data: finalProducts, isLoading: loadingProducts } = useFinalProducts();
   const { data: rawMaterials } = useRawMaterials();
   const { data: packagingMaterials } = usePackagingMaterials();
+  const { data: rawFamiliesData } = useArticleFamilies();
+  const { data: settingsData } = useSettings();
+
+  const familiesList = Array.isArray(rawFamiliesData) ? rawFamiliesData : (rawFamiliesData && Array.isArray((rawFamiliesData as any).data) ? (rawFamiliesData as any).data : []);
 
   const savePricing = useSavePricingStructure();
   const allocateFixed = useAllocateFixedCosts();
@@ -312,6 +320,15 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
           </p>
         </div>
         <div className="flex gap-2">
+          <button 
+            onClick={() => setIsPriceListModalOpen(true)} 
+            className="btn btn-secondary flex items-center gap-1.5"
+            style={{ borderColor: '#2E5339', color: '#2E5339', backgroundColor: '#E9EFEA', fontWeight: 600 }}
+            title="Generar catálogo y lista de precios editable con logo profesional"
+          >
+            <Printer size={16} />
+            📋 Generar Lista de Precios PDF
+          </button>
           <button onClick={handleAllocateFixedCosts} className="btn btn-secondary flex items-center gap-2" disabled={allocateFixed.isPending}>
             <RefreshCw size={16} className={allocateFixed.isPending ? 'animate-spin' : ''} />
             Prorratear Costos Fijos
@@ -674,6 +691,14 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
           </div>
         </form>
       </Modal>
+
+      <PriceListGeneratorModal
+        isOpen={isPriceListModalOpen}
+        onClose={() => setIsPriceListModalOpen(false)}
+        products={products}
+        families={familiesList}
+        settings={settingsData}
+      />
     </div>
   );
 };

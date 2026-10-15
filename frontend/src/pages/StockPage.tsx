@@ -15,9 +15,11 @@ import { usePackagingMaterials, useCreatePackagingMaterial, useUpdatePackagingMa
 import { useSuppliers } from '../hooks/useSuppliers';
 import { useArticleFamilies } from '../hooks/useArticleFamilies';
 import { useStockMovements, useCreateStockAdjustment } from '../hooks/useStockMovements';
+import { useSettings } from '../hooks/useSettings';
 import { StockItemType, StockMovementType, StockMovement } from '../api/stockMovements';
 import { Modal } from '../components/ui/Modal';
 import { BulkImportModal } from '../components/common/BulkImportModal';
+import { PriceListGeneratorModal } from '../components/pricing/PriceListGeneratorModal';
 
 const rawMaterialSchema = z.object({
   code: z.string().optional(),
@@ -68,6 +70,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   const [isCustomSupplier, setIsCustomSupplier] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [bulkImportType, setBulkImportType] = useState<'raw_materials' | 'final_products'>('raw_materials');
+  const [isPriceListModalOpen, setIsPriceListModalOpen] = useState(false);
 
   // Estado Ajuste de Stock Manual
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
@@ -98,6 +101,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   const { data: finalProducts, isLoading: loadingFinal, isError: errorFinal } = useFinalProducts();
   const { data: suppliers } = useSuppliers();
   const { data: rawFamiliesData } = useArticleFamilies();
+  const { data: settingsData } = useSettings();
 
   const rawMaterialsList: any[] = Array.isArray(rawMaterials) 
     ? rawMaterials 
@@ -669,6 +673,14 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               : 'Kardex Centralizado & Trazabilidad de Stock'}
           </h2>
           <div className="flex gap-2">
+            <button
+              className="btn btn-secondary flex items-center gap-1.5"
+              style={{ borderColor: '#2E5339', color: '#2E5339', backgroundColor: '#E9EFEA', fontWeight: 600 }}
+              onClick={() => setIsPriceListModalOpen(true)}
+              title="Generar catálogo y lista de precios editable con logo profesional"
+            >
+              📋 Lista de Precios PDF
+            </button>
             <button
               className="btn btn-secondary flex items-center gap-2"
               style={{ borderColor: '#8B5CF6', color: '#6D28D9', backgroundColor: '#F5F3FF', fontWeight: 600 }}
@@ -2075,6 +2087,14 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
           // Refetch stock lists
           window.location.reload();
         }}
+      />
+
+      <PriceListGeneratorModal
+        isOpen={isPriceListModalOpen}
+        onClose={() => setIsPriceListModalOpen(false)}
+        products={finalProductsList}
+        families={finalFamilies.length > 0 ? finalFamilies : articleFamilies}
+        settings={settingsData}
       />
     </div>
   );
