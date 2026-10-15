@@ -385,11 +385,33 @@ input:focus, select:focus, textarea:focus, .input:focus {
   }
 
   /* When printing the Price List Catalog Modal */
-  body.printing-price-list .modal-backdrop,
-  body.printing-price-list .modal-content,
-  body.printing-price-list .modal-body {
+  body.printing-price-list #root,
+  body.printing-price-list .app-container,
+  body.printing-price-list .page-container,
+  body.printing-price-list .sidebar,
+  body.printing-price-list .top-navbar,
+  body.printing-price-list .modal-header,
+  body.printing-price-list .no-print {
+    display: none !important;
+  }
+
+  body.printing-price-list .modal-backdrop {
     position: static !important;
     display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100% !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    z-index: 99999 !important;
+  }
+
+  body.printing-price-list .modal-content {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
     max-width: 100% !important;
     max-height: none !important;
     overflow: visible !important;
@@ -400,12 +422,15 @@ input:focus, select:focus, textarea:focus, .input:focus {
     background: transparent !important;
   }
 
-  body.printing-price-list .modal-header,
-  body.printing-price-list .no-print {
-    display: none !important;
+  body.printing-price-list .modal-body {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    max-height: none !important;
   }
 
   body.printing-price-list #printable-price-catalog {
+    display: block !important;
     width: 100% !important;
     max-width: 100% !important;
     padding: 0 !important;

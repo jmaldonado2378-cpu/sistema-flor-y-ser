@@ -1,5 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPackagingMaterials, createPackagingMaterial, updatePackagingMaterial, updatePackagingStock } from '../api/packaging';
+import { 
+  getPackagingMaterials, 
+  createPackagingMaterial, 
+  updatePackagingMaterial, 
+  updatePackagingStock,
+  deletePackagingMaterial,
+  togglePackagingStatus
+} from '../api/packaging';
 
 export const usePackagingMaterials = () => {
   return useQuery({
@@ -32,6 +39,26 @@ export const useUpdatePackagingStock = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, newStock }: { id: string; newStock: number }) => updatePackagingStock(id, newStock),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['packaging-materials'] });
+    },
+  });
+};
+
+export const useDeletePackagingMaterial = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deletePackagingMaterial(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['packaging-materials'] });
+    },
+  });
+};
+
+export const useTogglePackagingStatus = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive?: boolean }) => togglePackagingStatus(id, isActive),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['packaging-materials'] });
     },

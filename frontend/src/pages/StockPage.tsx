@@ -2,16 +2,26 @@ import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'rea
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Wand2, Package, Tag, Box, Pencil, Trash2, Layers, History, SlidersHorizontal, ArrowUpRight, ArrowDownRight, RefreshCw, AlertCircle, Printer, Search, Filter } from 'lucide-react';
+import { Plus, Wand2, Package, Tag, Box, Pencil, Trash2, Layers, History, SlidersHorizontal, ArrowUpRight, ArrowDownRight, RefreshCw, AlertCircle, Printer, Search, Filter, PauseCircle, PlayCircle } from 'lucide-react';
 import {
   useRawMaterials,
   useFinalProducts,
   useCreateRawMaterial,
   useUpdateRawMaterial,
+  useDeleteRawMaterial,
+  useToggleRawMaterialStatus,
   useCreateFinalProduct,
   useUpdateFinalProduct,
+  useDeleteFinalProduct,
+  useToggleFinalProductStatus,
 } from '../hooks/useInventory';
-import { usePackagingMaterials, useCreatePackagingMaterial, useUpdatePackagingMaterial } from '../hooks/usePackaging';
+import { 
+  usePackagingMaterials, 
+  useCreatePackagingMaterial, 
+  useUpdatePackagingMaterial,
+  useDeletePackagingMaterial,
+  useTogglePackagingStatus
+} from '../hooks/usePackaging';
 import { useSuppliers } from '../hooks/useSuppliers';
 import { useArticleFamilies } from '../hooks/useArticleFamilies';
 import { useStockMovements, useCreateStockAdjustment } from '../hooks/useStockMovements';
@@ -144,6 +154,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   const [rawFamilyFilter, setRawFamilyFilter] = useState('');
   const [rawSupplierFilter, setRawSupplierFilter] = useState('');
   const [rawStockFilter, setRawStockFilter] = useState<'ALL' | 'LOW' | 'WITH_STOCK' | 'OUT_OF_STOCK'>('ALL');
+  const [rawStatusFilter, setRawStatusFilter] = useState<'ALL' | 'ACTIVE' | 'SUSPENDED'>('ALL');
 
   // Filtros Tab 2: Empaques & Etiquetas
   const [pkgSearch, setPkgSearch] = useState('');
@@ -151,11 +162,13 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   const [pkgSupplierFilter, setPkgSupplierFilter] = useState('');
   const [pkgFamilyFilter, setPkgFamilyFilter] = useState('');
   const [pkgStockFilter, setPkgStockFilter] = useState<'ALL' | 'LOW' | 'WITH_STOCK' | 'OUT_OF_STOCK'>('ALL');
+  const [pkgStatusFilter, setPkgStatusFilter] = useState<'ALL' | 'ACTIVE' | 'SUSPENDED'>('ALL');
 
   // Filtros Tab 3: Productos Finales
   const [finalSearch, setFinalSearch] = useState('');
   const [finalFamilyFilter, setFinalFamilyFilter] = useState('');
   const [finalStockFilter, setFinalStockFilter] = useState<'ALL' | 'LOW' | 'WITH_STOCK' | 'OUT_OF_STOCK'>('ALL');
+  const [finalStatusFilter, setFinalStatusFilter] = useState<'ALL' | 'ACTIVE' | 'SUSPENDED'>('ALL');
 
   // Listas filtradas
   const filteredRawMaterials = rawMaterialsList.filter(item => {
@@ -173,6 +186,10 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
     if (rawSupplierFilter) {
       if ((item.supplierName || '') !== rawSupplierFilter) return false;
     }
+    const isAct = item.isActive !== false;
+    if (rawStatusFilter === 'ACTIVE' && !isAct) return false;
+    if (rawStatusFilter === 'SUSPENDED' && isAct) return false;
+
     const current = Number(item.currentStock) || 0;
     const min = Number(item.minStock) || 0;
     if (rawStockFilter === 'LOW' && current > min) return false;
@@ -195,6 +212,10 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       const itemFam = item.familyId || (item as any).articleFamilyId;
       if (itemFam !== pkgFamilyFilter) return false;
     }
+    const isAct = item.isActive !== false;
+    if (pkgStatusFilter === 'ACTIVE' && !isAct) return false;
+    if (pkgStatusFilter === 'SUSPENDED' && isAct) return false;
+
     const current = Number(item.currentStock) || 0;
     const min = Number(item.minStock) || 0;
     if (pkgStockFilter === 'LOW' && current > min) return false;
@@ -216,6 +237,10 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       const itemFam = item.familyId || (item as any).articleFamilyId;
       if (itemFam !== finalFamilyFilter) return false;
     }
+    const isAct = item.isActive !== false;
+    if (finalStatusFilter === 'ACTIVE' && !isAct) return false;
+    if (finalStatusFilter === 'SUSPENDED' && isAct) return false;
+
     const current = Number(item.currentStock) || 0;
     const min = Number(item.minStock) || 0;
     if (finalStockFilter === 'LOW' && current > min) return false;
@@ -228,15 +253,90 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
     window.print();
   };
 
-
   const createRaw = useCreateRawMaterial();
   const updateRaw = useUpdateRawMaterial();
+  const deleteRaw = useDeleteRawMaterial();
+  const toggleRawStatus = useToggleRawMaterialStatus();
 
   const createPkg = useCreatePackagingMaterial();
   const updatePkg = useUpdatePackagingMaterial();
+  const deletePkg = useDeletePackagingMaterial();
+  const togglePkgStatus = useTogglePackagingStatus();
 
   const createFinal = useCreateFinalProduct();
   const updateFinal = useUpdateFinalProduct();
+  const deleteFinal = useDeleteFinalProduct();
+  const toggleFinalStatus = useToggleFinalProductStatus();
+
+  // Handlers para Suspender / Reactivar y Eliminar
+  const handleToggleStatusRaw = async (item: any) => {
+    const isAct = item.isActive !== false;
+    const actionText = isAct ? 'suspender' : 'reactivar';
+    if (!confirm(`¿Desea ${actionText} la materia prima "${item.name}"?`)) return;
+    try {
+      await toggleRawStatus.mutateAsync({ id: item.id, isActive: !isAct });
+    } catch (err: any) {
+      alert(err.message || 'Error al cambiar estado.');
+    }
+  };
+
+  const handleDeleteRaw = async (item: any) => {
+    if (!confirm(`¿Está seguro de eliminar definitivamente "${item.name}"?\nEsta acción no se puede deshacer.`)) return;
+    try {
+      const res = await deleteRaw.mutateAsync(item.id);
+      if (res && res.status === 'ERROR') {
+        alert(res.message || 'No se pudo eliminar.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'No se puede eliminar porque está vinculado a otros registros.');
+    }
+  };
+
+  const handleToggleStatusPkg = async (item: any) => {
+    const isAct = item.isActive !== false;
+    const actionText = isAct ? 'suspender' : 'reactivar';
+    if (!confirm(`¿Desea ${actionText} el material de empaque "${item.name}"?`)) return;
+    try {
+      await togglePkgStatus.mutateAsync({ id: item.id, isActive: !isAct });
+    } catch (err: any) {
+      alert(err.message || 'Error al cambiar estado.');
+    }
+  };
+
+  const handleDeletePkg = async (item: any) => {
+    if (!confirm(`¿Está seguro de eliminar definitivamente "${item.name}"?\nEsta acción no se puede deshacer.`)) return;
+    try {
+      const res = await deletePkg.mutateAsync(item.id);
+      if (res && res.status === 'ERROR') {
+        alert(res.message || 'No se pudo eliminar.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'No se puede eliminar porque está vinculado a otros registros.');
+    }
+  };
+
+  const handleToggleStatusFinal = async (item: any) => {
+    const isAct = item.isActive !== false;
+    const actionText = isAct ? 'suspender / pausar' : 'reactivar';
+    if (!confirm(`¿Desea ${actionText} el producto "${item.name}"?`)) return;
+    try {
+      await toggleFinalStatus.mutateAsync({ id: item.id, isActive: !isAct });
+    } catch (err: any) {
+      alert(err.message || 'Error al cambiar estado.');
+    }
+  };
+
+  const handleDeleteFinal = async (item: any) => {
+    if (!confirm(`¿Está seguro de eliminar definitivamente "${item.name}"?\nSi tiene órdenes o ventas históricas asociadas se recomienda suspenderlo.`)) return;
+    try {
+      const res = await deleteFinal.mutateAsync(item.id);
+      if (res && res.status === 'ERROR') {
+        alert(res.message || 'No se pudo eliminar.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'No se puede eliminar porque está vinculado a ventas o movimientos históricos.');
+    }
+  };
 
   const { 
     data: movementsResponse, 
@@ -843,10 +943,23 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                     <option value="OUT_OF_STOCK">❌ Sin Stock (0)</option>
                   </select>
                 </div>
+
+                <div style={{ minWidth: '150px' }}>
+                  <label className="text-xs text-text-muted mb-1 block">Estado Artículo</label>
+                  <select 
+                    value={rawStatusFilter} 
+                    onChange={(e) => setRawStatusFilter(e.target.value as any)}
+                    className="w-full text-sm font-medium"
+                  >
+                    <option value="ALL">Todos los Estados</option>
+                    <option value="ACTIVE">✅ Solo Activos</option>
+                    <option value="SUSPENDED">⏸️ Solo Suspendidos</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex items-end gap-2 pt-4">
-                {(rawSearch || rawFamilyFilter || rawSupplierFilter || rawStockFilter !== 'ALL') && (
+                {(rawSearch || rawFamilyFilter || rawSupplierFilter || rawStockFilter !== 'ALL' || rawStatusFilter !== 'ALL') && (
                   <button 
                     type="button" 
                     className="btn btn-secondary btn-sm"
@@ -855,6 +968,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       setRawFamilyFilter('');
                       setRawSupplierFilter('');
                       setRawStockFilter('ALL');
+                      setRawStatusFilter('ALL');
                     }}
                   >
                     Limpiar Filtros
@@ -876,8 +990,13 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               <div>
                 Mostrando <strong className="text-text-dark">{filteredRawMaterials.length}</strong> de {rawMaterialsList.length} materias primas
               </div>
-              <div>
-                Stock Bajo / Alerta: <strong className="text-terracotta">{filteredRawMaterials.filter(i => (i.currentStock || 0) <= (i.minStock || 0)).length}</strong>
+              <div className="flex items-center gap-4">
+                <div>
+                  Suspendidas: <strong className="text-amber-600">{rawMaterialsList.filter(i => i.isActive === false).length}</strong>
+                </div>
+                <div>
+                  Stock Bajo / Alerta: <strong className="text-terracotta">{filteredRawMaterials.filter(i => (i.currentStock || 0) <= (i.minStock || 0)).length}</strong>
+                </div>
               </div>
             </div>
 
@@ -895,6 +1014,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       <th>Costo / Unidad</th>
                       <th>Proveedor Maestro</th>
                       <th>Ubicación</th>
+                      <th>Estado</th>
                       <th className="no-print" style={{ textAlign: 'right' }}>Acciones</th>
                     </tr>
                   </thead>
@@ -904,9 +1024,10 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       const currentStock = item.currentStock || 0;
                       const minStock = item.minStock || 0;
                       const familyName = item.familyName || (articleFamilies || []).find(f => f && (f.id === item.familyId || f.id === (item as any).articleFamilyId))?.name || 'Sin familia';
+                      const isAct = item.isActive !== false;
 
                       return (
-                        <tr key={item.id}>
+                        <tr key={item.id} className={!isAct ? 'opacity-60 bg-amber-50/20' : ''}>
                           <td className="font-semibold text-primary-sage">{item.code}</td>
                           <td className="font-medium">{item.name}</td>
                           <td><span className="badge gray">{familyName}</span></td>
@@ -918,27 +1039,80 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                           <td>{(item.costPerUnit || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
                           <td><span className="badge gray">{item.supplierName || 'Sin asignar'}</span></td>
                           <td className="text-sm text-text-muted">{item.storageLocation || 'Depósito Principal'}</td>
+                          <td>
+                            {isAct ? (
+                              <span className="badge green text-[10px]">Activo</span>
+                            ) : (
+                              <span className="badge amber text-[10px]">Suspendido</span>
+                            )}
+                          </td>
                           <td className="no-print" style={{ textAlign: 'right' }}>
-                            <button 
-                              type="button"
-                              onClick={() => openEditRaw(item)}
-                              title="Editar materia prima"
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '8px',
-                                border: '1px solid #D1D5DB',
-                                backgroundColor: '#FFFFFF',
-                                cursor: 'pointer',
-                                padding: 0,
-                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                              }}
-                            >
-                              <Pencil size={15} style={{ color: '#2563EB', strokeWidth: 2.2 }} />
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button 
+                                type="button"
+                                onClick={() => openEditRaw(item)}
+                                title="Editar materia prima"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #D1D5DB',
+                                  backgroundColor: '#FFFFFF',
+                                  cursor: 'pointer',
+                                  padding: 0,
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                }}
+                              >
+                                <Pencil size={15} style={{ color: '#2563EB', strokeWidth: 2.2 }} />
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => handleToggleStatusRaw(item)}
+                                title={isAct ? "Suspender / Pausar materia prima" : "Reactivar materia prima"}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #D1D5DB',
+                                  backgroundColor: isAct ? '#FFFFFF' : '#FEF3C7',
+                                  cursor: 'pointer',
+                                  padding: 0,
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                }}
+                              >
+                                {isAct ? (
+                                  <PauseCircle size={15} style={{ color: '#D97706', strokeWidth: 2.2 }} />
+                                ) : (
+                                  <PlayCircle size={15} style={{ color: '#10B981', strokeWidth: 2.2 }} />
+                                )}
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => handleDeleteRaw(item)}
+                                title="Eliminar materia prima"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #D1D5DB',
+                                  backgroundColor: '#FFFFFF',
+                                  cursor: 'pointer',
+                                  padding: 0,
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                }}
+                              >
+                                <Trash2 size={15} style={{ color: '#DC2626', strokeWidth: 2.2 }} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1046,10 +1220,23 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                     <option value="OUT_OF_STOCK">❌ Sin Stock (0)</option>
                   </select>
                 </div>
+
+                <div style={{ minWidth: '150px' }}>
+                  <label className="text-xs text-text-muted mb-1 block">Estado Artículo</label>
+                  <select 
+                    value={pkgStatusFilter} 
+                    onChange={(e) => setPkgStatusFilter(e.target.value as any)}
+                    className="w-full text-sm font-medium"
+                  >
+                    <option value="ALL">Todos los Estados</option>
+                    <option value="ACTIVE">✅ Solo Activos</option>
+                    <option value="SUSPENDED">⏸️ Solo Suspendidos</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex items-end gap-2 pt-4">
-                {(pkgSearch || pkgCategoryFilter || pkgFamilyFilter || pkgSupplierFilter || pkgStockFilter !== 'ALL') && (
+                {(pkgSearch || pkgCategoryFilter || pkgFamilyFilter || pkgSupplierFilter || pkgStockFilter !== 'ALL' || pkgStatusFilter !== 'ALL') && (
                   <button 
                     type="button" 
                     className="btn btn-secondary btn-sm"
@@ -1059,6 +1246,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       setPkgFamilyFilter('');
                       setPkgSupplierFilter('');
                       setPkgStockFilter('ALL');
+                      setPkgStatusFilter('ALL');
                     }}
                   >
                     Limpiar Filtros
@@ -1080,8 +1268,13 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               <div>
                 Mostrando <strong className="text-text-dark">{filteredPackagingMaterials.length}</strong> de {packagingMaterialsList.length} empaques y etiquetas
               </div>
-              <div>
-                Stock Bajo / Alerta: <strong className="text-terracotta">{filteredPackagingMaterials.filter(i => (i.currentStock || 0) <= (i.minStock || 0)).length}</strong>
+              <div className="flex items-center gap-4">
+                <div>
+                  Suspendidos: <strong className="text-amber-600">{packagingMaterialsList.filter(i => i.isActive === false).length}</strong>
+                </div>
+                <div>
+                  Stock Bajo / Alerta: <strong className="text-terracotta">{filteredPackagingMaterials.filter(i => (i.currentStock || 0) <= (i.minStock || 0)).length}</strong>
+                </div>
               </div>
             </div>
 
@@ -1100,6 +1293,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       <th>Costo / Unidad</th>
                       <th>Proveedor</th>
                       <th>Ubicación</th>
+                      <th>Estado</th>
                       <th className="no-print" style={{ textAlign: 'right' }}>Acciones</th>
                     </tr>
                   </thead>
@@ -1109,9 +1303,10 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       const currentStock = item.currentStock || 0;
                       const minStock = item.minStock || 0;
                       const familyName = item.familyName || (articleFamilies || []).find(f => f && (f.id === item.familyId || f.id === (item as any).articleFamilyId))?.name || 'Sin familia';
+                      const isAct = item.isActive !== false;
 
                       return (
-                        <tr key={item.id}>
+                        <tr key={item.id} className={!isAct ? 'opacity-60 bg-amber-50/20' : ''}>
                           <td className="font-semibold text-primary-sage">{item.code}</td>
                           <td className="font-medium">{item.name}</td>
                           <td>
@@ -1128,27 +1323,80 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                           </td>
                           <td><span className="badge gray">{item.supplierName || 'Sin asignar'}</span></td>
                           <td className="text-sm text-text-muted">{item.storageLocation || 'Depósito C'}</td>
+                          <td>
+                            {isAct ? (
+                              <span className="badge green text-[10px]">Activo</span>
+                            ) : (
+                              <span className="badge amber text-[10px]">Suspendido</span>
+                            )}
+                          </td>
                           <td className="no-print" style={{ textAlign: 'right' }}>
-                            <button 
-                              type="button"
-                              onClick={() => openEditPkg(item)}
-                              title="Editar empaque"
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '8px',
-                                border: '1px solid #D1D5DB',
-                                backgroundColor: '#FFFFFF',
-                                cursor: 'pointer',
-                                padding: 0,
-                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                              }}
-                            >
-                              <Pencil size={15} style={{ color: '#2563EB', strokeWidth: 2.2 }} />
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button 
+                                type="button"
+                                onClick={() => openEditPkg(item)}
+                                title="Editar empaque"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #D1D5DB',
+                                  backgroundColor: '#FFFFFF',
+                                  cursor: 'pointer',
+                                  padding: 0,
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                }}
+                              >
+                                <Pencil size={15} style={{ color: '#2563EB', strokeWidth: 2.2 }} />
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => handleToggleStatusPkg(item)}
+                                title={isAct ? "Suspender / Pausar empaque" : "Reactivar empaque"}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #D1D5DB',
+                                  backgroundColor: isAct ? '#FFFFFF' : '#FEF3C7',
+                                  cursor: 'pointer',
+                                  padding: 0,
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                }}
+                              >
+                                {isAct ? (
+                                  <PauseCircle size={15} style={{ color: '#D97706', strokeWidth: 2.2 }} />
+                                ) : (
+                                  <PlayCircle size={15} style={{ color: '#10B981', strokeWidth: 2.2 }} />
+                                )}
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => handleDeletePkg(item)}
+                                title="Eliminar empaque"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #D1D5DB',
+                                  backgroundColor: '#FFFFFF',
+                                  cursor: 'pointer',
+                                  padding: 0,
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                }}
+                              >
+                                <Trash2 size={15} style={{ color: '#DC2626', strokeWidth: 2.2 }} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1225,10 +1473,23 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                     <option value="OUT_OF_STOCK">❌ Sin Stock (0)</option>
                   </select>
                 </div>
+
+                <div style={{ minWidth: '150px' }}>
+                  <label className="text-xs text-text-muted mb-1 block">Estado Artículo</label>
+                  <select 
+                    value={finalStatusFilter} 
+                    onChange={(e) => setFinalStatusFilter(e.target.value as any)}
+                    className="w-full text-sm font-medium"
+                  >
+                    <option value="ALL">Todos los Estados</option>
+                    <option value="ACTIVE">✅ Solo Activos</option>
+                    <option value="SUSPENDED">⏸️ Solo Suspendidos</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex items-end gap-2 pt-4">
-                {(finalSearch || finalFamilyFilter || finalStockFilter !== 'ALL') && (
+                {(finalSearch || finalFamilyFilter || finalStockFilter !== 'ALL' || finalStatusFilter !== 'ALL') && (
                   <button 
                     type="button" 
                     className="btn btn-secondary btn-sm"
@@ -1236,6 +1497,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       setFinalSearch('');
                       setFinalFamilyFilter('');
                       setFinalStockFilter('ALL');
+                      setFinalStatusFilter('ALL');
                     }}
                   >
                     Limpiar Filtros
@@ -1257,8 +1519,13 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               <div>
                 Mostrando <strong className="text-text-dark">{filteredFinalProducts.length}</strong> de {finalProductsList.length} productos elaborados
               </div>
-              <div>
-                Stock Bajo / Alerta: <strong className="text-terracotta">{filteredFinalProducts.filter(i => (i.currentStock || 0) <= (i.minStock || 0)).length}</strong>
+              <div className="flex items-center gap-4">
+                <div>
+                  Suspendidos: <strong className="text-amber-600">{finalProductsList.filter(i => i.isActive === false).length}</strong>
+                </div>
+                <div>
+                  Stock Bajo / Alerta: <strong className="text-terracotta">{filteredFinalProducts.filter(i => (i.currentStock || 0) <= (i.minStock || 0)).length}</strong>
+                </div>
               </div>
             </div>
 
@@ -1276,6 +1543,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       <th>Precio Venta</th>
                       <th>Peso / Contenido</th>
                       <th>Materia Prima Base</th>
+                      <th>Estado</th>
                       <th className="no-print" style={{ textAlign: 'right' }}>Acciones</th>
                     </tr>
                   </thead>
@@ -1286,9 +1554,10 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       const currentStock = item.currentStock || 0;
                       const minStock = item.minStock || 0;
                       const familyName = item.familyName || (articleFamilies || []).find(f => f && (f.id === item.familyId || f.id === (item as any).articleFamilyId))?.name || 'Sin familia';
+                      const isAct = item.isActive !== false;
 
                       return (
-                        <tr key={item.id}>
+                        <tr key={item.id} className={!isAct ? 'opacity-60 bg-amber-50/20' : ''}>
                           <td className="font-semibold text-primary-sage">{item.code}</td>
                           <td className="font-medium">{item.name}</td>
                           <td><span className="badge gray">{familyName}</span></td>
@@ -1300,27 +1569,80 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                           <td className="font-semibold text-text-dark">{(item.price || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
                           <td>{item.unitWeightGrams || 0}g ({item.netContentLabel || `${item.unitWeightGrams || 0}g`})</td>
                           <td><span className="badge gray">{baseRm ? baseRm.name : 'Insumo Base'}</span></td>
+                          <td>
+                            {isAct ? (
+                              <span className="badge green text-[10px]">Activo</span>
+                            ) : (
+                              <span className="badge amber text-[10px]">Suspendido</span>
+                            )}
+                          </td>
                           <td className="no-print" style={{ textAlign: 'right' }}>
-                            <button 
-                              type="button"
-                              onClick={() => openEditFinal(item)}
-                              title="Editar producto final"
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '8px',
-                                border: '1px solid #D1D5DB',
-                                backgroundColor: '#FFFFFF',
-                                cursor: 'pointer',
-                                padding: 0,
-                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                              }}
-                            >
-                              <Pencil size={15} style={{ color: '#2563EB', strokeWidth: 2.2 }} />
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button 
+                                type="button"
+                                onClick={() => openEditFinal(item)}
+                                title="Editar producto final"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #D1D5DB',
+                                  backgroundColor: '#FFFFFF',
+                                  cursor: 'pointer',
+                                  padding: 0,
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                }}
+                              >
+                                <Pencil size={15} style={{ color: '#2563EB', strokeWidth: 2.2 }} />
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => handleToggleStatusFinal(item)}
+                                title={isAct ? "Suspender / Pausar producto" : "Reactivar producto"}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #D1D5DB',
+                                  backgroundColor: isAct ? '#FFFFFF' : '#FEF3C7',
+                                  cursor: 'pointer',
+                                  padding: 0,
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                }}
+                              >
+                                {isAct ? (
+                                  <PauseCircle size={15} style={{ color: '#D97706', strokeWidth: 2.2 }} />
+                                ) : (
+                                  <PlayCircle size={15} style={{ color: '#10B981', strokeWidth: 2.2 }} />
+                                )}
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => handleDeleteFinal(item)}
+                                title="Eliminar producto final"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #D1D5DB',
+                                  backgroundColor: '#FFFFFF',
+                                  cursor: 'pointer',
+                                  padding: 0,
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                }}
+                              >
+                                <Trash2 size={15} style={{ color: '#DC2626', strokeWidth: 2.2 }} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );

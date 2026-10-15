@@ -101,5 +101,34 @@ class FinalProductController {
             res.status(500).json({ status: 'ERROR', message: error.message });
         }
     };
+    delete = async (req, res) => {
+        try {
+            const { id } = req.params;
+            const result = await this.finalProductService.delete(id);
+            if (!result.success) {
+                res.status(400).json({ status: 'ERROR', message: result.message || 'No se pudo eliminar el producto final.' });
+                return;
+            }
+            res.json({ status: 'SUCCESS', message: 'Producto final eliminado exitosamente.' });
+        }
+        catch (error) {
+            res.status(500).json({ status: 'ERROR', message: error.message });
+        }
+    };
+    toggleStatus = async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { isActive } = req.body;
+            const updated = await this.finalProductService.toggleStatus(id, isActive !== undefined ? Boolean(isActive) : undefined);
+            if (!updated) {
+                res.status(404).json({ status: 'ERROR', message: 'Producto final no encontrado.' });
+                return;
+            }
+            res.json({ status: 'SUCCESS', data: updated });
+        }
+        catch (error) {
+            res.status(500).json({ status: 'ERROR', message: error.message });
+        }
+    };
 }
 exports.FinalProductController = FinalProductController;

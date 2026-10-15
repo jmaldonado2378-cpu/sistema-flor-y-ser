@@ -108,8 +108,9 @@ class FinalProductService {
     constructor(db) {
         this.db = db;
     }
-    async getAll() {
+    async getAll(includeInactive = true) {
         try {
+            const whereClause = includeInactive ? '' : 'WHERE fp.is_active = 1';
             const res = await this.db.query(`
         SELECT fp.id, fp.raw_material_id AS "rawMaterialId", rm.name AS "rawMaterialName",
                fp.code, fp.barcode, fp.name, fp.unit_weight_grams AS "unitWeightGrams",
@@ -123,12 +124,13 @@ class FinalProductService {
         FROM final_products fp
         LEFT JOIN raw_materials rm ON fp.raw_material_id = rm.id
         LEFT JOIN article_families f ON fp.family_id = f.id
-        WHERE fp.is_active = TRUE
+        ${whereClause}
         ORDER BY fp.name ASC;
       `);
-            if (res.rows.length > 0) {
+            if (res.rows && res.rows.length > 0) {
                 return res.rows.map((row) => ({
                     ...row,
+                    isActive: row.isActive === 1 || row.isActive === true || row.isActive === '1' || row.isActive === 'true',
                     unitWeightGrams: parseFloat(row.unitWeightGrams || 0),
                     currentStock: parseFloat(row.currentStock || 0),
                     minStock: parseFloat(row.minStock || 0),
@@ -138,8 +140,10 @@ class FinalProductService {
                 }));
             }
         }
-        catch { }
-        return this.inMemoryProducts.filter(p => p.isActive);
+        catch (err) {
+            console.warn('⚠️ Error en finalProductService.getAll:', err.message);
+        }
+        return this.inMemoryProducts.filter(p => includeInactive || p.isActive);
     }
     async getById(id) {
         try {
@@ -372,6 +376,51 @@ class FinalProductService {
         }
         catch {
             return count;
+        }
+    }
+    async delete(id) {
+        try {
+            // 1. Verificar si tiene órdenes/ventas asociadas
+            const orderCheck = await this.db.query('SELECT COUNT(*) AS total FROM order_items WHERE product_id = $1', [id]);
+            const orderCount = parseInt(orderCheck.rows[0]?.total ?? orderCheck.rows[0]?.['COUNT(*)'] ?? '0', 10);
+            if (orderCount > 0) {
+                return {
+                    success: false,
+                    message: `El producto tiene ${orderCount} venta(s) u orden(es) históricas asociadas. Para preservar la integridad del historial contable no puede eliminarse permanentemente. Se recomienda suspenderlo.`
+                };
+            }
+            await this.db.query('DELETE FROM final_products WHERE id = $1', [id]);
+            this.inMemoryProducts = this.inMemoryProducts.filter(p => p.id !== id);
+            return { success: true };
+        }
+        catch (err) {
+            if (err.message && (err.message.includes('foreign key') || err.message.includes('a foreign key constraint fails'))) {
+                return {
+                    success: false,
+                    message: 'No se puede eliminar porque está referenciado en otros registros del sistema. Utilice la opción Suspender.'
+                };
+            }
+            throw err;
+        }
+    }
+    async toggleStatus(id, newStatus) {
+        try {
+            const prod = await this.getById(id);
+            if (!prod)
+                return null;
+            const targetStatus = newStatus !== undefined ? newStatus : !prod.isActive;
+            await this.db.query('UPDATE final_products SET is_active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [targetStatus ? 1 : 0, id]);
+            return await this.getById(id);
+        }
+        catch (err) {
+            console.warn('⚠️ Error en toggleStatus:', err.message);
+            const prod = this.inMemoryProducts.find(p => p.id === id);
+            if (prod) {
+                prod.isActive = newStatus !== undefined ? newStatus : !prod.isActive;
+                prod.updatedAt = new Date().toISOString();
+                return prod;
+            }
+            return null;
         }
     }
     async bulkImport(items) {

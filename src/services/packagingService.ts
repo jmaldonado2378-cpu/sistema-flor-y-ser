@@ -126,9 +126,10 @@ export class PackagingService {
     }
   }
 
-  async getAll(): Promise<PackagingMaterial[]> {
+  async getAll(includeInactive: boolean = true): Promise<PackagingMaterial[]> {
     await this.ensureTableExists();
     try {
+      const whereClause = includeInactive ? '' : 'WHERE p.is_active = 1';
       const res = await this.db.query(`
         SELECT p.id, p.code, p.name, p.category, p.unit, p.current_stock AS "currentStock", p.min_stock AS "minStock",
                p.cost_per_unit AS "costPerUnit", p.supplier_name AS "supplierName",
@@ -137,19 +138,22 @@ export class PackagingService {
                p.created_at AS "createdAt", p.updated_at AS "updatedAt"
         FROM packaging_materials p
         LEFT JOIN article_families f ON p.family_id = f.id
-        WHERE p.is_active = TRUE
+        ${whereClause}
         ORDER BY p.name ASC;
       `);
-      if (res.rows.length > 0) {
+      if (res.rows && res.rows.length > 0) {
         return res.rows.map((row: any) => ({
           ...row,
+          isActive: row.isActive === 1 || row.isActive === true || row.isActive === '1' || row.isActive === 'true',
           currentStock: parseFloat(row.currentStock || 0),
           minStock: parseFloat(row.minStock || 0),
           costPerUnit: parseFloat(row.costPerUnit || 0)
         }));
       }
-    } catch {}
-    return this.inMemoryMaterials.filter(m => m.isActive);
+    } catch (err: any) {
+      console.warn('⚠️ Error en packagingService.getAll:', err.message);
+    }
+    return this.inMemoryMaterials.filter(m => includeInactive || m.isActive);
   }
 
   async create(dto: CreatePackagingMaterialDTO): Promise<PackagingMaterial> {
@@ -305,6 +309,48 @@ export class PackagingService {
       }
     } catch {}
     return this.inMemoryMaterials.find(m => m.id === id) || null;
+  }
+
+  async delete(id: string): Promise<{ success: boolean; message?: string }> {
+    await this.ensureTableExists();
+    try {
+      await this.db.query('DELETE FROM packaging_materials WHERE id = $1', [id]);
+      this.inMemoryMaterials = this.inMemoryMaterials.filter(m => m.id !== id);
+      return { success: true };
+    } catch (err: any) {
+      if (err.message && (err.message.includes('foreign key') || err.message.includes('a foreign key constraint fails'))) {
+        return {
+          success: false,
+          message: 'No se puede eliminar porque está referenciado en el sistema. Se recomienda suspenderlo.'
+        };
+      }
+      throw err;
+    }
+  }
+
+  async toggleStatus(id: string, newStatus?: boolean): Promise<PackagingMaterial | null> {
+    await this.ensureTableExists();
+    try {
+      const mat = await this.getById(id);
+      if (!mat) return null;
+      const targetStatus = newStatus !== undefined ? newStatus : !mat.isActive;
+
+      await this.db.query(
+        'UPDATE packaging_materials SET is_active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+        [targetStatus ? 1 : 0, id]
+      );
+
+      return await this.getById(id);
+    } catch (err: any) {
+      console.warn('⚠️ Error en packagingService.toggleStatus:', err.message);
+      const mat = this.inMemoryMaterials.find(m => m.id === id);
+      if (mat) {
+        mat.isActive = newStatus !== undefined ? newStatus : !mat.isActive;
+        mat.updatedAt = new Date().toISOString();
+        return mat;
+      }
+      return null;
+    }
   }
 }
 

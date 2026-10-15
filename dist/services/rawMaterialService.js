@@ -73,8 +73,9 @@ class RawMaterialService {
     constructor(db) {
         this.db = db;
     }
-    async getAll() {
+    async getAll(includeInactive = true) {
         try {
+            const whereClause = includeInactive ? '' : 'WHERE r.is_active = 1';
             const res = await this.db.query(`
         SELECT r.id, r.code, r.name, r.unit, r.current_stock AS "currentStock", r.min_stock AS "minStock",
                r.cost_per_unit AS "costPerUnit", r.supplier_name AS "supplierName",
@@ -83,20 +84,23 @@ class RawMaterialService {
                r.created_at AS "createdAt", r.updated_at AS "updatedAt"
         FROM raw_materials r
         LEFT JOIN article_families f ON r.family_id = f.id
-        WHERE r.is_active = TRUE
+        ${whereClause}
         ORDER BY r.name ASC;
       `);
-            if (res.rows.length > 0) {
+            if (res.rows && res.rows.length > 0) {
                 return res.rows.map((row) => ({
                     ...row,
+                    isActive: row.isActive === 1 || row.isActive === true || row.isActive === '1' || row.isActive === 'true',
                     currentStock: parseFloat(row.currentStock || 0),
                     minStock: parseFloat(row.minStock || 0),
                     costPerUnit: parseFloat(row.costPerUnit || 0)
                 }));
             }
         }
-        catch { }
-        return this.inMemoryMaterials.filter(m => m.isActive);
+        catch (err) {
+            console.warn('⚠️ Error en rawMaterialService.getAll:', err.message);
+        }
+        return this.inMemoryMaterials.filter(m => includeInactive || m.isActive);
     }
     async getById(id) {
         try {
@@ -283,6 +287,51 @@ class RawMaterialService {
         }
         catch {
             return count;
+        }
+    }
+    async delete(id) {
+        try {
+            // 1. Verificar si está vinculada a algún producto final
+            const prodCheck = await this.db.query('SELECT COUNT(*) AS total FROM final_products WHERE raw_material_id = $1', [id]);
+            const prodCount = parseInt(prodCheck.rows[0]?.total ?? prodCheck.rows[0]?.['COUNT(*)'] ?? '0', 10);
+            if (prodCount > 0) {
+                return {
+                    success: false,
+                    message: `La materia prima está vinculada a ${prodCount} producto(s) final(es). Debe desvincularla o se recomienda suspenderla.`
+                };
+            }
+            await this.db.query('DELETE FROM raw_materials WHERE id = $1', [id]);
+            this.inMemoryMaterials = this.inMemoryMaterials.filter(m => m.id !== id);
+            return { success: true };
+        }
+        catch (err) {
+            if (err.message && (err.message.includes('foreign key') || err.message.includes('a foreign key constraint fails'))) {
+                return {
+                    success: false,
+                    message: 'No se puede eliminar porque está referenciada en movimientos o recetas. Se recomienda suspenderla.'
+                };
+            }
+            throw err;
+        }
+    }
+    async toggleStatus(id, newStatus) {
+        try {
+            const mat = await this.getById(id);
+            if (!mat)
+                return null;
+            const targetStatus = newStatus !== undefined ? newStatus : !mat.isActive;
+            await this.db.query('UPDATE raw_materials SET is_active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [targetStatus ? 1 : 0, id]);
+            return await this.getById(id);
+        }
+        catch (err) {
+            console.warn('⚠️ Error en rawMaterialService.toggleStatus:', err.message);
+            const mat = this.inMemoryMaterials.find(m => m.id === id);
+            if (mat) {
+                mat.isActive = newStatus !== undefined ? newStatus : !mat.isActive;
+                mat.updatedAt = new Date().toISOString();
+                return mat;
+            }
+            return null;
         }
     }
     async bulkImport(items) {

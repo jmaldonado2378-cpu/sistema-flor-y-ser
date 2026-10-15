@@ -40,6 +40,17 @@ export async function autoInitDatabase(db: any): Promise<boolean> {
         // Ignorar si ya existe
       }
 
+      // Garantizar que la columna is_active exista en las tablas de inventario
+      try {
+        await db.query("ALTER TABLE `raw_materials` ADD COLUMN `is_active` TINYINT(1) NOT NULL DEFAULT 1");
+      } catch (e: any) {}
+      try {
+        await db.query("ALTER TABLE `packaging_materials` ADD COLUMN `is_active` TINYINT(1) NOT NULL DEFAULT 1");
+      } catch (e: any) {}
+      try {
+        await db.query("ALTER TABLE `final_products` ADD COLUMN `is_active` TINYINT(1) NOT NULL DEFAULT 1");
+      } catch (e: any) {}
+
       try {
         // Garantizar que exista la tabla operational_tasks si no estuviese creada
         await db.query(`

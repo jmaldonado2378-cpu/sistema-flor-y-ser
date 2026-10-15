@@ -313,11 +313,15 @@ app.get('/api/v1/raw-materials', auth_1.requireAuth, rawMaterialController.getAl
 app.post('/api/v1/raw-materials', auth_1.requireAuth, rawMaterialController.create);
 app.post('/api/v1/raw-materials/bulk-import', auth_1.requireAuth, rawMaterialController.bulkImport);
 app.delete('/api/v1/raw-materials/purge', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), rawMaterialController.purgeAll);
+app.delete('/api/v1/raw-materials/:id', auth_1.requireAuth, rawMaterialController.delete);
+app.patch('/api/v1/raw-materials/:id/status', auth_1.requireAuth, rawMaterialController.toggleStatus);
 app.put('/api/v1/raw-materials/:id', auth_1.requireAuth, rawMaterialController.update);
 app.patch('/api/v1/raw-materials/:id/stock', auth_1.requireAuth, rawMaterialController.updateStock);
 // Módulo de Inventario: Materiales de Empaque y Etiquetas
 app.get('/api/v1/packaging-materials', auth_1.requireAuth, packagingController.getAll);
 app.post('/api/v1/packaging-materials', auth_1.requireAuth, packagingController.create);
+app.delete('/api/v1/packaging-materials/:id', auth_1.requireAuth, packagingController.delete);
+app.patch('/api/v1/packaging-materials/:id/status', auth_1.requireAuth, packagingController.toggleStatus);
 app.put('/api/v1/packaging-materials/:id', auth_1.requireAuth, packagingController.update);
 app.patch('/api/v1/packaging-materials/:id/stock', auth_1.requireAuth, packagingController.updateStock);
 // Módulo de Clasificación: Familias y Sub-Familias de Artículos
@@ -332,6 +336,8 @@ app.get('/api/v1/final-products', auth_1.requireAuth, finalProductController.get
 app.post('/api/v1/final-products', auth_1.requireAuth, finalProductController.create);
 app.post('/api/v1/final-products/bulk-import', auth_1.requireAuth, finalProductController.bulkImport);
 app.delete('/api/v1/final-products/purge', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), finalProductController.purgeAll);
+app.delete('/api/v1/final-products/:id', auth_1.requireAuth, finalProductController.delete);
+app.patch('/api/v1/final-products/:id/status', auth_1.requireAuth, finalProductController.toggleStatus);
 app.put('/api/v1/final-products/:id', auth_1.requireAuth, finalProductController.update);
 app.patch('/api/v1/final-products/:id/stock', auth_1.requireAuth, finalProductController.updateStock);
 // Módulo de Fraccionado

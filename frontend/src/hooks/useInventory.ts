@@ -4,10 +4,14 @@ import {
   createRawMaterial,
   updateRawMaterial,
   updateRawMaterialStock,
+  deleteRawMaterial,
+  toggleRawMaterialStatus,
   getFinalProducts,
   createFinalProduct,
   updateFinalProduct,
   updateFinalProductStock,
+  deleteFinalProduct,
+  toggleFinalProductStatus,
 } from '../api/inventory';
 
 export const useRawMaterials = () => {
@@ -48,6 +52,27 @@ export const useUpdateRawMaterialStock = () => {
   });
 };
 
+export const useDeleteRawMaterial = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteRawMaterial(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['raw-materials'] });
+    },
+  });
+};
+
+export const useToggleRawMaterialStatus = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive?: boolean }) =>
+      toggleRawMaterialStatus(id, isActive),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['raw-materials'] });
+    },
+  });
+};
+
 export const useFinalProducts = () => {
   return useQuery({
     queryKey: ['final-products'],
@@ -80,6 +105,27 @@ export const useUpdateFinalProductStock = () => {
   return useMutation({
     mutationFn: ({ id, newStock }: { id: string; newStock: number }) =>
       updateFinalProductStock(id, newStock),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['final-products'] });
+    },
+  });
+};
+
+export const useDeleteFinalProduct = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteFinalProduct(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['final-products'] });
+    },
+  });
+};
+
+export const useToggleFinalProductStatus = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive?: boolean }) =>
+      toggleFinalProductStatus(id, isActive),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['final-products'] });
     },

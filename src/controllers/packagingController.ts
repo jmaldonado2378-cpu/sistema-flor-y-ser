@@ -50,5 +50,34 @@ export class PackagingController {
       res.status(400).json({ status: 'ERROR', message: error.message });
     }
   };
+
+  delete = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const result = await this.packagingService.delete(id);
+      if (!result.success) {
+        res.status(400).json({ status: 'ERROR', message: result.message || 'No se pudo eliminar el material de empaque.' });
+        return;
+      }
+      res.json({ status: 'SUCCESS', message: 'Material de empaque eliminado exitosamente.' });
+    } catch (error: any) {
+      res.status(500).json({ status: 'ERROR', message: error.message });
+    }
+  };
+
+  toggleStatus = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const { isActive } = req.body;
+      const updated = await this.packagingService.toggleStatus(id, isActive !== undefined ? Boolean(isActive) : undefined);
+      if (!updated) {
+        res.status(404).json({ status: 'ERROR', message: 'Material de empaque no encontrado.' });
+        return;
+      }
+      res.json({ status: 'SUCCESS', data: updated });
+    } catch (error: any) {
+      res.status(500).json({ status: 'ERROR', message: error.message });
+    }
+  };
 }
 

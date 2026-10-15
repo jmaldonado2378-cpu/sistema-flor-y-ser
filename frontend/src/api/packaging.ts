@@ -61,3 +61,17 @@ export const updatePackagingStock = async (id: string, newStock: number): Promis
   });
   return res.data || res;
 };
+
+export const deletePackagingMaterial = async (id: string): Promise<any> => {
+  return await apiRequest<any>(`/packaging-materials/${id}`, {
+    method: 'DELETE'
+  });
+};
+
+export const togglePackagingStatus = async (id: string, isActive?: boolean): Promise<PackagingMaterial> => {
+  const res = await apiRequest<any>(`/packaging-materials/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ isActive })
+  });
+  return res.data || res;
+};

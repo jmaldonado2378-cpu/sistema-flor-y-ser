@@ -37,6 +37,7 @@ interface EditablePriceItem {
   basePrice: number;
   customPrice: number;
   selected: boolean;
+  isActive: boolean;
 }
 
 export const PriceListGeneratorModal: React.FC<PriceListGeneratorModalProps> = ({
@@ -75,6 +76,7 @@ export const PriceListGeneratorModal: React.FC<PriceListGeneratorModalProps> = (
       const initialItems: EditablePriceItem[] = products.map((p) => {
         const fam = families.find(f => f.id === p.familyId || f.id === p.articleFamilyId);
         const price = Number(p.price) || 0;
+        const isAct = p.isActive !== false && (p as any).is_active !== false && (p as any).is_active !== 0;
         return {
           id: p.id,
           code: p.code || '',
@@ -87,7 +89,8 @@ export const PriceListGeneratorModal: React.FC<PriceListGeneratorModalProps> = (
           currentStock: Number(p.currentStock) || 0,
           basePrice: price,
           customPrice: price,
-          selected: true,
+          selected: isAct, // Desmarcar por defecto si está suspendido
+          isActive: isAct,
         };
       });
       setItems(initialItems);
@@ -171,13 +174,16 @@ export const PriceListGeneratorModal: React.FC<PriceListGeneratorModalProps> = (
     }));
   }, [groupByFamily, selectedForPrint]);
 
-  // Print function
+  // Print function - activates preview tab and triggers isolated print
   const handlePrint = () => {
+    setActiveTab('preview');
     document.body.classList.add('printing-price-list');
-    window.print();
     setTimeout(() => {
-      document.body.classList.remove('printing-price-list');
-    }, 1000);
+      window.print();
+      setTimeout(() => {
+        document.body.classList.remove('printing-price-list');
+      }, 1000);
+    }, 150);
   };
 
   const formatCurrency = (val: number) => {
@@ -446,7 +452,16 @@ export const PriceListGeneratorModal: React.FC<PriceListGeneratorModalProps> = (
                         />
                       </td>
                       <td className="font-semibold text-text-muted">{item.code || '-'}</td>
-                      <td className="font-medium text-text-dark">{item.name}</td>
+                      <td className="font-medium text-text-dark">
+                        <div className="flex items-center gap-1.5">
+                          <span>{item.name}</span>
+                          {!item.isActive && (
+                            <span className="badge amber text-[10px] py-0 px-1.5" title="Producto pausado o suspendido">
+                              Pausado
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td><span className="badge gray text-[11px]">{item.familyName}</span></td>
                       <td>{item.netContentLabel || '-'}</td>
                       <td>
@@ -602,44 +617,118 @@ export const PriceListGeneratorModal: React.FC<PriceListGeneratorModalProps> = (
                     </div>
                   )}
 
-                  {/* Items Grid (1 or 2 columns) */}
-                  <div className={columnsLayout === 'double' ? 'grid grid-cols-2 gap-x-6 gap-y-2' : 'flex flex-col gap-2'}>
-                    {group.items.map((item) => (
-                      <div 
-                        key={item.id} 
-                        className="py-1 flex items-baseline justify-between border-b border-gray-100 text-sm"
-                        style={{ breakInside: 'avoid' }}
-                      >
-                        <div className="flex-1 pr-2">
-                          <div className="flex items-baseline gap-1.5 flex-wrap">
-                            <span className="font-semibold text-text-dark text-xs sm:text-sm">
-                              {item.name}
-                            </span>
-                            {showWeight && item.netContentLabel && (
-                              <span style={{ fontSize: '7.5pt', color: '#6B7280', backgroundColor: '#F3F4F6', padding: '1px 4px', borderRadius: '3px' }}>
-                                {item.netContentLabel}
+                  {/* Items Grid (1 or 2 columns with elegant spacing & leader dots) */}
+                  {columnsLayout === 'double' ? (
+                    (() => {
+                      const mid = Math.ceil(group.items.length / 2);
+                      const leftItems = group.items.slice(0, mid);
+                      const rightItems = group.items.slice(mid);
+                      const renderItemRow = (item: EditablePriceItem) => (
+                        <div 
+                          key={item.id} 
+                          className="py-1.5 flex items-baseline justify-between border-b border-gray-100 text-sm gap-2"
+                          style={{ breakInside: 'avoid' }}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline gap-1.5 flex-wrap">
+                              <span className="font-semibold text-text-dark text-xs sm:text-[13px] leading-tight">
+                                {item.name}
                               </span>
-                            )}
-                            {showSku && item.code && (
-                              <span style={{ fontSize: '7.5pt', color: '#9CA3AF' }}>
-                                #{item.code}
-                              </span>
+                              {showWeight && item.netContentLabel && (
+                                <span style={{ fontSize: '7.5pt', color: '#374151', backgroundColor: '#F3F4F6', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
+                                  {item.netContentLabel}
+                                </span>
+                              )}
+                              {showSku && item.code && (
+                                <span style={{ fontSize: '7.5pt', color: '#9CA3AF' }}>
+                                  #{item.code}
+                                </span>
+                              )}
+                            </div>
+                            {showIngredients && item.ingredients && (
+                              <div style={{ fontSize: '7.5pt', color: '#6B7280', fontStyle: 'italic', marginTop: '1px' }}>
+                                {item.ingredients}
+                              </div>
                             )}
                           </div>
-                          {showIngredients && item.ingredients && (
-                            <div style={{ fontSize: '7.5pt', color: '#6B7280', fontStyle: 'italic', marginTop: '1px' }}>
-                              {item.ingredients}
-                            </div>
-                          )}
-                        </div>
 
-                        {/* Leader dots & price */}
-                        <div className="flex items-baseline font-bold" style={{ color: '#2E5339', fontSize: '10.5pt', whiteSpace: 'nowrap' }}>
-                          {formatCurrency(item.customPrice)}
+                          {/* Leader dotted line connecting title to price */}
+                          <div 
+                            className="flex-1 border-b border-dotted border-gray-300 mx-1 mb-1 hidden sm:block opacity-60" 
+                            style={{ minWidth: '15px' }}
+                          />
+
+                          {/* Price */}
+                          <div 
+                            className="text-right font-bold text-xs sm:text-sm whitespace-nowrap pl-1" 
+                            style={{ 
+                              color: '#2E5339', 
+                              minWidth: '82px',
+                              letterSpacing: '-0.2px'
+                            }}
+                          >
+                            {formatCurrency(item.customPrice)}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      );
+
+                      return (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10">
+                          <div className="flex flex-col md:border-r md:border-gray-200 md:pr-5">
+                            {leftItems.map(renderItemRow)}
+                          </div>
+                          <div className="flex flex-col md:pl-5">
+                            {rightItems.map(renderItemRow)}
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      {group.items.map((item) => (
+                        <div 
+                          key={item.id} 
+                          className="py-1.5 flex items-baseline justify-between border-b border-gray-100 text-sm gap-3"
+                          style={{ breakInside: 'avoid' }}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline gap-2 flex-wrap">
+                              <span className="font-semibold text-text-dark text-sm sm:text-base leading-tight">
+                                {item.name}
+                              </span>
+                              {showWeight && item.netContentLabel && (
+                                <span style={{ fontSize: '8pt', color: '#374151', backgroundColor: '#F3F4F6', padding: '1px 6px', borderRadius: '3px', fontWeight: 600 }}>
+                                  {item.netContentLabel}
+                                </span>
+                              )}
+                              {showSku && item.code && (
+                                <span style={{ fontSize: '8pt', color: '#9CA3AF' }}>
+                                  #{item.code}
+                                </span>
+                              )}
+                            </div>
+                            {showIngredients && item.ingredients && (
+                              <div style={{ fontSize: '8pt', color: '#6B7280', fontStyle: 'italic', marginTop: '2px' }}>
+                                {item.ingredients}
+                              </div>
+                            )}
+                          </div>
+
+                          <div 
+                            className="flex-1 border-b border-dotted border-gray-300 mx-2 mb-1 hidden sm:block opacity-60" 
+                            style={{ minWidth: '30px' }}
+                          />
+
+                          <div 
+                            className="text-right font-bold text-sm sm:text-base whitespace-nowrap pl-2" 
+                            style={{ color: '#2E5339', minWidth: '95px' }}
+                          >
+                            {formatCurrency(item.customPrice)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
 

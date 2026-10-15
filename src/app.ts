@@ -381,12 +381,16 @@ app.get('/api/v1/raw-materials', requireAuth, rawMaterialController.getAll);
 app.post('/api/v1/raw-materials', requireAuth, rawMaterialController.create);
 app.post('/api/v1/raw-materials/bulk-import', requireAuth, rawMaterialController.bulkImport);
 app.delete('/api/v1/raw-materials/purge', requireAuth, requireRole('ADMIN'), rawMaterialController.purgeAll);
+app.delete('/api/v1/raw-materials/:id', requireAuth, rawMaterialController.delete);
+app.patch('/api/v1/raw-materials/:id/status', requireAuth, rawMaterialController.toggleStatus);
 app.put('/api/v1/raw-materials/:id', requireAuth, rawMaterialController.update);
 app.patch('/api/v1/raw-materials/:id/stock', requireAuth, rawMaterialController.updateStock);
 
 // Módulo de Inventario: Materiales de Empaque y Etiquetas
 app.get('/api/v1/packaging-materials', requireAuth, packagingController.getAll);
 app.post('/api/v1/packaging-materials', requireAuth, packagingController.create);
+app.delete('/api/v1/packaging-materials/:id', requireAuth, packagingController.delete);
+app.patch('/api/v1/packaging-materials/:id/status', requireAuth, packagingController.toggleStatus);
 app.put('/api/v1/packaging-materials/:id', requireAuth, packagingController.update);
 app.patch('/api/v1/packaging-materials/:id/stock', requireAuth, packagingController.updateStock);
 
@@ -403,6 +407,8 @@ app.get('/api/v1/final-products', requireAuth, finalProductController.getAll);
 app.post('/api/v1/final-products', requireAuth, finalProductController.create);
 app.post('/api/v1/final-products/bulk-import', requireAuth, finalProductController.bulkImport);
 app.delete('/api/v1/final-products/purge', requireAuth, requireRole('ADMIN'), finalProductController.purgeAll);
+app.delete('/api/v1/final-products/:id', requireAuth, finalProductController.delete);
+app.patch('/api/v1/final-products/:id/status', requireAuth, finalProductController.toggleStatus);
 app.put('/api/v1/final-products/:id', requireAuth, finalProductController.update);
 app.patch('/api/v1/final-products/:id/stock', requireAuth, finalProductController.updateStock);
 

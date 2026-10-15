@@ -94,5 +94,34 @@ class RawMaterialController {
             res.status(500).json({ status: 'ERROR', message: error.message });
         }
     };
+    delete = async (req, res) => {
+        try {
+            const { id } = req.params;
+            const result = await this.rawMaterialService.delete(id);
+            if (!result.success) {
+                res.status(400).json({ status: 'ERROR', message: result.message || 'No se pudo eliminar la materia prima.' });
+                return;
+            }
+            res.json({ status: 'SUCCESS', message: 'Materia prima eliminada exitosamente.' });
+        }
+        catch (error) {
+            res.status(500).json({ status: 'ERROR', message: error.message });
+        }
+    };
+    toggleStatus = async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { isActive } = req.body;
+            const updated = await this.rawMaterialService.toggleStatus(id, isActive !== undefined ? Boolean(isActive) : undefined);
+            if (!updated) {
+                res.status(404).json({ status: 'ERROR', message: 'Materia prima no encontrada.' });
+                return;
+            }
+            res.json({ status: 'SUCCESS', data: updated });
+        }
+        catch (error) {
+            res.status(500).json({ status: 'ERROR', message: error.message });
+        }
+    };
 }
 exports.RawMaterialController = RawMaterialController;

@@ -12,6 +12,7 @@ export interface RawMaterial {
   storageLocation: string;
   familyId?: string;
   familyName?: string;
+  isActive?: boolean;
 }
 
 export interface CreateRawMaterialDTO {
@@ -24,6 +25,7 @@ export interface CreateRawMaterialDTO {
   supplierName: string;
   storageLocation: string;
   familyId?: string;
+  isActive?: boolean;
 }
 
 export interface ProductIngredient {
@@ -52,6 +54,7 @@ export interface FinalProduct {
   familyName?: string;
   isBlend?: boolean;
   ingredientsList?: ProductIngredient[];
+  isActive?: boolean;
 }
 
 export interface CreateFinalProductDTO {
@@ -103,6 +106,20 @@ export const updateRawMaterialStock = async (id: string, newStock: number): Prom
   return res.data || res;
 };
 
+export const deleteRawMaterial = async (id: string): Promise<any> => {
+  return await apiRequest<any>(`/raw-materials/${id}`, {
+    method: 'DELETE',
+  });
+};
+
+export const toggleRawMaterialStatus = async (id: string, isActive?: boolean): Promise<RawMaterial> => {
+  const res = await apiRequest<any>(`/raw-materials/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ isActive }),
+  });
+  return res.data || res;
+};
+
 export const getFinalProducts = async (): Promise<FinalProduct[]> => {
   const res = await apiRequest<any>('/final-products');
   if (Array.isArray(res)) return res;
@@ -130,6 +147,20 @@ export const updateFinalProductStock = async (id: string, newStock: number): Pro
   const res = await apiRequest<any>(`/final-products/${id}/stock`, {
     method: 'PATCH',
     body: JSON.stringify({ newStock }),
+  });
+  return res.data || res;
+};
+
+export const deleteFinalProduct = async (id: string): Promise<any> => {
+  return await apiRequest<any>(`/final-products/${id}`, {
+    method: 'DELETE',
+  });
+};
+
+export const toggleFinalProductStatus = async (id: string, isActive?: boolean): Promise<FinalProduct> => {
+  const res = await apiRequest<any>(`/final-products/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ isActive }),
   });
   return res.data || res;
 };
