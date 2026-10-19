@@ -386,6 +386,32 @@ export class SupplierService {
             item.expirationDate || null
           ]);
 
+          // Registrar también en Kardex (stock_movements) para respaldo y trazabilidad
+          try {
+            const movId = `sm-rcp-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            const mappedItemType = item.itemType === 'GRANEL' ? 'RAW_MATERIAL' : 'FINAL_PRODUCT';
+            await client.query(
+              `INSERT INTO stock_movements (
+                id, item_type, item_id, item_name, movement_type,
+                quantity, previous_stock, resulting_stock, unit_of_measure, unit_cost,
+                reference_type, reference_id, reference_number, reason, user_name
+              ) VALUES ($1, $2, $3, $4, 'RECEIPT_ENTRY', $5, 0, $6, $7, $8, 'RECEIPT', $9, $10, $11, 'Recepción Mercadería')`,
+              [
+                movId,
+                mappedItemType,
+                productId || item.itemName,
+                item.itemName,
+                item.quantity,
+                item.quantity,
+                item.unitOfMeasure || 'UN',
+                item.unitCost,
+                String(receiptId),
+                dto.receiptNumber.trim(),
+                `Ingreso Comprobante #${dto.receiptNumber.trim()} (${supplier.businessName})`
+              ]
+            );
+          } catch {}
+
           savedItems.push({
             id: itemRes.rows[0].id,
             receiptId,
@@ -585,6 +611,31 @@ export class SupplierService {
             item.numeroLote || null,
             item.fechaVencimiento || null
           ]);
+
+          // Registrar en Kardex (stock_movements)
+          try {
+            const movId = `sm-rmr-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            await client.query(
+              `INSERT INTO stock_movements (
+                id, item_type, item_id, item_name, movement_type,
+                quantity, previous_stock, resulting_stock, unit_of_measure, unit_cost,
+                reference_type, reference_id, reference_number, reason, user_name
+              ) VALUES ($1, 'RAW_MATERIAL', $2, $3, 'RECEIPT_ENTRY', $4, $5, $6, $7, $8, 'RECEIPT', $9, $10, $11, 'Recepción Granel')`,
+              [
+                movId,
+                materiaPrimaId,
+                item.nombreInsumo,
+                item.cantidadIngresada,
+                stockAnterior,
+                nuevoStockMateriaPrima,
+                item.unidadMedida || 'KG',
+                item.costoPorKg,
+                String(comprobanteId),
+                dto.numeroComprobante.trim(),
+                `Ingreso Granel #${dto.numeroComprobante.trim()} (${supplier.businessName})`
+              ]
+            );
+          } catch {}
 
           savedItems.push({
             id: itemRes.rows[0].id,

@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.importCatalogSeed = importCatalogSeed;
+exports.reconstructFromSurvivingTables = reconstructFromSurvivingTables;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 async function importCatalogSeed(db) {
@@ -129,13 +130,16 @@ async function importCatalogSeed(db) {
             }
         }
         await db.query('SET FOREIGN_KEY_CHECKS = 1;');
-        console.log(`✅ Catálogo importado exitosamente:
+        // 7. Reconstruir stock, costos, precios y artículos personalizados desde las tablas que sobrevivieron (stock_movements, products, product_pricing_structures)
+        const reconstructed = await reconstructFromSurvivingTables(db);
+        console.log(`✅ Catálogo importado y reconstruido exitosamente:
       - Familias: ${famCount}
       - Proveedores: ${supCount}
       - Materiales de Empaque: ${pkgCount}
       - Materias Primas: ${rmCount}
       - Productos Finales: ${fpCount}
-      - Productos POS: ${pCount}`);
+      - Productos POS: ${pCount}
+      - Stock/Artículos recuperados de Kardex y Precios: ${reconstructed.recoveredItems}`);
         return {
             success: true,
             counts: {
@@ -144,7 +148,8 @@ async function importCatalogSeed(db) {
                 packaging: pkgCount,
                 rawMaterials: rmCount,
                 finalProducts: fpCount,
-                products: pCount
+                products: pCount,
+                recoveredFromKardexAndPricing: reconstructed.recoveredItems
             }
         };
     }
@@ -156,4 +161,164 @@ async function importCatalogSeed(db) {
         catch { }
         return { success: false, message: error.message };
     }
+}
+/**
+ * Reconstruye stock actual, costos, precios personalizados y artículos creados por el usuario
+ * a partir de las tablas que no fueron afectadas (stock_movements, product_pricing_structures, products).
+ */
+async function reconstructFromSurvivingTables(db) {
+    let recoveredItems = 0;
+    try {
+        // A. Recuperar precios y productos desde product_pricing_structures
+        try {
+            const pricingRes = await db.query('SELECT * FROM product_pricing_structures');
+            for (const row of pricingRes.rows || []) {
+                const finalPrice = parseFloat(row.mostrador_final_price || row.mostrador_suggested_price || '0');
+                const rawCost = parseFloat(row.raw_material_cost || '0');
+                if (finalPrice > 0 || rawCost > 0) {
+                    const checkFp = await db.query('SELECT id FROM final_products WHERE id = $1 OR code = $2 OR LOWER(name) = LOWER($3)', [row.product_id, row.product_sku || '', row.product_name || '']);
+                    if (checkFp.rows && checkFp.rows.length > 0) {
+                        await db.query(`UPDATE final_products
+               SET price = CASE WHEN $1 > 0 THEN $1 ELSE price END,
+                   cost_price = CASE WHEN $2 > 0 THEN $2 ELSE cost_price END
+               WHERE id = $3`, [finalPrice, rawCost, checkFp.rows[0].id]);
+                        recoveredItems++;
+                    }
+                    else if (row.product_name) {
+                        const code = row.product_sku || ('PF-' + row.product_id.slice(0, 6).toUpperCase());
+                        await db.query(`INSERT INTO final_products (id, code, name, unit_weight_grams, net_content_label, current_stock, min_stock, cost_price, price, is_active)
+               VALUES ($1, $2, $3, 100, '100g', 0, 5, $4, $5, 1)
+               ON DUPLICATE KEY UPDATE price = VALUES(price), cost_price = VALUES(cost_price)`, [row.product_id, code, row.product_name, rawCost, finalPrice]);
+                        recoveredItems++;
+                    }
+                }
+            }
+        }
+        catch (e) {
+            console.warn('⚠️ Nota en reconstrucción desde product_pricing_structures:', e.message);
+        }
+        // B. Recuperar stock y artículos desde la tabla `products` (que no estaba en tablesToPurge)
+        try {
+            const prodRes = await db.query('SELECT * FROM products WHERE current_stock > 0 OR cost_price > 0');
+            for (const p of prodRes.rows || []) {
+                const stock = parseFloat(p.current_stock || '0');
+                const cost = parseFloat(p.cost_price || '0');
+                if (stock > 0 || cost > 0) {
+                    const isGranel = (p.product_type || '').toUpperCase().includes('GRANEL') || (p.unit_of_measure || '').toUpperCase() === 'KG';
+                    if (isGranel) {
+                        const rmUpd = await db.query(`UPDATE raw_materials
+               SET current_stock = GREATEST(current_stock, $1),
+                   cost_per_unit = CASE WHEN $2 > 0 THEN $2 ELSE cost_per_unit END
+               WHERE id = $3 OR code = $4 OR LOWER(name) = LOWER($5)`, [stock, cost, p.id, p.sku || '', p.name || '']);
+                        if ((rmUpd.rowCount || 0) > 0)
+                            recoveredItems++;
+                    }
+                    else {
+                        const fpUpd = await db.query(`UPDATE final_products
+               SET current_stock = GREATEST(current_stock, $1),
+                   cost_price = CASE WHEN $2 > 0 THEN $2 ELSE cost_price END
+               WHERE id = $3 OR code = $4 OR LOWER(name) = LOWER($5)`, [stock, cost, p.id, p.sku || '', p.name || '']);
+                        if ((fpUpd.rowCount || 0) > 0)
+                            recoveredItems++;
+                    }
+                }
+            }
+        }
+        catch (e) {
+            console.warn('⚠️ Nota en reconstrucción desde products:', e.message);
+        }
+        // C. Reconstruir stock e ítems desde `stock_movements` (Kardex intacto)
+        try {
+            const movRes = await db.query('SELECT * FROM stock_movements ORDER BY created_at ASC');
+            const itemMap = new Map();
+            for (const m of movRes.rows || []) {
+                const key = `${m.item_type}::${m.item_id !== 'N/A' && m.item_id ? m.item_id : m.item_name}`;
+                const prev = itemMap.get(key) || {
+                    itemType: m.item_type,
+                    itemId: m.item_id,
+                    itemName: m.item_name,
+                    stock: 0,
+                    unit: m.unit_of_measure || 'UN',
+                    unitCost: 0
+                };
+                const resStock = parseFloat(m.resulting_stock || '0');
+                const qty = parseFloat(m.quantity || '0');
+                const cost = parseFloat(m.unit_cost || '0');
+                if (resStock > 0 || (m.movement_type === 'MANUAL_ADJUSTMENT' && m.resulting_stock !== null)) {
+                    prev.stock = resStock;
+                }
+                else {
+                    prev.stock = Math.max(0, prev.stock + qty);
+                }
+                if (cost > 0)
+                    prev.unitCost = cost;
+                if (m.item_name)
+                    prev.itemName = m.item_name;
+                itemMap.set(key, prev);
+            }
+            for (const [, info] of itemMap.entries()) {
+                if (info.itemType === 'RAW_MATERIAL') {
+                    const check = await db.query('SELECT id FROM raw_materials WHERE id = $1 OR code = $1 OR LOWER(name) = LOWER($2)', [info.itemId, info.itemName]);
+                    if (check.rows && check.rows.length > 0) {
+                        await db.query(`UPDATE raw_materials
+               SET current_stock = $1,
+                   cost_per_unit = CASE WHEN $2 > 0 THEN $2 ELSE cost_per_unit END
+               WHERE id = $3`, [info.stock, info.unitCost, check.rows[0].id]);
+                        recoveredItems++;
+                    }
+                    else if (info.itemName) {
+                        const newId = info.itemId && info.itemId !== 'N/A' ? info.itemId : ('rm-rec-' + Date.now() + Math.floor(Math.random() * 100));
+                        const newCode = 'MP-REC-' + Math.floor(1000 + Math.random() * 9000);
+                        await db.query(`INSERT INTO raw_materials (id, code, name, unit, current_stock, min_stock, cost_per_unit, is_active)
+               VALUES ($1, $2, $3, $4, $5, 5, $6, 1)
+               ON DUPLICATE KEY UPDATE current_stock = VALUES(current_stock)`, [newId, newCode, info.itemName, info.unit || 'KG', info.stock, info.unitCost]);
+                        recoveredItems++;
+                    }
+                }
+                else if (info.itemType === 'PACKAGING') {
+                    const check = await db.query('SELECT id FROM packaging_materials WHERE id = $1 OR code = $1 OR LOWER(name) = LOWER($2)', [info.itemId, info.itemName]);
+                    if (check.rows && check.rows.length > 0) {
+                        await db.query(`UPDATE packaging_materials
+               SET current_stock = $1,
+                   cost_per_unit = CASE WHEN $2 > 0 THEN $2 ELSE cost_per_unit END
+               WHERE id = $3`, [info.stock, info.unitCost, check.rows[0].id]);
+                        recoveredItems++;
+                    }
+                    else if (info.itemName) {
+                        const newId = info.itemId && info.itemId !== 'N/A' ? info.itemId : ('pkg-rec-' + Date.now() + Math.floor(Math.random() * 100));
+                        const newCode = 'EMP-REC-' + Math.floor(1000 + Math.random() * 9000);
+                        await db.query(`INSERT INTO packaging_materials (id, code, name, category, unit, current_stock, min_stock, cost_per_unit, is_active)
+               VALUES ($1, $2, $3, 'OTHER', $4, $5, 10, $6, 1)
+               ON DUPLICATE KEY UPDATE current_stock = VALUES(current_stock)`, [newId, newCode, info.itemName, info.unit || 'UN', info.stock, info.unitCost]);
+                        recoveredItems++;
+                    }
+                }
+                else if (info.itemType === 'FINAL_PRODUCT') {
+                    const check = await db.query('SELECT id FROM final_products WHERE id = $1 OR code = $1 OR LOWER(name) = LOWER($2)', [info.itemId, info.itemName]);
+                    if (check.rows && check.rows.length > 0) {
+                        await db.query(`UPDATE final_products
+               SET current_stock = $1,
+                   cost_price = CASE WHEN $2 > 0 THEN $2 ELSE cost_price END
+               WHERE id = $3`, [info.stock, info.unitCost, check.rows[0].id]);
+                        recoveredItems++;
+                    }
+                    else if (info.itemName) {
+                        const newId = info.itemId && info.itemId !== 'N/A' ? info.itemId : ('fp-rec-' + Date.now() + Math.floor(Math.random() * 100));
+                        const newCode = 'PF-REC-' + Math.floor(1000 + Math.random() * 9000);
+                        await db.query(`INSERT INTO final_products (id, code, name, unit_weight_grams, net_content_label, current_stock, min_stock, cost_price, price, is_active)
+               VALUES ($1, $2, $3, 100, '100g', $4, 5, $5, $6, 1)
+               ON DUPLICATE KEY UPDATE current_stock = VALUES(current_stock)`, [newId, newCode, info.itemName, info.stock, info.unitCost, info.unitCost * 1.5]);
+                        recoveredItems++;
+                    }
+                }
+            }
+        }
+        catch (e) {
+            console.warn('⚠️ Nota en reconstrucción desde stock_movements:', e.message);
+        }
+    }
+    catch (err) {
+        console.warn('⚠️ Error general en reconstructFromSurvivingTables:', err.message);
+    }
+    return { recoveredItems };
 }

@@ -296,6 +296,7 @@ app.delete('/api/v1/marketing/campaigns/:id', auth_1.requireAuth, marketingContr
 // Diagnóstico de Sistema & Purga de Datos Semilla
 app.get('/api/v1/system/db-status', systemController.getDbStatus);
 app.post('/api/v1/system/purge-seed-data', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), systemController.purgeSeedData);
+app.post('/api/v1/system/restore-catalog', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), systemController.restoreCatalog);
 app.post('/api/v1/system/import-catalog', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), async (_req, res) => {
     try {
         const result = await (0, database_1.importCatalogSeed)(db);

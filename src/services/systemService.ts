@@ -1,3 +1,5 @@
+import { importCatalogSeed } from '../database/seedCatalog';
+
 export class SystemService {
   constructor(private db: any) {}
 
@@ -27,6 +29,7 @@ export class SystemService {
         'article_families',
         'customers',
         'orders',
+        'stock_movements',
         'customer_account_movements',
         'operational_tasks'
       ];
@@ -71,39 +74,50 @@ export class SystemService {
     }
   }
 
+  /**
+   * Purga ÚNICAMENTE los registros demo iniciales (rm-001..004, fp-001..004, pkg-001..005, ord-1001..1003).
+   * NUNCA elimina el catálogo oficial ni los datos reales cargados por el usuario.
+   */
   async purgeSeedData(): Promise<{ success: boolean; purged: Record<string, number>; message: string }> {
     const purged: Record<string, number> = {};
 
-    const tablesToPurge = [
-      'order_items',
-      'payments',
-      'orders',
-      'customer_account_movements',
-      'fractioning_orders',
-      'operational_tasks',
-      'merchandise_receipt_items',
-      'merchandise_receipts',
-      'final_products',
-      'raw_materials',
-      'packaging_materials',
-      'operational_expenses',
-      'quote_items',
-      'quotes'
+    const safeQueries: Array<{ table: string; sql: string }> = [
+      { table: 'order_items', sql: `DELETE FROM order_items WHERE order_id IN ('ord-1001', 'ord-1002', 'ord-1003')` },
+      { table: 'payments', sql: `DELETE FROM payments WHERE order_id IN ('ord-1001', 'ord-1002', 'ord-1003')` },
+      { table: 'orders', sql: `DELETE FROM orders WHERE id IN ('ord-1001', 'ord-1002', 'ord-1003')` },
+      { table: 'operational_tasks', sql: `DELETE FROM operational_tasks WHERE id IN ('task-001', 'task-002', 'task-003')` },
+      { table: 'operational_expenses', sql: `DELETE FROM operational_expenses WHERE id IN ('exp-001', 'exp-002', 'exp-003')` },
+      { table: 'final_products', sql: `DELETE FROM final_products WHERE id IN ('fp-001', 'fp-002', 'fp-003', 'fp-004')` },
+      { table: 'raw_materials', sql: `DELETE FROM raw_materials WHERE id IN ('rm-001', 'rm-002', 'rm-003', 'rm-004')` },
+      { table: 'packaging_materials', sql: `DELETE FROM packaging_materials WHERE id IN ('pkg-001', 'pkg-002', 'pkg-003', 'pkg-004', 'pkg-005')` }
     ];
 
-    for (const table of tablesToPurge) {
+    for (const q of safeQueries) {
       try {
-        const res = await this.db.query(`DELETE FROM ${table}`);
-        purged[table] = res.rowCount || 0;
+        const res = await this.db.query(q.sql);
+        purged[q.table] = res.rowCount || 0;
       } catch {
-        purged[table] = 0;
+        purged[q.table] = 0;
       }
     }
 
     return {
       success: true,
       purged,
-      message: 'Se han purgado los datos semilla de prueba exitosamente. Las cuentas de usuario principales se mantienen intactas.'
+      message: 'Se han quitado únicamente los artículos demo de prueba iniciales. Tu catálogo oficial y tus registros reales están protegidos.'
+    };
+  }
+
+  /**
+   * Restaura el catálogo completo oficial y reconstruye los stocks, costos y precios reales
+   * desde las tablas de respaldo (Kardex stock_movements, product_pricing_structures y products).
+   */
+  async restoreCatalog(): Promise<{ success: boolean; counts: any; message: string }> {
+    const res = await importCatalogSeed(this.db);
+    return {
+      success: res.success,
+      counts: res.counts,
+      message: res.message || 'Catálogo oficial restaurado y stock sincronizado desde Kardex exitosamente.'
     };
   }
 }

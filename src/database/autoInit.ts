@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { importCatalogSeed } from './seedCatalog';
+import { importCatalogSeed, reconstructFromSurvivingTables } from './seedCatalog';
 
 /**
  * AutoInitDatabase - Verfica y crea automáticamente la estructura de tablas MySQL
@@ -107,13 +107,17 @@ export async function autoInitDatabase(db: any): Promise<boolean> {
         console.warn("⚠️ Nota al verificar tabla stock_movements:", e.message);
       }
 
-      // Sincronizar catálogo base de Costos SISTEMA si faltan productos
+      // Sincronizar catálogo base de Costos SISTEMA si faltan productos o materias primas
       try {
         const prodCheck = await db.query('SELECT COUNT(*) AS total FROM final_products');
         const prodTotal = parseInt(prodCheck.rows[0]?.total ?? prodCheck.rows[0]?.['COUNT(*)'] ?? '0', 10);
-        if (prodTotal < 50) {
-          console.log(`📦 Catálogo de productos inicial (${prodTotal} productos). Sincronizando catálogo completo desde Costos SISTEMA...`);
+        const rmCheck = await db.query('SELECT COUNT(*) AS total FROM raw_materials');
+        const rmTotal = parseInt(rmCheck.rows[0]?.total ?? rmCheck.rows[0]?.['COUNT(*)'] ?? '0', 10);
+        if (prodTotal < 50 || rmTotal < 10) {
+          console.log(`📦 Catálogo incompleto (${prodTotal} productos, ${rmTotal} materias primas). Restaurando catálogo completo y reconstruyendo stock...`);
           await importCatalogSeed(db);
+        } else {
+          await reconstructFromSurvivingTables(db);
         }
       } catch (err: any) {
         console.warn('⚠️ Nota al verificar importación de catálogo:', err.message);

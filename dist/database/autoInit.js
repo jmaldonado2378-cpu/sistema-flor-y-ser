@@ -115,13 +115,18 @@ async function autoInitDatabase(db) {
             catch (e) {
                 console.warn("⚠️ Nota al verificar tabla stock_movements:", e.message);
             }
-            // Sincronizar catálogo base de Costos SISTEMA si faltan productos
+            // Sincronizar catálogo base de Costos SISTEMA si faltan productos o materias primas
             try {
                 const prodCheck = await db.query('SELECT COUNT(*) AS total FROM final_products');
                 const prodTotal = parseInt(prodCheck.rows[0]?.total ?? prodCheck.rows[0]?.['COUNT(*)'] ?? '0', 10);
-                if (prodTotal < 50) {
-                    console.log(`📦 Catálogo de productos inicial (${prodTotal} productos). Sincronizando catálogo completo desde Costos SISTEMA...`);
+                const rmCheck = await db.query('SELECT COUNT(*) AS total FROM raw_materials');
+                const rmTotal = parseInt(rmCheck.rows[0]?.total ?? rmCheck.rows[0]?.['COUNT(*)'] ?? '0', 10);
+                if (prodTotal < 50 || rmTotal < 10) {
+                    console.log(`📦 Catálogo incompleto (${prodTotal} productos, ${rmTotal} materias primas). Restaurando catálogo completo y reconstruyendo stock...`);
                     await (0, seedCatalog_1.importCatalogSeed)(db);
+                }
+                else {
+                    await (0, seedCatalog_1.reconstructFromSurvivingTables)(db);
                 }
             }
             catch (err) {

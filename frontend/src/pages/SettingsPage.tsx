@@ -530,17 +530,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
           </form>
         </div>
 
-        {/* Card 5: Mantenimiento del Sistema & Purga de Datos Semilla */}
-        <div className="card p-5 border-t-4 border-red-500">
+        {/* Card 5: Mantenimiento del Sistema, Restauración & Purga Segura */}
+        <div className="card p-5 border-t-4 border-emerald-600">
           <div className="card-header flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-text-dark flex items-center gap-2">
-              <Trash2 size={20} className="text-red-600" />
-              Mantenimiento de Base de Datos & Purga de Datos Semilla
+              <Settings size={20} className="text-emerald-700" />
+              Mantenimiento de Base de Datos, Recuperación de Catálogo & Limpieza Demo
             </h2>
           </div>
 
           <p className="text-xs text-slate-600 mb-4">
-            Utiliza este panel para limpiar todos los registros de prueba (materias primas, productos elaborados, órdenes y tareas mock), dejando el ERP en cero listo para la carga masiva oficial de tu catálogo. Las cuentas de usuario de Administrador y Vendedor se conservan intactas.
+            Desde aquí puedes verificar la conexión MySQL, <strong>restaurar el catálogo oficial completo sincronizando tus precios y el stock real desde el Kardex</strong>, o quitar únicamente los 4 artículos demo iniciales sin afectar tus datos reales.
           </p>
 
           <div className="flex flex-wrap gap-3">
@@ -580,9 +580,56 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
             <button
               type="button"
               className="btn flex items-center gap-2"
+              style={{ backgroundColor: '#059669', color: '#FFFFFF', fontWeight: 700 }}
+              onClick={async () => {
+                const confirmed = window.confirm(
+                  '🔄 ¿Deseas restaurar el Catálogo Oficial y recuperar el stock y precios desde el Kardex y Estructura de Costos?\n\n' +
+                  'Esta acción es 100% segura: no borra ningún dato, repone los artículos faltantes y sincroniza tu último stock real registrado.'
+                );
+                if (!confirmed) return;
+
+                try {
+                  const token = localStorage.getItem('floryser_jwt_token');
+                  const res = await fetch('/api/v1/system/restore-catalog', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    }
+                  });
+                  const json = await res.json();
+                  if (res.ok && json.data) {
+                    localStorage.removeItem('floryser_raw_materials_v2');
+                    localStorage.removeItem('floryser_final_products_v2');
+                    const c = json.data.counts || {};
+                    alert(
+                      `✅ ¡Catálogo y Stock Recuperados Exitosamente!\n\n` +
+                      `• Productos Finales restaurados: ${c.finalProducts ?? 0}\n` +
+                      `• Materias Primas restauradas: ${c.rawMaterials ?? 0}\n` +
+                      `• Materiales de Empaque: ${c.packagingMaterials ?? 0}\n` +
+                      `• Registros de Stock / Precios reconstruidos desde Kardex: ${c.reconstructedStock ?? 0}`
+                    );
+                    window.location.reload();
+                  } else {
+                    alert('Error al restaurar catálogo: ' + (json.message || 'Error desconocido'));
+                  }
+                } catch (err: any) {
+                  alert('Error de conexión al restaurar catálogo: ' + err.message);
+                }
+              }}
+            >
+              🔄 Restaurar Catálogo Oficial y Recuperar Stock
+            </button>
+
+            <button
+              type="button"
+              className="btn flex items-center gap-2"
               style={{ backgroundColor: '#DC2626', color: '#FFFFFF', fontWeight: 700 }}
               onClick={async () => {
-                const confirmed = window.confirm('⚠️ ATENCIÓN: ¿Estás seguro de que deseas purgar TODOS los datos de prueba del sistema?\n\nEsta acción eliminará materias primas, productos y ventas mock, dejando la base de datos vacía para que puedas importar tus planillas oficiales.');
+                const confirmed = window.confirm(
+                  '🧹 ¿Deseas quitar únicamente los 4 artículos demo de prueba iniciales (rm-001..004, fp-001..004)?\n\n' +
+                  'Tu catálogo oficial, tus productos cargados, tu stock y tus ventas reales están protegidos y NO se tocarán.'
+                );
                 if (!confirmed) return;
 
                 try {
@@ -596,22 +643,20 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
                   });
 
                   if (res.ok) {
-                    // Limpiar también caches locales
-                    localStorage.removeItem('floryser_users_v2');
                     localStorage.removeItem('floryser_raw_materials_v2');
                     localStorage.removeItem('floryser_final_products_v2');
-                    alert('🧹 ¡Limpieza completada! El sistema se ha purgado de datos de prueba exitosamente.');
+                    alert('🧹 ¡Listo! Se quitaron únicamente los artículos demo de prueba iniciales.');
                     window.location.reload();
                   } else {
                     const json = await res.json();
-                    alert('Error al purgar datos: ' + (json.message || 'Error desconocido'));
+                    alert('Error al quitar datos demo: ' + (json.message || 'Error desconocido'));
                   }
                 } catch (err: any) {
-                  alert('Error de conexión al purgar datos: ' + err.message);
+                  alert('Error de conexión: ' + err.message);
                 }
               }}
             >
-              🧹 Limpiar / Purgar Todos los Datos Semilla de Prueba
+              🧹 Quitar 4 Artículos Demo de Prueba (Seguro)
             </button>
           </div>
         </div>

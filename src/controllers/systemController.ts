@@ -21,4 +21,13 @@ export class SystemController {
       res.status(500).json({ status: 'ERROR', message: error.message });
     }
   };
+
+  restoreCatalog = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const result = await this.systemService.restoreCatalog();
+      res.json({ status: 'SUCCESS', data: result });
+    } catch (error: any) {
+      res.status(500).json({ status: 'ERROR', message: error.message });
+    }
+  };
 }
