@@ -38,8 +38,8 @@ const rawMaterialSchema = z.object({
   currentStock: z.number().min(0, 'Debe ser >= 0'),
   minStock: z.number().min(0, 'Debe ser >= 0'),
   costPerUnit: z.number().min(0, 'Debe ser >= 0'),
-  supplierName: z.string().min(1, 'Seleccione o ingrese un proveedor'),
-  storageLocation: z.string().min(1, 'Ubicación requerida'),
+  supplierName: z.string().optional(),
+  storageLocation: z.string().optional(),
   familyId: z.string().optional(),
 });
 
@@ -51,8 +51,8 @@ const packagingSchema = z.object({
   currentStock: z.number().min(0, 'Debe ser >= 0'),
   minStock: z.number().min(0, 'Debe ser >= 0'),
   costPerUnit: z.number().min(0, 'Debe ser >= 0'),
-  supplierName: z.string().min(1, 'Proveedor requerido'),
-  storageLocation: z.string().min(1, 'Ubicación requerida'),
+  supplierName: z.string().optional(),
+  storageLocation: z.string().optional(),
   familyId: z.string().optional(),
 });
 

@@ -389,6 +389,19 @@ class FinalProductService {
                     message: `El producto tiene ${orderCount} venta(s) u orden(es) históricas asociadas. Para preservar la integridad del historial contable no puede eliminarse permanentemente. Se recomienda suspenderlo.`
                 };
             }
+            // 2. Limpiar estructuras de costos y movimientos para que no se regenere ni falle por FK
+            try {
+                await this.db.query('DELETE FROM product_pricing_structures WHERE product_id = $1', [id]);
+            }
+            catch { }
+            try {
+                await this.db.query("DELETE FROM stock_movements WHERE item_id = $1 AND item_type = 'FINAL_PRODUCT'", [id]);
+            }
+            catch { }
+            try {
+                await this.db.query('DELETE FROM fractioning_orders WHERE final_product_id = $1', [id]);
+            }
+            catch { }
             await this.db.query('DELETE FROM final_products WHERE id = $1', [id]);
             this.inMemoryProducts = this.inMemoryProducts.filter(p => p.id !== id);
             return { success: true };

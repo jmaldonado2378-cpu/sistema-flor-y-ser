@@ -265,18 +265,28 @@ export class RawMaterialService {
 
   async delete(id: string): Promise<{ success: boolean; message?: string }> {
     try {
-      // 1. Verificar si está vinculada a algún producto final
-      const prodCheck = await this.db.query(
-        'SELECT COUNT(*) AS total FROM final_products WHERE raw_material_id = $1',
-        [id]
-      );
-      const prodCount = parseInt(prodCheck.rows[0]?.total ?? prodCheck.rows[0]?.['COUNT(*)'] ?? '0', 10);
-      if (prodCount > 0) {
-        return {
-          success: false,
-          message: `La materia prima está vinculada a ${prodCount} producto(s) final(es). Debe desvincularla o se recomienda suspenderla.`
-        };
-      }
+      // 1. Desvincular automáticamente de cualquier producto final que apunte a esta materia prima
+      try {
+        await this.db.query(
+          'UPDATE final_products SET raw_material_id = NULL WHERE raw_material_id = $1',
+          [id]
+        );
+      } catch {}
+
+      // 2. Desvincular o limpiar órdenes de fraccionado y movimientos huérfanos si existieran restricciones
+      try {
+        await this.db.query(
+          'DELETE FROM fractioning_orders WHERE raw_material_id = $1',
+          [id]
+        );
+      } catch {}
+
+      try {
+        await this.db.query(
+          "DELETE FROM stock_movements WHERE item_id = $1 AND item_type = 'RAW_MATERIAL'",
+          [id]
+        );
+      } catch {}
 
       await this.db.query('DELETE FROM raw_materials WHERE id = $1', [id]);
       this.inMemoryMaterials = this.inMemoryMaterials.filter(m => m.id !== id);
@@ -285,7 +295,7 @@ export class RawMaterialService {
       if (err.message && (err.message.includes('foreign key') || err.message.includes('a foreign key constraint fails'))) {
         return {
           success: false,
-          message: 'No se puede eliminar porque está referenciada en movimientos o recetas. Se recomienda suspenderla.'
+          message: 'No se puede eliminar porque está referenciada en comprobantes contables históricos. Se recomienda usar el botón Suspender (⏸️).'
         };
       }
       throw err;
