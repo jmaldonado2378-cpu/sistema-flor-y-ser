@@ -20,8 +20,12 @@ import {
   useCreatePackagingMaterial, 
   useUpdatePackagingMaterial,
   useDeletePackagingMaterial,
-  useTogglePackagingStatus
+  useTogglePackagingStatus,
+  usePackagingCategories,
+  useSavePackagingCategory,
+  useDeletePackagingCategory
 } from '../hooks/usePackaging';
+import { DEFAULT_PACKAGING_CATEGORIES } from '../api/packaging';
 import { useSuppliers } from '../hooks/useSuppliers';
 import { useArticleFamilies } from '../hooks/useArticleFamilies';
 import { useStockMovements, useCreateStockAdjustment } from '../hooks/useStockMovements';
@@ -46,7 +50,7 @@ const rawMaterialSchema = z.object({
 const packagingSchema = z.object({
   code: z.string().optional(),
   name: z.string().min(1, 'El nombre es requerido'),
-  category: z.enum(['DOYPACK', 'JAR', 'LABEL', 'BOX', 'BAG', 'OTHER']),
+  category: z.string().min(1, 'La categoría es requerida'),
   unit: z.string().min(1, 'Unidad requerida'),
   currentStock: z.number().min(0, 'Debe ser >= 0'),
   minStock: z.number().min(0, 'Debe ser >= 0'),
@@ -106,12 +110,34 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   const [editingPkgItem, setEditingPkgItem] = useState<any>(null);
   const [editingFinalItem, setEditingFinalItem] = useState<any>(null);
 
+  // Estado para edición de la lista "Categoría de Insumo"
+  const [isEditingPkgCategories, setIsEditingPkgCategories] = useState(false);
+  const [newPkgCategoryLabel, setNewPkgCategoryLabel] = useState('');
+  const [editingPkgCatCode, setEditingPkgCatCode] = useState<string | null>(null);
+  const [editingPkgCatLabel, setEditingPkgCatLabel] = useState('');
+
   const { data: rawMaterials, isLoading: loadingRaw, isError: errorRaw } = useRawMaterials();
   const { data: packagingMaterials, isLoading: loadingPkg, isError: errorPkg } = usePackagingMaterials();
+  const { data: pkgCategoriesData } = usePackagingCategories();
+  const savePkgCategory = useSavePackagingCategory();
+  const deletePkgCategory = useDeletePackagingCategory();
   const { data: finalProducts, isLoading: loadingFinal, isError: errorFinal } = useFinalProducts();
   const { data: suppliers } = useSuppliers();
   const { data: rawFamiliesData } = useArticleFamilies();
   const { data: settingsData } = useSettings();
+
+  const pkgCategories = Array.isArray(pkgCategoriesData) && pkgCategoriesData.length > 0
+    ? pkgCategoriesData
+    : DEFAULT_PACKAGING_CATEGORIES;
+
+  const normalizePkgCategory = (cat?: string) => {
+    const clean = (cat || '').trim().toUpperCase();
+    if (!clean) return pkgCategories[0]?.code || 'DOYPACK';
+    if (pkgCategories.some(c => c.code === clean)) return clean;
+    if (clean === 'ETIQUETA' || clean === 'ETIQUETAS') return 'LABEL';
+    if (clean === 'BOLSA' || clean === 'BOLSAS') return 'BAG';
+    return clean;
+  };
 
   const rawMaterialsList: any[] = Array.isArray(rawMaterials) 
     ? rawMaterials 
@@ -249,7 +275,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       const matchCode = (item.code || '').toLowerCase().includes(q);
       if (!matchName && !matchCode) return false;
     }
-    if (pkgCategoryFilter && item.category !== pkgCategoryFilter) return false;
+    if (pkgCategoryFilter && normalizePkgCategory(item.category) !== pkgCategoryFilter) return false;
     if (pkgSupplierFilter && (item.supplierName || '') !== pkgSupplierFilter) return false;
     if (pkgFamilyFilter) {
       const itemFam = item.familyId || (item as any).articleFamilyId;
@@ -594,7 +620,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
     pkgForm.reset({
       code: item.code,
       name: item.name,
-      category: item.category,
+      category: normalizePkgCategory(item.category),
       unit: item.unit || 'UN',
       currentStock: item.currentStock,
       minStock: item.minStock,
@@ -759,13 +785,16 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   ]));
 
   const getCategoryBadgeLabel = (cat: string) => {
-    switch (cat) {
+    const norm = normalizePkgCategory(cat);
+    const found = pkgCategories.find(c => c.code === norm);
+    if (found) return found.badgeLabel || found.label;
+    switch (norm) {
       case 'DOYPACK': return 'Bolsa Doypack';
       case 'JAR': return 'Frasco Vidrio';
       case 'LABEL': return 'Etiqueta';
       case 'BOX': return 'Caja Embalaje';
-      case 'BAG': return 'Bolsa Vacío';
-      default: return 'Envase / Etiqueta';
+      case 'BAG': return 'Bolsa';
+      default: return cat || 'Envase / Etiqueta';
     }
   };
 
@@ -1207,20 +1236,32 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                   />
                 </div>
 
-                <div style={{ minWidth: '150px' }}>
-                  <label className="text-xs text-text-muted mb-1 block">Categoría</label>
+                <div style={{ minWidth: '170px' }}>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs text-text-muted">Categoría</label>
+                    <button
+                      type="button"
+                      className="text-xs text-primary-sage font-semibold hover:underline cursor-pointer"
+                      onClick={() => {
+                        setIsEditingPkgCategories(true);
+                        setIsPkgModalOpen(true);
+                      }}
+                      title="Editar la lista de Categorías de Insumo"
+                    >
+                      ✏️ Editar
+                    </button>
+                  </div>
                   <select 
                     value={pkgCategoryFilter} 
                     onChange={(e) => setPkgCategoryFilter(e.target.value)}
                     className="w-full text-sm"
                   >
                     <option value="">Todas las categorías</option>
-                    <option value="DOYPACK">Bolsa Doypack</option>
-                    <option value="JAR">Frasco Vidrio</option>
-                    <option value="LABEL">Etiqueta</option>
-                    <option value="BOX">Caja Embalaje</option>
-                    <option value="BAG">Bolsa Vacío</option>
-                    <option value="OTHER">Otro</option>
+                    {pkgCategories.map(cat => (
+                      <option key={cat.code} value={cat.code}>
+                        {cat.badgeLabel || cat.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -2038,14 +2079,22 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
 
           <div className="grid grid-cols-2 gap-4">
             <div className="form-field">
-              <label>Categoría de Insumo *</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="mb-0">Categoría de Insumo *</label>
+                <button
+                  type="button"
+                  className="text-xs text-primary-sage font-semibold flex items-center gap-1 hover:underline cursor-pointer"
+                  onClick={() => setIsEditingPkgCategories(prev => !prev)}
+                >
+                  <Pencil size={12} /> {isEditingPkgCategories ? 'Cerrar editor' : 'Editar lista'}
+                </button>
+              </div>
               <select {...pkgForm.register('category')}>
-                <option value="DOYPACK">Bolsa Doypack con Cierre / Válvula</option>
-                <option value="JAR">Frasco / Envase de Vidrio o Plástico</option>
-                <option value="LABEL">Etiqueta Autoadhesiva / Térmica</option>
-                <option value="BOX">Caja de Cartón / Embalaje</option>
-                <option value="BAG">Bolsa de Vacío / Granel</option>
-                <option value="OTHER">Otro Material Operativo</option>
+                {pkgCategories.map(cat => (
+                  <option key={cat.code} value={cat.code}>
+                    {cat.label}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -2058,6 +2107,170 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               </select>
             </div>
           </div>
+
+          {isEditingPkgCategories && (
+            <div
+              className="p-3 rounded-lg border mb-2"
+              style={{ backgroundColor: '#F8FAF8', borderColor: '#2E5339' }}
+            >
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs font-bold text-text-dark uppercase tracking-wide">
+                  ⚙️ Gestionar Lista de Categorías de Insumo
+                </span>
+                <button
+                  type="button"
+                  className="text-xs text-text-muted hover:underline"
+                  onClick={() => {
+                    setIsEditingPkgCategories(false);
+                    setEditingPkgCatCode(null);
+                  }}
+                >
+                  Cerrar ✕
+                </button>
+              </div>
+
+              <div className="space-y-1.5 max-h-48 overflow-y-auto mb-3 pr-1">
+                {pkgCategories.map(cat => (
+                  <div
+                    key={cat.code}
+                    className="flex items-center justify-between gap-2 bg-white px-2.5 py-1.5 rounded border border-gray-200 text-sm"
+                  >
+                    {editingPkgCatCode === cat.code ? (
+                      <>
+                        <input
+                          type="text"
+                          value={editingPkgCatLabel}
+                          onChange={(e) => setEditingPkgCatLabel(e.target.value)}
+                          className="flex-1 text-sm py-1 px-2 border rounded"
+                          placeholder="Nombre de la categoría..."
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-primary text-xs py-1 px-2.5"
+                          onClick={() => {
+                            if (!editingPkgCatLabel.trim()) return;
+                            savePkgCategory.mutate(
+                              { code: cat.code, label: editingPkgCatLabel.trim() },
+                              {
+                                onSuccess: () => {
+                                  setEditingPkgCatCode(null);
+                                  setEditingPkgCatLabel('');
+                                }
+                              }
+                            );
+                          }}
+                        >
+                          Guardar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary text-xs py-1 px-2"
+                          onClick={() => {
+                            setEditingPkgCatCode(null);
+                            setEditingPkgCatLabel('');
+                          }}
+                        >
+                          Cancelar
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="flex-1 truncate font-medium text-text-dark">
+                          {cat.label}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                            title="Modificar nombre de categoría"
+                            onClick={() => {
+                              setEditingPkgCatCode(cat.code);
+                              setEditingPkgCatLabel(cat.label);
+                            }}
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                            title="Eliminar categoría"
+                            onClick={() => {
+                              if (pkgCategories.length <= 1) {
+                                alert('Debe existir al menos una categoría.');
+                                return;
+                              }
+                              deletePkgCategory.mutate(cat.code, {
+                                onSuccess: (updatedList) => {
+                                  const currentVal = pkgForm.getValues('category');
+                                  if (currentVal === cat.code && updatedList?.length > 0) {
+                                    pkgForm.setValue('category', updatedList[0].code);
+                                  }
+                                }
+                              });
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2 items-center pt-2 border-t border-gray-200">
+                <input
+                  type="text"
+                  value={newPkgCategoryLabel}
+                  onChange={(e) => setNewPkgCategoryLabel(e.target.value)}
+                  placeholder="Nueva categoría (ej: Frasco Gotero Ámbar, Bolsa Papel Kraft...)"
+                  className="flex-1 text-sm py-1.5 px-2.5 bg-white"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (!newPkgCategoryLabel.trim()) return;
+                      const label = newPkgCategoryLabel.trim();
+                      savePkgCategory.mutate(
+                        { label },
+                        {
+                          onSuccess: (updatedList) => {
+                            setNewPkgCategoryLabel('');
+                            const created = updatedList?.find(c => c.label === label);
+                            if (created) {
+                              pkgForm.setValue('category', created.code, { shouldValidate: true });
+                            }
+                          }
+                        }
+                      );
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-primary text-xs py-1.5 px-3 whitespace-nowrap flex items-center gap-1"
+                  onClick={() => {
+                    if (!newPkgCategoryLabel.trim()) return;
+                    const label = newPkgCategoryLabel.trim();
+                    savePkgCategory.mutate(
+                      { label },
+                      {
+                        onSuccess: (updatedList) => {
+                          setNewPkgCategoryLabel('');
+                          const created = updatedList?.find(c => c.label === label);
+                          if (created) {
+                            pkgForm.setValue('category', created.code, { shouldValidate: true });
+                          }
+                        }
+                      }
+                    );
+                  }}
+                >
+                  <Plus size={14} /> Agregar
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="form-field">

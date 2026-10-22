@@ -79,5 +79,35 @@ export class PackagingController {
       res.status(500).json({ status: 'ERROR', message: error.message });
     }
   };
+
+  getCategories = async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const data = await this.packagingService.getCategories();
+      res.json({ status: 'SUCCESS', data });
+    } catch (error: any) {
+      res.status(500).json({ status: 'ERROR', message: error.message });
+    }
+  };
+
+  saveCategory = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const code = req.params.code || req.body.code;
+      const { label, badgeLabel, sortOrder } = req.body;
+      const data = await this.packagingService.saveCategory({ code, label, badgeLabel, sortOrder });
+      res.json({ status: 'SUCCESS', data });
+    } catch (error: any) {
+      res.status(400).json({ status: 'ERROR', message: error.message });
+    }
+  };
+
+  deleteCategory = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { code } = req.params;
+      const data = await this.packagingService.deleteCategory(code);
+      res.json({ status: 'SUCCESS', data });
+    } catch (error: any) {
+      res.status(400).json({ status: 'ERROR', message: error.message });
+    }
+  };
 }
 

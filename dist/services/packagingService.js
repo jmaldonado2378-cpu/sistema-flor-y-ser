@@ -1,6 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PackagingService = void 0;
+const initialPackagingCategories = [
+    { code: 'DOYPACK', label: 'Bolsa Doypack con Cierre / Válvula', badgeLabel: 'Bolsa Doypack', sortOrder: 1 },
+    { code: 'JAR', label: 'Frasco / Envase de Vidrio o Plástico', badgeLabel: 'Frasco Vidrio', sortOrder: 2 },
+    { code: 'LABEL', label: 'Etiqueta Autoadhesiva / Térmica', badgeLabel: 'Etiqueta', sortOrder: 3 },
+    { code: 'BOX', label: 'Caja de Cartón / Embalaje', badgeLabel: 'Caja Embalaje', sortOrder: 4 },
+    { code: 'BAG', label: 'Bolsa de Vacío / Camiseta / Granel', badgeLabel: 'Bolsa', sortOrder: 5 },
+    { code: 'OTHER', label: 'Otro Material Operativo', badgeLabel: 'Otro Insumo', sortOrder: 6 },
+];
 const initialPackagingMaterials = [
     {
         id: 'pkg-001',
@@ -91,6 +99,7 @@ const initialPackagingMaterials = [
 class PackagingService {
     db;
     inMemoryMaterials = [...initialPackagingMaterials];
+    inMemoryCategories = [...initialPackagingCategories];
     isTableInitialized = false;
     constructor(db) {
         this.db = db;
@@ -123,6 +132,24 @@ class PackagingService {
             catch (err) {
                 // Ignorar si la columna ya existe
             }
+            await this.db.query(`
+        CREATE TABLE IF NOT EXISTS packaging_categories (
+          code VARCHAR(50) NOT NULL PRIMARY KEY,
+          label VARCHAR(150) NOT NULL,
+          badge_label VARCHAR(100) NOT NULL,
+          sort_order INT DEFAULT 0
+        );
+      `);
+            const catCountRes = await this.db.query(`SELECT COUNT(*) AS cnt FROM packaging_categories`);
+            const catCount = parseInt(catCountRes.rows?.[0]?.cnt || '0', 10);
+            if (catCount === 0) {
+                for (const cat of initialPackagingCategories) {
+                    await this.db.query(`INSERT INTO packaging_categories (code, label, badge_label, sort_order) VALUES ($1, $2, $3, $4)`, [cat.code, cat.label, cat.badgeLabel, cat.sortOrder ?? 99]);
+                }
+            }
+            // Normalizar categorías heredadas en packaging_materials (ej. ETIQUETA -> LABEL, BOLSA -> BAG)
+            await this.db.query(`UPDATE packaging_materials SET category = 'LABEL' WHERE category IN ('ETIQUETA', 'ETIQUETAS')`);
+            await this.db.query(`UPDATE packaging_materials SET category = 'BAG' WHERE category IN ('BOLSA', 'BOLSAS')`);
             this.isTableInitialized = true;
         }
         catch (e) {
@@ -379,6 +406,77 @@ class PackagingService {
             }
             return null;
         }
+    }
+    async getCategories() {
+        await this.ensureTableExists();
+        try {
+            const res = await this.db.query(`
+        SELECT code, label, badge_label AS "badgeLabel", sort_order AS "sortOrder"
+        FROM packaging_categories
+        ORDER BY sort_order ASC, label ASC;
+      `);
+            if (res.rows && res.rows.length > 0) {
+                return res.rows;
+            }
+        }
+        catch (err) {
+            console.warn('⚠️ Error en packagingService.getCategories:', err.message);
+        }
+        return this.inMemoryCategories;
+    }
+    async saveCategory(dto) {
+        await this.ensureTableExists();
+        const rawLabel = (dto.label || '').trim();
+        if (!rawLabel)
+            throw new Error('El nombre de la categoría es requerido');
+        const code = (dto.code && dto.code.trim())
+            ? dto.code.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_')
+            : rawLabel
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toUpperCase()
+                .replace(/[^A-Z0-9]+/g, '_')
+                .replace(/^_+|_+$/g, '')
+                .slice(0, 40) || `CAT_${Date.now()}`;
+        const badgeLabel = (dto.badgeLabel && dto.badgeLabel.trim())
+            ? dto.badgeLabel.trim()
+            : rawLabel.split('/')[0].trim().slice(0, 40);
+        try {
+            const existing = await this.db.query(`SELECT code FROM packaging_categories WHERE code = $1`, [code]);
+            if (existing.rows && existing.rows.length > 0) {
+                await this.db.query(`UPDATE packaging_categories SET label = $1, badge_label = $2 WHERE code = $3`, [rawLabel, badgeLabel, code]);
+            }
+            else {
+                const maxOrderRes = await this.db.query(`SELECT COALESCE(MAX(sort_order), 0) + 1 AS nextOrder FROM packaging_categories`);
+                const nextOrder = dto.sortOrder ?? parseInt(maxOrderRes.rows?.[0]?.nextOrder || '10', 10);
+                await this.db.query(`INSERT INTO packaging_categories (code, label, badge_label, sort_order) VALUES ($1, $2, $3, $4)`, [code, rawLabel, badgeLabel, nextOrder]);
+            }
+        }
+        catch (err) {
+            console.warn('⚠️ Error guardando categoría en DB, usando memoria:', err.message);
+        }
+        const idx = this.inMemoryCategories.findIndex(c => c.code === code);
+        if (idx !== -1) {
+            this.inMemoryCategories[idx] = { ...this.inMemoryCategories[idx], label: rawLabel, badgeLabel };
+        }
+        else {
+            this.inMemoryCategories.push({ code, label: rawLabel, badgeLabel, sortOrder: this.inMemoryCategories.length + 1 });
+        }
+        return await this.getCategories();
+    }
+    async deleteCategory(code) {
+        await this.ensureTableExists();
+        const cleanCode = (code || '').trim().toUpperCase();
+        try {
+            await this.db.query(`UPDATE packaging_materials SET category = 'OTHER' WHERE category = $1`, [cleanCode]);
+            await this.db.query(`DELETE FROM packaging_categories WHERE code = $1`, [cleanCode]);
+        }
+        catch (err) {
+            console.warn('⚠️ Error eliminando categoría en DB:', err.message);
+        }
+        this.inMemoryCategories = this.inMemoryCategories.filter(c => c.code !== cleanCode);
+        this.inMemoryMaterials = this.inMemoryMaterials.map(m => m.category === cleanCode ? { ...m, category: 'OTHER' } : m);
+        return await this.getCategories();
     }
 }
 exports.PackagingService = PackagingService;

@@ -5,8 +5,40 @@ import {
   updatePackagingMaterial, 
   updatePackagingStock,
   deletePackagingMaterial,
-  togglePackagingStatus
+  togglePackagingStatus,
+  getPackagingCategories,
+  savePackagingCategory,
+  deletePackagingCategory
 } from '../api/packaging';
+
+export const usePackagingCategories = () => {
+  return useQuery({
+    queryKey: ['packaging-categories'],
+    queryFn: getPackagingCategories,
+  });
+};
+
+export const useSavePackagingCategory = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: savePackagingCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['packaging-categories'] });
+      queryClient.invalidateQueries({ queryKey: ['packaging-materials'] });
+    },
+  });
+};
+
+export const useDeletePackagingCategory = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deletePackagingCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['packaging-categories'] });
+      queryClient.invalidateQueries({ queryKey: ['packaging-materials'] });
+    },
+  });
+};
 
 export const usePackagingMaterials = () => {
   return useQuery({

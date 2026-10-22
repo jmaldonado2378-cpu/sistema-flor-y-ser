@@ -388,6 +388,10 @@ app.put('/api/v1/raw-materials/:id', requireAuth, rawMaterialController.update);
 app.patch('/api/v1/raw-materials/:id/stock', requireAuth, rawMaterialController.updateStock);
 
 // Módulo de Inventario: Materiales de Empaque y Etiquetas
+app.get('/api/v1/packaging-materials/categories', requireAuth, packagingController.getCategories);
+app.post('/api/v1/packaging-materials/categories', requireAuth, packagingController.saveCategory);
+app.put('/api/v1/packaging-materials/categories/:code', requireAuth, packagingController.saveCategory);
+app.delete('/api/v1/packaging-materials/categories/:code', requireAuth, packagingController.deleteCategory);
 app.get('/api/v1/packaging-materials', requireAuth, packagingController.getAll);
 app.post('/api/v1/packaging-materials', requireAuth, packagingController.create);
 app.delete('/api/v1/packaging-materials/:id', requireAuth, packagingController.delete);

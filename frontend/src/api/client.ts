@@ -143,6 +143,9 @@ function saveStoredSettings(newSettings: any) {
 
 function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyData?: any): T | null {
   const cleanEndpoint = endpoint.split('?')[0];
+  if (cleanEndpoint.startsWith('/packaging-materials/categories')) {
+    return null;
+  }
 
   // 1. PETICIONES GET
   if (method === 'GET') {

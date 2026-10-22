@@ -1,8 +1,15 @@
+export interface PackagingCategory {
+  code: string;
+  label: string;
+  badgeLabel: string;
+  sortOrder?: number;
+}
+
 export interface PackagingMaterial {
   id: string;
   code: string;
   name: string;
-  category: 'DOYPACK' | 'JAR' | 'LABEL' | 'BOX' | 'BAG' | 'OTHER';
+  category: string;
   unit: string;
   currentStock: number;
   minStock: number;
@@ -19,7 +26,7 @@ export interface PackagingMaterial {
 export interface CreatePackagingMaterialDTO {
   code: string;
   name: string;
-  category: 'DOYPACK' | 'JAR' | 'LABEL' | 'BOX' | 'BAG' | 'OTHER';
+  category: string;
   unit?: string;
   currentStock: number;
   minStock?: number;
@@ -32,7 +39,7 @@ export interface CreatePackagingMaterialDTO {
 export interface UpdatePackagingMaterialDTO {
   code?: string;
   name?: string;
-  category?: 'DOYPACK' | 'JAR' | 'LABEL' | 'BOX' | 'BAG' | 'OTHER';
+  category?: string;
   unit?: string;
   currentStock?: number;
   minStock?: number;
