@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { importCatalogSeed, reconstructFromSurvivingTables } from './seedCatalog';
+import { ArticleFamilyService } from '../services/articleFamilyService';
 
 /**
  * AutoInitDatabase - Verfica y crea automáticamente la estructura de tablas MySQL
@@ -119,6 +120,14 @@ export async function autoInitDatabase(db: any): Promise<boolean> {
         }
       } catch (err: any) {
         console.warn('⚠️ Nota al verificar importación de catálogo:', err.message);
+      }
+
+      // Sincronizar jerarquía oficial de familias y sub-familias (elimina demo FAM-SEM/SUB-CHIA y reasigna artículos)
+      try {
+        const famService = new ArticleFamilyService(db);
+        await famService.getAll();
+      } catch (err: any) {
+        console.warn('⚠️ Nota al sincronizar familias en autoInit:', err.message);
       }
 
       return true;

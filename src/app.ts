@@ -401,7 +401,7 @@ app.get('/api/v1/article-families/scope/:scope', requireAuth, articleFamilyContr
 app.get('/api/v1/article-families/:id', requireAuth, articleFamilyController.getById);
 app.post('/api/v1/article-families', requireAuth, articleFamilyController.create);
 app.put('/api/v1/article-families/:id', requireAuth, articleFamilyController.update);
-app.delete('/api/v1/article-families/:id', requireAuth, requireRole('ADMIN'), articleFamilyController.delete);
+app.delete('/api/v1/article-families/:id', requireAuth, articleFamilyController.delete);
 
 // Módulo de Inventario: Productos Finales
 app.get('/api/v1/final-products', requireAuth, finalProductController.getAll);

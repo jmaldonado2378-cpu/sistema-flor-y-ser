@@ -7,6 +7,7 @@ exports.autoInitDatabase = autoInitDatabase;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const seedCatalog_1 = require("./seedCatalog");
+const articleFamilyService_1 = require("../services/articleFamilyService");
 /**
  * AutoInitDatabase - Verfica y crea automáticamente la estructura de tablas MySQL
  * en Hostinger si aún no existen.
@@ -128,6 +129,14 @@ async function autoInitDatabase(db) {
             }
             catch (err) {
                 console.warn('⚠️ Nota al verificar importación de catálogo:', err.message);
+            }
+            // Sincronizar jerarquía oficial de familias y sub-familias (elimina demo FAM-SEM/SUB-CHIA y reasigna artículos)
+            try {
+                const famService = new articleFamilyService_1.ArticleFamilyService(db);
+                await famService.getAll();
+            }
+            catch (err) {
+                console.warn('⚠️ Nota al sincronizar familias en autoInit:', err.message);
             }
             return true;
         }

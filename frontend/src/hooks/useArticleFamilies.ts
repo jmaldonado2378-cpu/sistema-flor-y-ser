@@ -13,7 +13,9 @@ export const useCreateArticleFamily = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createArticleFamily,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['article-families'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['article-families'] });
+    },
   });
 };
 
@@ -21,7 +23,12 @@ export const useUpdateArticleFamily = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) => updateArticleFamily(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['article-families'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['article-families'] });
+      queryClient.invalidateQueries({ queryKey: ['rawMaterials'] });
+      queryClient.invalidateQueries({ queryKey: ['finalProducts'] });
+      queryClient.invalidateQueries({ queryKey: ['packagingMaterials'] });
+    },
   });
 };
 
@@ -29,6 +36,11 @@ export const useDeleteArticleFamily = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: deleteArticleFamily,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['article-families'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['article-families'] });
+      queryClient.invalidateQueries({ queryKey: ['rawMaterials'] });
+      queryClient.invalidateQueries({ queryKey: ['finalProducts'] });
+      queryClient.invalidateQueries({ queryKey: ['packagingMaterials'] });
+    },
   });
 };

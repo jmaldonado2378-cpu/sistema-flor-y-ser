@@ -131,23 +131,66 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
 
   const getScope = (f: any) => f ? ((f.articleScope || f.scope || 'ALL') + '').toUpperCase() : 'ALL';
 
-  const rawFamilies = articleFamilies.filter((f: any) => {
+  const sortHierarchically = (list: any[]) => {
+    const roots = list.filter((f: any) => !f.parentId).sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    const ordered: any[] = [];
+    const seen = new Set<string>();
+    roots.forEach((r: any) => {
+      ordered.push(r);
+      seen.add(r.id);
+      list
+        .filter((c: any) => c.parentId === r.id)
+        .sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0))
+        .forEach((c: any) => {
+          ordered.push({ ...c, parentName: c.parentName || r.name });
+          seen.add(c.id);
+        });
+    });
+    list.forEach((f: any) => {
+      if (f && !seen.has(f.id)) ordered.push(f);
+    });
+    return ordered;
+  };
+
+  const rawFamilies = sortHierarchically(articleFamilies.filter((f: any) => {
     if (!f) return false;
     const sc = getScope(f);
     return sc === 'RAW_MATERIAL' || sc === 'RAW' || sc === 'MATERIA PRIMA' || sc === 'ALL';
-  });
+  }));
 
-  const pkgFamilies = articleFamilies.filter((f: any) => {
+  const pkgFamilies = sortHierarchically(articleFamilies.filter((f: any) => {
     if (!f) return false;
     const sc = getScope(f);
     return sc === 'PACKAGING' || sc === 'PKG' || sc === 'EMPAQUE' || sc === 'EMP' || sc === 'ALL';
-  });
+  }));
 
-  const finalFamilies = articleFamilies.filter((f: any) => {
+  const finalFamilies = sortHierarchically(articleFamilies.filter((f: any) => {
     if (!f) return false;
     const sc = getScope(f);
     return sc === 'FINAL_PRODUCT' || sc === 'FINAL' || sc === 'PRODUCTO FINAL' || sc === 'ALL';
-  });
+  }));
+
+  const matchesFamilyOrSubfamily = (itemFamId: string | undefined, selectedFilterId: string) => {
+    if (!selectedFilterId) return true;
+    if (!itemFamId) return false;
+    if (itemFamId === selectedFilterId) return true;
+    const famObj = articleFamilies.find((f: any) => f && f.id === itemFamId);
+    return Boolean(famObj && famObj.parentId === selectedFilterId);
+  };
+
+  const getFamilyDisplayLabel = (item: any) => {
+    const famId = item?.familyId || item?.articleFamilyId;
+    const famObj = (articleFamilies || []).find((f: any) => f && f.id === famId);
+    if (famObj) {
+      if (famObj.parentId) {
+        const parentObj = (articleFamilies || []).find((p: any) => p && p.id === famObj.parentId);
+        const pName = famObj.parentName || parentObj?.name;
+        return pName ? `${pName} › ${famObj.name}` : famObj.name;
+      }
+      return famObj.name;
+    }
+    return item?.familyName || 'Sin familia';
+  };
 
   // Filtros Tab 1: Materias Primas
   const [rawSearch, setRawSearch] = useState('');
@@ -181,7 +224,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
     }
     if (rawFamilyFilter) {
       const itemFam = item.familyId || (item as any).articleFamilyId;
-      if (itemFam !== rawFamilyFilter) return false;
+      if (!matchesFamilyOrSubfamily(itemFam, rawFamilyFilter)) return false;
     }
     if (rawSupplierFilter) {
       if ((item.supplierName || '') !== rawSupplierFilter) return false;
@@ -210,7 +253,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
     if (pkgSupplierFilter && (item.supplierName || '') !== pkgSupplierFilter) return false;
     if (pkgFamilyFilter) {
       const itemFam = item.familyId || (item as any).articleFamilyId;
-      if (itemFam !== pkgFamilyFilter) return false;
+      if (!matchesFamilyOrSubfamily(itemFam, pkgFamilyFilter)) return false;
     }
     const isAct = item.isActive !== false;
     if (pkgStatusFilter === 'ACTIVE' && !isAct) return false;
@@ -235,7 +278,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
     }
     if (finalFamilyFilter) {
       const itemFam = item.familyId || (item as any).articleFamilyId;
-      if (itemFam !== finalFamilyFilter) return false;
+      if (!matchesFamilyOrSubfamily(itemFam, finalFamilyFilter)) return false;
     }
     const isAct = item.isActive !== false;
     if (finalStatusFilter === 'ACTIVE' && !isAct) return false;
@@ -911,7 +954,9 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                   >
                     <option value="">Todas las familias</option>
                     {rawFamilies.map((f: any) => (
-                      <option key={f.id} value={f.id}>{f.name}</option>
+                      <option key={f.id} value={f.id}>
+                        {f.parentId ? `— ${f.name} (${f.parentName || 'Sub'})` : f.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -1023,7 +1068,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       if (!item) return null;
                       const currentStock = item.currentStock || 0;
                       const minStock = item.minStock || 0;
-                      const familyName = item.familyName || (articleFamilies || []).find(f => f && (f.id === item.familyId || f.id === (item as any).articleFamilyId))?.name || 'Sin familia';
+                      const familyName = getFamilyDisplayLabel(item);
                       const isAct = item.isActive !== false;
 
                       return (
@@ -1188,7 +1233,9 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                   >
                     <option value="">Todas las familias</option>
                     {pkgFamilies.map((f: any) => (
-                      <option key={f.id} value={f.id}>{f.name}</option>
+                      <option key={f.id} value={f.id}>
+                        {f.parentId ? `— ${f.name} (${f.parentName || 'Sub'})` : f.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -1302,7 +1349,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       if (!item) return null;
                       const currentStock = item.currentStock || 0;
                       const minStock = item.minStock || 0;
-                      const familyName = item.familyName || (articleFamilies || []).find(f => f && (f.id === item.familyId || f.id === (item as any).articleFamilyId))?.name || 'Sin familia';
+                      const familyName = getFamilyDisplayLabel(item);
                       const isAct = item.isActive !== false;
 
                       return (
@@ -1455,7 +1502,9 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                   >
                     <option value="">Todas las familias</option>
                     {finalFamilies.map((f: any) => (
-                      <option key={f.id} value={f.id}>{f.name}</option>
+                      <option key={f.id} value={f.id}>
+                        {f.parentId ? `— ${f.name} (${f.parentName || 'Sub'})` : f.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -1553,7 +1602,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       const baseRm = rawMaterialsList.find(rm => rm && rm.id === item.rawMaterialId);
                       const currentStock = item.currentStock || 0;
                       const minStock = item.minStock || 0;
-                      const familyName = item.familyName || (articleFamilies || []).find(f => f && (f.id === item.familyId || f.id === (item as any).articleFamilyId))?.name || 'Sin familia';
+                      const familyName = getFamilyDisplayLabel(item);
                       const isAct = item.isActive !== false;
 
                       return (

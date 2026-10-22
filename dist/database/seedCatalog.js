@@ -32,10 +32,18 @@ async function importCatalogSeed(db) {
         for (const f of data.families || []) {
             try {
                 await db.query(`
-          INSERT INTO article_families (id, code, name, description, article_scope, icon, sort_order, is_active)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, 1)
-          ON DUPLICATE KEY UPDATE name = VALUES(name), icon = VALUES(icon);
-        `, [f.id, f.code, f.name, f.name, f.article_scope || 'ALL', f.icon || 'Package', famCount]);
+          INSERT INTO article_families (id, parent_id, code, name, description, article_scope, icon, sort_order, is_active)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
+          ON DUPLICATE KEY UPDATE
+            parent_id = VALUES(parent_id),
+            code = VALUES(code),
+            name = VALUES(name),
+            description = VALUES(description),
+            article_scope = VALUES(article_scope),
+            icon = VALUES(icon),
+            sort_order = VALUES(sort_order),
+            is_active = 1;
+        `, [f.id, f.parent_id || null, f.code, f.name, f.name, f.article_scope || 'ALL', f.icon || 'Package', f.sort_order ?? famCount]);
                 famCount++;
             }
             catch (err) {
@@ -79,7 +87,7 @@ async function importCatalogSeed(db) {
                 await db.query(`
           INSERT INTO raw_materials (id, code, name, unit, current_stock, min_stock, cost_per_unit, storage_location, family_id, is_active)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1)
-          ON DUPLICATE KEY UPDATE name = VALUES(name), cost_per_unit = VALUES(cost_per_unit);
+          ON DUPLICATE KEY UPDATE name = VALUES(name), cost_per_unit = VALUES(cost_per_unit), family_id = VALUES(family_id);
         `, [rm.id, rm.code, rm.name, rm.unit, rm.current_stock, rm.min_stock, rm.cost_per_unit, rm.storage_location, rm.family_id]);
                 rmCount++;
             }
@@ -97,7 +105,7 @@ async function importCatalogSeed(db) {
             current_stock, min_stock, cost_price, price, ingredients, dietary_badge_codes,
             default_expiration_days, family_id, is_blend, is_active
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 1)
-          ON DUPLICATE KEY UPDATE name = VALUES(name), price = VALUES(price), cost_price = VALUES(cost_price);
+          ON DUPLICATE KEY UPDATE name = VALUES(name), price = VALUES(price), cost_price = VALUES(cost_price), family_id = VALUES(family_id);
         `, [
                     fp.id, fp.raw_material_id, fp.code, fp.barcode, fp.name, fp.unit_weight_grams, fp.net_content_label,
                     fp.current_stock, fp.min_stock, fp.cost_price, fp.price, fp.ingredients, fp.dietary_badge_codes,

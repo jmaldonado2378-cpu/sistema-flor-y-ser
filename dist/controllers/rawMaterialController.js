@@ -17,7 +17,7 @@ class RawMaterialController {
     };
     create = async (req, res) => {
         try {
-            const { code, name, unit, currentStock, minStock, costPerUnit, supplierName, storageLocation } = req.body;
+            const { code, name, unit, currentStock, minStock, costPerUnit, supplierName, storageLocation, familyId, articleFamilyId } = req.body;
             if (!code || !name || currentStock === undefined) {
                 res.status(400).json({ status: 'ERROR', message: 'Los campos code, name y currentStock son obligatorios.' });
                 return;
@@ -30,7 +30,8 @@ class RawMaterialController {
                 minStock: minStock ? parseFloat(minStock) : 5.0,
                 costPerUnit: costPerUnit ? parseFloat(costPerUnit) : 0,
                 supplierName,
-                storageLocation
+                storageLocation,
+                familyId: familyId || articleFamilyId || undefined
             });
             res.status(201).json({ status: 'SUCCESS', data: created });
         }

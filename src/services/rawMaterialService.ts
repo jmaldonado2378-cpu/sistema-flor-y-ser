@@ -11,8 +11,8 @@ const initialRawMaterials: RawMaterial[] = [
     costPerUnit: 8500.00,
     supplierName: 'Frutos del Valle S.A.',
     storageLocation: 'Depósito A - Estante 2',
-    familyId: '10000000-0000-0000-0000-000000000010',
-    familyName: 'Frutos Secos & Deshidratados',
+    familyId: 'fam-frutos-secos',
+    familyName: 'Frutos Secos',
     isActive: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -27,8 +27,8 @@ const initialRawMaterials: RawMaterial[] = [
     costPerUnit: 3200.00,
     supplierName: 'El Molino Natural',
     storageLocation: 'Depósito A - Estante 4',
-    familyId: '10000000-0000-0000-0000-000000000001',
-    familyName: 'Semillas & Granos',
+    familyId: 'fam-reposteria',
+    familyName: 'Repostería',
     isActive: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -43,8 +43,8 @@ const initialRawMaterials: RawMaterial[] = [
     costPerUnit: 9800.00,
     supplierName: 'BioNutrient Ltda.',
     storageLocation: 'Depósito B - Contenedor 1',
-    familyId: '10000000-0000-0000-0000-000000000020',
-    familyName: 'Harinas & Almidones',
+    familyId: 'fam-harinas',
+    familyName: 'Harinas',
     isActive: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -59,8 +59,8 @@ const initialRawMaterials: RawMaterial[] = [
     costPerUnit: 4100.00,
     supplierName: 'Organia Argentina',
     storageLocation: 'Depósito B - Contenedor 3',
-    familyId: '10000000-0000-0000-0000-000000000002',
-    familyName: 'Chía',
+    familyId: 'fam-semillas',
+    familyName: 'Semillas',
     isActive: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -206,6 +206,15 @@ export class RawMaterialService {
   }
 
   async update(id: string, dto: UpdateRawMaterialDTO): Promise<RawMaterial | null> {
+    const index = this.inMemoryMaterials.findIndex(m => m.id === id);
+    if (index !== -1) {
+      this.inMemoryMaterials[index] = {
+        ...this.inMemoryMaterials[index],
+        ...dto,
+        updatedAt: new Date().toISOString()
+      };
+    }
+
     try {
       const updates: string[] = [];
       const values: any[] = [];
@@ -220,33 +229,26 @@ export class RawMaterialService {
       if (dto.supplierName !== undefined) { updates.push(`supplier_name = $${i++}`); values.push(dto.supplierName); }
       if (dto.storageLocation !== undefined) { updates.push(`storage_location = $${i++}`); values.push(dto.storageLocation); }
       if (dto.familyId !== undefined) { updates.push(`family_id = $${i++}`); values.push(dto.familyId || null); }
-      if (dto.isActive !== undefined) { updates.push(`is_active = $${i++}`); values.push(dto.isActive); }
+      if (dto.isActive !== undefined) { updates.push(`is_active = $${i++}`); values.push(dto.isActive ? 1 : 0); }
 
       if (updates.length === 0) return this.getById(id);
 
       updates.push(`updated_at = CURRENT_TIMESTAMP`);
       values.push(id);
 
-      const res = await this.db.query(`
+      await this.db.query(`
         UPDATE raw_materials
         SET ${updates.join(', ')}
-        WHERE id = $${i}
-        RETURNING id, code, name, unit, current_stock AS "currentStock", min_stock AS "minStock",
-                  cost_per_unit AS "costPerUnit", supplier_name AS "supplierName",
-                  storage_location AS "storageLocation", family_id AS "familyId", is_active AS "isActive",
-                  created_at AS "createdAt", updated_at AS "updatedAt";
+        WHERE id = $${i};
       `, values);
 
-      if (res.rows.length > 0) return this.getById(id);
-    } catch {}
+      const fromDb = await this.getById(id);
+      if (fromDb) return fromDb;
+    } catch (err: any) {
+      console.warn('⚠️ Error en rawMaterialService.update:', err.message);
+    }
 
-    const index = this.inMemoryMaterials.findIndex(m => m.id === id);
     if (index !== -1) {
-      this.inMemoryMaterials[index] = {
-        ...this.inMemoryMaterials[index],
-        ...dto,
-        updatedAt: new Date().toISOString()
-      };
       return this.inMemoryMaterials[index];
     }
     return null;

@@ -106,8 +106,13 @@ export function addAuditLog(log: Omit<AuditLog, 'id' | 'timestamp'>) {
 }
 
 // Helpers genéricos de persitencia local para modo Fallback estático
+function getStorageKey(key: string): string {
+  if (key === 'families') return 'floryser_families_v3';
+  return `floryser_${key}_v2`;
+}
+
 function getCollection<T>(key: string, defaultData: T[]): T[] {
-  const saved = localStorage.getItem(`floryser_${key}_v2`);
+  const saved = localStorage.getItem(getStorageKey(key));
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
@@ -118,7 +123,7 @@ function getCollection<T>(key: string, defaultData: T[]): T[] {
 }
 
 function saveCollection<T>(key: string, data: T[]) {
-  localStorage.setItem(`floryser_${key}_v2`, JSON.stringify(data));
+  localStorage.setItem(getStorageKey(key), JSON.stringify(data));
 }
 
 function getStoredSettings() {
@@ -408,6 +413,25 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
       return { status: 'success', data: newReceipt } as unknown as T;
     }
 
+    if (cleanEndpoint === '/article-families') {
+      const current = getCollection<any>('families', MOCK_ARTICLE_FAMILIES);
+      const parentObj = bodyData?.parentId ? current.find((f: any) => f.id === bodyData.parentId) : null;
+      const newItem = {
+        id: `fam-${Date.now()}`,
+        parentId: bodyData?.parentId || null,
+        parentName: parentObj?.name || undefined,
+        code: bodyData?.code || `FAM-${Math.floor(100 + Math.random() * 900)}`,
+        name: bodyData?.name || 'Nueva Familia',
+        description: bodyData?.description || '',
+        articleScope: bodyData?.articleScope || 'ALL',
+        sortOrder: Number(bodyData?.sortOrder) || 0,
+        isActive: true,
+        createdAt: new Date().toISOString()
+      };
+      saveCollection('families', [...current, newItem]);
+      return { status: 'success', data: newItem } as unknown as T;
+    }
+
     if (cleanEndpoint === '/packaging-materials') {
       const current = getCollection('packaging', MOCK_PACKAGING_MATERIALS);
       const newItem = {
@@ -526,6 +550,31 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
   }
 
   if (method === 'PATCH' || method === 'PUT') {
+    if (cleanEndpoint.startsWith('/article-families/')) {
+      const parts = cleanEndpoint.split('/');
+      const id = parts[2];
+      const current = getCollection<any>('families', MOCK_ARTICLE_FAMILIES);
+      const parentObj = bodyData?.parentId ? current.find((f: any) => f.id === bodyData.parentId) : null;
+      const updated = current.map((item: any) => {
+        if (item.id === id) {
+          return {
+            ...item,
+            ...bodyData,
+            parentId: bodyData?.parentId !== undefined ? bodyData.parentId : item.parentId,
+            parentName: bodyData?.parentId ? (parentObj?.name || item.parentName) : undefined,
+            updatedAt: new Date().toISOString()
+          };
+        }
+        if (item.parentId === id && bodyData?.name) {
+          return { ...item, parentName: bodyData.name };
+        }
+        return item;
+      });
+      saveCollection('families', updated);
+      const found = updated.find((i: any) => i.id === id);
+      return { status: 'success', data: found } as unknown as T;
+    }
+
     if (cleanEndpoint.startsWith('/raw-materials/')) {
       const parts = cleanEndpoint.split('/');
       const id = parts[2];
@@ -535,6 +584,7 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
           return {
             ...item,
             ...bodyData,
+            isActive: bodyData?.isActive !== undefined ? Boolean(bodyData.isActive) : item.isActive,
             familyId: bodyData?.familyId !== undefined ? bodyData.familyId : item.familyId,
             articleFamilyId: bodyData?.familyId !== undefined ? bodyData.familyId : item.articleFamilyId
           };
@@ -555,6 +605,7 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
           return {
             ...item,
             ...bodyData,
+            isActive: bodyData?.isActive !== undefined ? Boolean(bodyData.isActive) : item.isActive,
             familyId: bodyData?.familyId !== undefined ? bodyData.familyId : item.familyId,
             articleFamilyId: bodyData?.familyId !== undefined ? bodyData.familyId : item.articleFamilyId
           };
@@ -575,6 +626,7 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
           return {
             ...item,
             ...bodyData,
+            isActive: bodyData?.isActive !== undefined ? Boolean(bodyData.isActive) : item.isActive,
             familyId: bodyData?.familyId !== undefined ? bodyData.familyId : item.familyId,
             articleFamilyId: bodyData?.familyId !== undefined ? bodyData.familyId : item.articleFamilyId
           };
@@ -678,6 +730,47 @@ function getLocalDataFallback<T>(endpoint: string, method: string = 'GET', bodyD
   }
 
   if (method === 'DELETE') {
+    if (cleanEndpoint.startsWith('/article-families/')) {
+      const parts = cleanEndpoint.split('/');
+      const famId = parts[2];
+      const current = getCollection<any>('families', MOCK_ARTICLE_FAMILIES);
+      const removedIds = new Set(
+        current.filter((f: any) => f.id === famId || f.parentId === famId).map((f: any) => f.id)
+      );
+      const updatedFamilies = current.filter((f: any) => !removedIds.has(f.id));
+      saveCollection('families', updatedFamilies);
+
+      // Desvincular artículos asociados a la familia o sub-familias eliminadas
+      const raws = getCollection<any>('raw_materials', MOCK_RAW_MATERIALS);
+      saveCollection('raw_materials', raws.map((r: any) => removedIds.has(r.familyId) ? { ...r, familyId: '', familyName: undefined } : r));
+      const pkgs = getCollection<any>('packaging', MOCK_PACKAGING_MATERIALS);
+      saveCollection('packaging', pkgs.map((p: any) => removedIds.has(p.familyId) ? { ...p, familyId: '', familyName: undefined } : p));
+      const finals = getCollection<any>('final_products', MOCK_FINAL_PRODUCTS);
+      saveCollection('final_products', finals.map((fp: any) => removedIds.has(fp.familyId) ? { ...fp, familyId: '', familyName: undefined } : fp));
+
+      return { status: 'success', message: 'Familia eliminada correctamente' } as unknown as T;
+    }
+    if (cleanEndpoint.startsWith('/raw-materials/')) {
+      const parts = cleanEndpoint.split('/');
+      const id = parts[2];
+      const current = getCollection<any>('raw_materials', MOCK_RAW_MATERIALS);
+      saveCollection('raw_materials', current.filter((item: any) => item.id !== id));
+      return { status: 'success', message: 'Materia prima eliminada' } as unknown as T;
+    }
+    if (cleanEndpoint.startsWith('/packaging-materials/')) {
+      const parts = cleanEndpoint.split('/');
+      const id = parts[2];
+      const current = getCollection<any>('packaging', MOCK_PACKAGING_MATERIALS);
+      saveCollection('packaging', current.filter((item: any) => item.id !== id));
+      return { status: 'success', message: 'Material de empaque eliminado' } as unknown as T;
+    }
+    if (cleanEndpoint.startsWith('/final-products/')) {
+      const parts = cleanEndpoint.split('/');
+      const id = parts[2];
+      const current = getCollection<any>('final_products', MOCK_FINAL_PRODUCTS);
+      saveCollection('final_products', current.filter((item: any) => item.id !== id));
+      return { status: 'success', message: 'Producto final eliminado' } as unknown as T;
+    }
     if (cleanEndpoint.startsWith('/tasks/')) {
       const parts = cleanEndpoint.split('/');
       const taskId = parts[2];
