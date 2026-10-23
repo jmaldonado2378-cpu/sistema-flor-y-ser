@@ -84,7 +84,7 @@ export const PriceListGeneratorModal: React.FC<PriceListGeneratorModalProps> = (
           familyId: p.familyId || p.articleFamilyId || '',
           familyName: fam?.name || 'Sin Categoría',
           unitWeightGrams: p.unitWeightGrams,
-          netContentLabel: p.netContentLabel || (p.unitWeightGrams ? `${p.unitWeightGrams}g` : ''),
+          netContentLabel: p.unitWeightGrams ? `${p.unitWeightGrams}g` : (p.netContentLabel || ''),
           ingredients: p.ingredients || '',
           currentStock: Number(p.currentStock) || 0,
           basePrice: price,

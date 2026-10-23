@@ -128,16 +128,23 @@ class FinalProductService {
         ORDER BY fp.name ASC;
       `);
             if (res.rows && res.rows.length > 0) {
-                return res.rows.map((row) => ({
-                    ...row,
-                    isActive: row.isActive === 1 || row.isActive === true || row.isActive === '1' || row.isActive === 'true',
-                    unitWeightGrams: parseFloat(row.unitWeightGrams || 0),
-                    currentStock: parseFloat(row.currentStock || 0),
-                    minStock: parseFloat(row.minStock || 0),
-                    price: parseFloat(row.price || 0),
-                    dietaryBadgeCodes: parseJsonArray(row.dietaryBadgeCodes),
-                    ingredientsList: parseJsonArray(row.ingredientsList)
-                }));
+                return res.rows.map((row) => {
+                    const unitWeightGrams = parseFloat(row.unitWeightGrams || 0);
+                    const netContentLabel = unitWeightGrams > 0 && (!row.netContentLabel || (row.netContentLabel === '500g' && unitWeightGrams !== 500))
+                        ? `${unitWeightGrams}g`
+                        : (row.netContentLabel || `${unitWeightGrams}g`);
+                    return {
+                        ...row,
+                        isActive: row.isActive === 1 || row.isActive === true || row.isActive === '1' || row.isActive === 'true',
+                        unitWeightGrams,
+                        netContentLabel,
+                        currentStock: parseFloat(row.currentStock || 0),
+                        minStock: parseFloat(row.minStock || 0),
+                        price: parseFloat(row.price || 0),
+                        dietaryBadgeCodes: parseJsonArray(row.dietaryBadgeCodes),
+                        ingredientsList: parseJsonArray(row.ingredientsList)
+                    };
+                });
             }
         }
         catch (err) {
@@ -164,9 +171,14 @@ class FinalProductService {
       `, [id]);
             if (res.rows.length > 0) {
                 const row = res.rows[0];
+                const unitWeightGrams = parseFloat(row.unitWeightGrams || 0);
+                const netContentLabel = unitWeightGrams > 0 && (!row.netContentLabel || (row.netContentLabel === '500g' && unitWeightGrams !== 500))
+                    ? `${unitWeightGrams}g`
+                    : (row.netContentLabel || `${unitWeightGrams}g`);
                 return {
                     ...row,
-                    unitWeightGrams: parseFloat(row.unitWeightGrams || 0),
+                    unitWeightGrams,
+                    netContentLabel,
                     currentStock: parseFloat(row.currentStock || 0),
                     minStock: parseFloat(row.minStock || 0),
                     price: parseFloat(row.price || 0),
@@ -297,6 +309,9 @@ class FinalProductService {
             if (dto.unitWeightGrams !== undefined) {
                 updates.push(`unit_weight_grams = $${i++}`);
                 values.push(dto.unitWeightGrams);
+                if (dto.netContentLabel === undefined || (dto.netContentLabel === '500g' && Number(dto.unitWeightGrams) !== 500)) {
+                    dto.netContentLabel = `${dto.unitWeightGrams}g`;
+                }
             }
             if (dto.netContentLabel !== undefined) {
                 updates.push(`net_content_label = $${i++}`);

@@ -737,9 +737,13 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       ? formattedIngredientsList.map(ing => `${ing.rawMaterialName} (${ing.percentage}%)`).join(', ')
       : data.ingredients;
 
+    const weightGrams = Number(data.unitWeightGrams) || 0;
+    const syncedNetContentLabel = weightGrams > 0 ? `${weightGrams}g` : (data.netContentLabel || '');
+
     const payload = { 
       ...data,
       code: finalCode, 
+      netContentLabel: syncedNetContentLabel,
       dietaryBadgeCodes: badgeCodesArray, 
       barcode: data.barcode || finalCode,
       isBlend: isBlendProduct,
@@ -1657,7 +1661,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                             </span>
                           </td>
                           <td className="font-semibold text-text-dark">{(item.price || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
-                          <td>{item.unitWeightGrams || 0}g ({item.netContentLabel || `${item.unitWeightGrams || 0}g`})</td>
+                          <td>{item.unitWeightGrams || 0}g</td>
                           <td><span className="badge gray">{baseRm ? baseRm.name : 'Insumo Base'}</span></td>
                           <td>
                             {isAct ? (
