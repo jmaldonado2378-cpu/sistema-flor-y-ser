@@ -62,8 +62,9 @@ class SupplierService {
      */
     async updateSupplier(supplierId, dto) {
         const existing = await this.getSupplierById(supplierId);
+        const rawBusinessName = dto.businessName !== undefined ? dto.businessName : dto.name;
         const taxId = dto.taxId !== undefined ? dto.taxId.trim().replace(/-/g, '') : existing.taxId;
-        const businessName = dto.businessName !== undefined ? dto.businessName.trim() : existing.businessName;
+        const businessName = rawBusinessName !== undefined ? rawBusinessName.trim() : existing.businessName;
         const contactName = dto.contactName !== undefined ? (dto.contactName ? dto.contactName.trim() : null) : existing.contactName;
         const phone = dto.phone !== undefined ? dto.phone.trim() : existing.phone;
         const email = dto.email !== undefined ? (dto.email ? dto.email.trim().toLowerCase() : null) : existing.email;
@@ -179,18 +180,81 @@ class SupplierService {
         return { suppliers: result, total: result.length };
     }
     /**
-     * Desactiva / Elimina a un proveedor.
+     * Elimina definitivamente a un proveedor si no tiene comprobantes asociados,
+     * o devuelve un mensaje indicando que se recomienda suspenderlo.
      */
     async deleteSupplier(supplierId) {
         try {
-            await this.db.query(`UPDATE suppliers SET is_active = FALSE WHERE id = $1;`, [supplierId]);
+            const receiptCheck = await this.db.query('SELECT COUNT(*) AS total FROM merchandise_receipts WHERE supplier_id = $1', [supplierId]);
+            const receiptCount = parseInt(receiptCheck.rows[0]?.total ?? receiptCheck.rows[0]?.['COUNT(*)'] ?? '0', 10);
+            if (receiptCount > 0) {
+                return {
+                    success: false,
+                    message: `El proveedor tiene ${receiptCount} comprobante(s) de recepción / facturas históricas asociadas. Para preservar la integridad contable no puede eliminarse permanentemente. Se recomienda usar el botón Suspender (⏸️).`
+                };
+            }
+            // Desvincular referencias opcionales en materias primas, productos y gastos
+            try {
+                await this.db.query('UPDATE raw_materials SET supplier_id = NULL WHERE supplier_id = $1', [supplierId]);
+            }
+            catch { }
+            try {
+                await this.db.query('UPDATE products SET supplier_id = NULL WHERE supplier_id = $1', [supplierId]);
+            }
+            catch { }
+            try {
+                await this.db.query('UPDATE operational_expenses SET supplier_id = NULL WHERE supplier_id = $1', [supplierId]);
+            }
+            catch { }
+            await this.db.query('DELETE FROM suppliers WHERE id = $1', [supplierId]);
+            this.inMemorySuppliers = this.inMemorySuppliers.filter(s => s.id !== supplierId);
+            return { success: true };
+        }
+        catch (err) {
+            if (err.message && (err.message.includes('foreign key') || err.message.includes('a foreign key constraint fails'))) {
+                return {
+                    success: false,
+                    message: 'No se puede eliminar porque está vinculado a comprobantes contables históricos. Utilice la opción Suspender (⏸️).'
+                };
+            }
+            // Fallback en memoria
+            const inMemReceipts = this.inMemoryReceipts.filter(r => r.supplierId === supplierId).length;
+            if (inMemReceipts > 0) {
+                return {
+                    success: false,
+                    message: `El proveedor tiene ${inMemReceipts} comprobante(s) asociados. Se recomienda usar el botón Suspender (⏸️).`
+                };
+            }
+            this.inMemorySuppliers = this.inMemorySuppliers.filter(s => s.id !== supplierId);
+            return { success: true };
+        }
+    }
+    /**
+     * Suspende o reactiva un proveedor.
+     */
+    async toggleSupplierStatus(supplierId, newStatus) {
+        try {
+            const existing = await this.getSupplierById(supplierId);
+            if (!existing)
+                return null;
+            const targetStatus = newStatus !== undefined ? newStatus : !existing.isActive;
+            await this.db.query('UPDATE suppliers SET is_active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [targetStatus ? 1 : 0, supplierId]);
+            const index = this.inMemorySuppliers.findIndex(s => s.id === supplierId);
+            if (index !== -1) {
+                this.inMemorySuppliers[index].isActive = targetStatus;
+                this.inMemorySuppliers[index].updatedAt = new Date().toISOString();
+            }
+            return await this.getSupplierById(supplierId);
         }
         catch {
-            // Fallback
-        }
-        const index = this.inMemorySuppliers.findIndex(s => s.id === supplierId);
-        if (index !== -1) {
-            this.inMemorySuppliers[index].isActive = false;
+            const index = this.inMemorySuppliers.findIndex(s => s.id === supplierId);
+            if (index !== -1) {
+                const targetStatus = newStatus !== undefined ? newStatus : !this.inMemorySuppliers[index].isActive;
+                this.inMemorySuppliers[index].isActive = targetStatus;
+                this.inMemorySuppliers[index].updatedAt = new Date().toISOString();
+                return this.inMemorySuppliers[index];
+            }
+            return null;
         }
     }
     // =========================================================================
@@ -1136,6 +1200,9 @@ class SupplierService {
     // MOCK DATA Y FALLBACKS EN MEMORIA PARA AMBIENTE SIN BASE DE DATOS ACTIVA
     // =========================================================================
     mapSupplierRow(row) {
+        const isAct = row.is_active === undefined || row.is_active === null
+            ? true
+            : (row.is_active === 1 || row.is_active === true || row.is_active === '1' || row.is_active === 'true');
         return {
             id: row.id,
             taxId: row.tax_id,
@@ -1149,9 +1216,9 @@ class SupplierService {
             deliveryDays: row.delivery_days,
             bankDetails: row.bank_details,
             notes: row.notes,
-            isActive: row.is_active,
-            createdAt: row.created_at.toISOString(),
-            updatedAt: row.updated_at.toISOString()
+            isActive: isAct,
+            createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || new Date().toISOString()),
+            updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at || new Date().toISOString())
         };
     }
     createSupplierInMemory(dto) {

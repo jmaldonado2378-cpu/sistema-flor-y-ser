@@ -62,15 +62,18 @@ export const FractioningPage: React.FC<{ onTabChange?: (tab: string) => void }> 
 
   const selectedRawMaterial = (rawMaterials || []).find(rm => rm.id === watchedRawId);
 
+  // Exclude resale products from fractioning
+  const fractionableFinalProducts = (finalProducts || []).filter(fp => !fp.isResale);
+
   // Filter final products matching selected raw material (by ID or Code)
-  const matchingFinalProducts = (finalProducts || []).filter(fp => 
+  const matchingFinalProducts = fractionableFinalProducts.filter(fp => 
     !watchedRawId || fp.rawMaterialId === watchedRawId || fp.rawMaterialId === selectedRawMaterial?.code
   );
 
-  // Fallback: If filtered list is empty, display all final products so dropdown is NEVER empty
+  // Fallback: If filtered list is empty, display all fractionable final products so dropdown is NEVER empty
   const availableFinalProducts = (matchingFinalProducts.length > 0) 
     ? matchingFinalProducts 
-    : (finalProducts || []);
+    : fractionableFinalProducts;
 
   const selectedFinalProduct = (finalProducts || []).find(fp => fp.id === watchedFinalId);
 
@@ -189,7 +192,7 @@ export const FractioningPage: React.FC<{ onTabChange?: (tab: string) => void }> 
                   <option value="">Seleccione producto final...</option>
                   {availableFinalProducts.map(fp => (
                     <option key={fp.id} value={fp.id}>
-                      {fp.name} ({fp.code}) - {fp.unitWeightGrams}g
+                      {fp.name} ({fp.code}) - {fp.netContentLabel || `${fp.unitWeightGrams}g`}
                     </option>
                   ))}
                 </select>

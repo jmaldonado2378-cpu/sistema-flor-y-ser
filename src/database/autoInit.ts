@@ -51,6 +51,18 @@ export async function autoInitDatabase(db: any): Promise<boolean> {
       try {
         await db.query("ALTER TABLE `final_products` ADD COLUMN `is_active` TINYINT(1) NOT NULL DEFAULT 1");
       } catch (e: any) {}
+      try {
+        await db.query("ALTER TABLE `final_products` ADD COLUMN `unit` VARCHAR(20) NOT NULL DEFAULT 'GRS' AFTER `unit_weight_grams`");
+      } catch (e: any) {}
+      try {
+        await db.query("ALTER TABLE `final_products` ADD COLUMN `is_resale` TINYINT(1) NOT NULL DEFAULT 0 AFTER `is_blend`");
+      } catch (e: any) {}
+      try {
+        await db.query("ALTER TABLE `final_products` ADD COLUMN `cost_price` DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER `min_stock`");
+      } catch (e: any) {}
+      try {
+        await db.query("ALTER TABLE `final_products` ADD COLUMN `supplier_name` VARCHAR(255) NULL AFTER `is_resale`");
+      } catch (e: any) {}
 
       try {
         // Garantizar que exista la tabla operational_tasks si no estuviese creada

@@ -207,7 +207,7 @@ CREATE TABLE IF NOT EXISTS `packaging_materials` (
   FOREIGN KEY (`family_id`) REFERENCES `article_families`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 8. Productos Finales (Elaborados / Fraccionados)
+-- 8. Productos Finales (Elaborados / Fraccionados / Reventa)
 CREATE TABLE IF NOT EXISTS `final_products` (
   `id` VARCHAR(64) NOT NULL PRIMARY KEY,
   `raw_material_id` VARCHAR(64) NULL,
@@ -215,6 +215,7 @@ CREATE TABLE IF NOT EXISTS `final_products` (
   `barcode` VARCHAR(100) NULL,
   `name` VARCHAR(255) NOT NULL,
   `unit_weight_grams` DECIMAL(10,2) NULL,
+  `unit` VARCHAR(20) NOT NULL DEFAULT 'GRS',
   `net_content_label` VARCHAR(50) NULL,
   `current_stock` DECIMAL(12,3) NOT NULL DEFAULT 0.000,
   `min_stock` DECIMAL(12,3) NOT NULL DEFAULT 0.000,
@@ -225,6 +226,8 @@ CREATE TABLE IF NOT EXISTS `final_products` (
   `default_expiration_days` INT NULL,
   `family_id` VARCHAR(64) NULL,
   `is_blend` TINYINT(1) NOT NULL DEFAULT 0,
+  `is_resale` TINYINT(1) NOT NULL DEFAULT 0,
+  `supplier_name` VARCHAR(255) NULL,
   `ingredients_json` JSON NULL,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

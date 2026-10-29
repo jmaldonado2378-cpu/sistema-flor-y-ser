@@ -8,6 +8,7 @@ export interface Supplier {
   email?: string;
   phone?: string;
   taxId?: string;
+  isActive?: boolean;
   createdAt: string;
 }
 
@@ -18,6 +19,7 @@ export interface CreateSupplierDTO {
   email?: string;
   phone?: string;
   taxId?: string;
+  isActive?: boolean;
 }
 
 export interface MerchandiseReceipt {
@@ -60,9 +62,27 @@ export async function createSupplier(data: CreateSupplierDTO): Promise<Supplier>
 }
 
 export async function updateSupplier(id: string, data: Partial<CreateSupplierDTO>): Promise<Supplier> {
+  const payload = {
+    ...data,
+    businessName: data.businessName || data.name,
+  };
   const res = await apiRequest<any>(`/suppliers/${id}`, {
     method: 'PUT',
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
+  });
+  return res.data || res;
+}
+
+export async function deleteSupplier(id: string): Promise<any> {
+  return await apiRequest<any>(`/suppliers/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function toggleSupplierStatus(id: string, isActive?: boolean): Promise<Supplier> {
+  const res = await apiRequest<any>(`/suppliers/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ isActive }),
   });
   return res.data || res;
 }

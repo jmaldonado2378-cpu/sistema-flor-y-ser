@@ -235,7 +235,8 @@ app.post('/api/v1/suppliers', auth_1.requireAuth, supplierController.createSuppl
 app.get('/api/v1/suppliers', auth_1.requireAuth, supplierController.searchSuppliers);
 app.get('/api/v1/suppliers/:id', auth_1.requireAuth, supplierController.getSupplierById);
 app.put('/api/v1/suppliers/:id', auth_1.requireAuth, supplierController.updateSupplier);
-app.delete('/api/v1/suppliers/:id', auth_1.requireAuth, (0, auth_1.requireRole)('ADMIN'), supplierController.deleteSupplier);
+app.patch('/api/v1/suppliers/:id/status', auth_1.requireAuth, supplierController.toggleSupplierStatus);
+app.delete('/api/v1/suppliers/:id', auth_1.requireAuth, supplierController.deleteSupplier);
 app.post('/api/v1/merchandise-receipts', auth_1.requireAuth, supplierController.createMerchandiseReceipt);
 app.post('/api/v1/merchandise-receipts/raw', auth_1.requireAuth, supplierController.createRawMaterialReceipt);
 app.get('/api/v1/merchandise-receipts', auth_1.requireAuth, supplierController.searchMerchandiseReceipts);

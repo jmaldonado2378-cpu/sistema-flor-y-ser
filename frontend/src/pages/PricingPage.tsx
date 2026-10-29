@@ -125,26 +125,52 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
   const whatsappCalc = calcChannelMetrics(0, watch('whatsappMarginPct'), watch('whatsappFinalPrice'));
   const onlineCalc = calcChannelMetrics(0, watch('onlineMarginPct'), watch('onlineFinalPrice'));
 
+  const calcRawCostWithUnits = (fp: any, rm: any): number => {
+    if (!rm) return 0;
+    const norm = (u?: string) => {
+      const c = (u || '').trim().toUpperCase();
+      if (c === 'G' || c === 'GR' || c === 'GRS') return 'GRS';
+      if (c === 'KG' || c === 'KGS') return 'KG';
+      if (c === 'ML' || c === 'CM3' || c === 'CC') return 'ML';
+      if (c === 'L' || c === 'LT' || c === 'LTS') return 'LTS';
+      if (c === 'UN' || c === 'UND' || c === 'UNI' || c === 'UNIDADES') return 'UND';
+      return c || 'GRS';
+    };
+    const rawU = norm(rm.unit || 'KG');
+    const prodU = norm(fp?.unit || 'GRS');
+    const amt = Number(fp?.unitWeightGrams) || 500;
+    let factor = amt / 1000;
+    if (rawU === prodU) factor = amt;
+    else if ((rawU === 'KG' && prodU === 'GRS') || (rawU === 'LTS' && prodU === 'ML')) factor = amt / 1000;
+    else if ((rawU === 'GRS' && prodU === 'KG') || (rawU === 'ML' && prodU === 'LTS')) factor = amt * 1000;
+    else factor = amt >= 10 ? amt / 1000 : amt;
+
+    return Math.round(factor * (Number(rm.costPerUnit) || 0));
+  };
+
   const handleOpenConfigModal = (p?: PricingStructure | null, fpFallback?: any) => {
     setSuccessMsg(null);
     setErrorMsg(null);
 
     const matchedFp = fpFallback || (p ? products.find(prod => prod.id === p.productId || prod.code === p.productSku) : null);
-    const baseRm = matchedFp ? raws.find(rm => rm.id === matchedFp.rawMaterialId) : null;
+    const isResale = Boolean(matchedFp?.isResale);
+    const baseRm = (!isResale && matchedFp) ? raws.find(rm => rm.id === matchedFp.rawMaterialId) : null;
     
-    // Auto calcular costo de materia prima base según peso unitario
+    // Auto calcular costo de materia prima base según unidad/peso o costo de compra en reventa
     let calculatedRawCost = p?.rawMaterialCost || 0;
-    if (!p && matchedFp && baseRm) {
-      const weightKg = (matchedFp.unitWeightGrams || 500) / 1000;
-      calculatedRawCost = Math.round(weightKg * (baseRm.costPerUnit || 0));
+    if (!p && matchedFp && isResale) {
+      calculatedRawCost = Math.round(Number(matchedFp.costPrice) || (Number(matchedFp.price || 0) * 0.5));
+    } else if (!p && matchedFp && baseRm) {
+      calculatedRawCost = calcRawCostWithUnits(matchedFp, baseRm);
     } else if (!p && matchedFp) {
-      calculatedRawCost = Math.round((matchedFp.price || 0) * 0.4);
+      calculatedRawCost = Math.round(Number(matchedFp.costPrice) || ((matchedFp.price || 0) * 0.4));
     }
 
-    // Seleccionar por defecto bolsa y etiqueta si existen
-    const defaultPkgs = pkgs.filter(pkg => pkg.category === 'DOYPACK' || pkg.category === 'LABEL');
+    // Seleccionar por defecto bolsa y etiqueta si existen (salvo en reventa donde es 0 por defecto)
+    const defaultPkgs = isResale ? [] : pkgs.filter(pkg => pkg.category === 'DOYPACK' || pkg.category === 'LABEL');
     const initialPkgIds = defaultPkgs.map(item => item.id);
-    const calculatedPkgCost = p?.packagingLabelCost || defaultPkgs.reduce((sum, item) => sum + item.costPerUnit, 0);
+    const calculatedPkgCost = p?.packagingLabelCost ?? (isResale ? 0 : defaultPkgs.reduce((sum, item) => sum + item.costPerUnit, 0));
+    const defaultLaborCost = isResale ? 0 : 150;
 
     setSelectedRawMaterialId(baseRm ? baseRm.id : '');
     setSelectedPackagingIds(initialPkgIds);
@@ -157,8 +183,8 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
         productName: p.productName || matchedFp?.name || '',
         unitOfMeasure: p.unitOfMeasure || 'unidades',
         rawMaterialCost: p.rawMaterialCost || calculatedRawCost,
-        packagingLabelCost: p.packagingLabelCost || calculatedPkgCost,
-        laborCost: p.laborCost || 150,
+        packagingLabelCost: p.packagingLabelCost !== undefined ? p.packagingLabelCost : calculatedPkgCost,
+        laborCost: p.laborCost !== undefined ? p.laborCost : defaultLaborCost,
         allocatedFixedCosts: p.allocatedFixedCosts || 250,
         taxPercentage: p.taxPercentage !== undefined ? p.taxPercentage : 21,
         mostradorCommissionPct: p.channels?.mostrador?.commissionPercentage || 0,
@@ -180,7 +206,7 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
         unitOfMeasure: 'unidades',
         rawMaterialCost: calculatedRawCost,
         packagingLabelCost: calculatedPkgCost,
-        laborCost: 150,
+        laborCost: defaultLaborCost,
         allocatedFixedCosts: 250,
         taxPercentage: 21,
         mostradorCommissionPct: 0,
@@ -439,7 +465,14 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
 
                   return (
                     <tr key={fp.id}>
-                      <td className="font-semibold text-text-dark">{nameStr}</td>
+                      <td className="font-semibold text-text-dark">
+                        <div className="flex items-center gap-2">
+                          <span>{nameStr}</span>
+                          {(fp as any).isResale && (
+                            <span className="badge blue text-[10px]">🛍️ Reventa</span>
+                          )}
+                        </div>
+                      </td>
                       <td className="text-right font-medium">
                         {isConfigured ? formatCurrency(directCost) : <span className="text-xs text-text-muted">Sin costo</span>}
                       </td>
@@ -504,19 +537,25 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
                     setValue('mostradorFinalPrice', fp.price);
                   }
 
-                  // Auto vincular materia prima base si existe
-                  const baseRm = raws.find(rm => rm.id === fp.rawMaterialId);
-                  if (baseRm) {
-                    setSelectedRawMaterialId(baseRm.id);
-                    const weightKg = (fp.unitWeightGrams || 500) / 1000;
-                    setValue('rawMaterialCost', Math.round(weightKg * (baseRm.costPerUnit || 0)));
+                  // Auto vincular materia prima base o costo de compra en reventa
+                  if ((fp as any).isResale) {
+                    setSelectedRawMaterialId('');
+                    setValue('rawMaterialCost', Math.round(Number((fp as any).costPrice) || (Number(fp.price || 0) * 0.5)));
+                    setValue('packagingLabelCost', 0);
+                    setValue('laborCost', 0);
+                  } else {
+                    const baseRm = raws.find(rm => rm.id === fp.rawMaterialId);
+                    if (baseRm) {
+                      setSelectedRawMaterialId(baseRm.id);
+                      setValue('rawMaterialCost', calcRawCostWithUnits(fp, baseRm));
+                    }
                   }
                 }
               }}
             >
               <option value="">Seleccionar producto...</option>
               {products.map(p => (
-                <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
+                <option key={p.id} value={p.id}>{p.name} ({p.code}){(p as any).isResale ? ' [Reventa]' : ''}</option>
               ))}
             </select>
           </div>
@@ -541,8 +580,7 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
                   const curProdId = watch('productId');
                   const fp = products.find(p => p.id === curProdId);
                   if (rm && fp) {
-                    const weightKg = (fp.unitWeightGrams || 500) / 1000;
-                    setValue('rawMaterialCost', Math.round(weightKg * (rm.costPerUnit || 0)));
+                    setValue('rawMaterialCost', calcRawCostWithUnits(fp, rm));
                   } else if (rm) {
                     setValue('rawMaterialCost', Math.round(rm.costPerUnit || 0));
                   }

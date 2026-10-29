@@ -99,21 +99,64 @@ class SupplierController {
     };
     /**
      * DELETE /api/v1/suppliers/:id
-     * Desactiva un proveedor.
+     * Elimina definitivamente un proveedor si no tiene comprobantes asociados.
      */
     deleteSupplier = async (req, res) => {
         try {
             const supplierId = req.params.id;
-            await this.supplierService.deleteSupplier(supplierId);
+            const result = await this.supplierService.deleteSupplier(supplierId);
+            if (!result.success) {
+                res.status(400).json({
+                    success: false,
+                    status: 'ERROR',
+                    message: result.message || 'No se pudo eliminar el proveedor.',
+                    error: result.message || 'No se pudo eliminar el proveedor.'
+                });
+                return;
+            }
             res.json({
                 success: true,
-                message: 'Proveedor desactivado correctamente.'
+                status: 'SUCCESS',
+                message: 'Proveedor eliminado exitosamente.'
             });
         }
         catch (error) {
             res.status(400).json({
                 success: false,
-                error: error.message || 'Error al desactivar el proveedor.'
+                status: 'ERROR',
+                message: error.message || 'Error al eliminar el proveedor.',
+                error: error.message || 'Error al eliminar el proveedor.'
+            });
+        }
+    };
+    /**
+     * PATCH /api/v1/suppliers/:id/status
+     * Suspende o reactiva un proveedor.
+     */
+    toggleSupplierStatus = async (req, res) => {
+        try {
+            const supplierId = req.params.id;
+            const { isActive } = req.body;
+            const updated = await this.supplierService.toggleSupplierStatus(supplierId, isActive !== undefined ? Boolean(isActive) : undefined);
+            if (!updated) {
+                res.status(404).json({
+                    success: false,
+                    status: 'ERROR',
+                    message: 'Proveedor no encontrado.'
+                });
+                return;
+            }
+            res.json({
+                success: true,
+                status: 'SUCCESS',
+                data: updated
+            });
+        }
+        catch (error) {
+            res.status(500).json({
+                success: false,
+                status: 'ERROR',
+                message: error.message || 'Error al cambiar estado del proveedor.'
             });
         }
     };

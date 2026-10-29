@@ -16,32 +16,49 @@ export class FinalProductController {
   create = async (req: Request, res: Response): Promise<void> => {
     try {
       const { 
-        rawMaterialId, code, barcode, name, unitWeightGrams, netContentLabel, 
-        currentStock, minStock, price, ingredients, dietaryBadgeCodes, defaultExpirationDays,
-        familyId, isBlend, ingredientsList
+        rawMaterialId, code, barcode, name, unitWeightGrams, unit, netContentLabel, 
+        currentStock, minStock, costPrice, price, ingredients, dietaryBadgeCodes, defaultExpirationDays,
+        familyId, isBlend, isResale, supplierName, ingredientsList
       } = req.body;
 
-      if (!code || !name || unitWeightGrams === undefined || currentStock === undefined) {
-        res.status(400).json({ status: 'ERROR', message: 'Los campos code, name, unitWeightGrams y currentStock son obligatorios.' });
+      const resolvedWeight = unitWeightGrams !== undefined && unitWeightGrams !== '' ? parseFloat(unitWeightGrams) : 1;
+      const resolvedUnit = (unit || 'GRS').toString().toUpperCase();
+
+      if (!code || !name || currentStock === undefined) {
+        res.status(400).json({ status: 'ERROR', message: 'Los campos code, name y currentStock son obligatorios.' });
         return;
       }
 
+      const unitSuffixMap: Record<string, string> = {
+        GRS: 'grs', GR: 'grs', G: 'grs',
+        KG: 'kg',
+        ML: 'ml',
+        CM3: 'cm3',
+        LTS: 'lts', L: 'lts',
+        UND: 'und', UN: 'und'
+      };
+      const suffix = unitSuffixMap[resolvedUnit] || resolvedUnit.toLowerCase();
+
       const created = await this.finalProductService.create({
-        rawMaterialId,
+        rawMaterialId: isResale ? undefined : rawMaterialId,
         code,
         barcode,
         name,
-        unitWeightGrams: parseFloat(unitWeightGrams),
-        netContentLabel: netContentLabel || `${unitWeightGrams}g`,
+        unitWeightGrams: resolvedWeight,
+        unit: resolvedUnit,
+        netContentLabel: netContentLabel || `${resolvedWeight} ${suffix}`,
         currentStock: parseInt(currentStock, 10),
         minStock: minStock ? parseInt(minStock, 10) : 10,
+        costPrice: costPrice ? parseFloat(costPrice) : 0,
         price: price ? parseFloat(price) : 0,
         ingredients,
         dietaryBadgeCodes,
         defaultExpirationDays: defaultExpirationDays ? parseInt(defaultExpirationDays, 10) : 180,
         familyId,
-        isBlend: Boolean(isBlend),
-        ingredientsList: Array.isArray(ingredientsList) ? ingredientsList : []
+        isBlend: isResale ? false : Boolean(isBlend),
+        isResale: Boolean(isResale),
+        supplierName: supplierName || undefined,
+        ingredientsList: isResale ? [] : (Array.isArray(ingredientsList) ? ingredientsList : [])
       });
 
       res.status(201).json({ status: 'SUCCESS', data: created });

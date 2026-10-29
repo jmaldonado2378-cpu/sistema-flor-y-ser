@@ -1,10 +1,10 @@
-export type UnitOfMeasure = 'KG' | 'L' | 'G' | 'ML';
+export type UnitOfMeasure = 'KG' | 'L' | 'LTS' | 'G' | 'GR' | 'GRS' | 'ML' | 'CM3' | 'UN' | 'UND';
 
 export interface RawMaterial {
   id: string;
   code: string;
   name: string;
-  unit: UnitOfMeasure;
+  unit: UnitOfMeasure | string;
   currentStock: number;
   minStock: number;
   costPerUnit: number;
@@ -20,7 +20,7 @@ export interface RawMaterial {
 export interface CreateRawMaterialDTO {
   code: string;
   name: string;
-  unit: UnitOfMeasure;
+  unit: UnitOfMeasure | string;
   currentStock: number;
   minStock?: number;
   costPerUnit?: number;
@@ -32,7 +32,7 @@ export interface CreateRawMaterialDTO {
 export interface UpdateRawMaterialDTO {
   code?: string;
   name?: string;
-  unit?: UnitOfMeasure;
+  unit?: UnitOfMeasure | string;
   currentStock?: number;
   minStock?: number;
   costPerUnit?: number;
@@ -58,9 +58,11 @@ export interface FinalProduct {
   barcode: string;
   name: string;
   unitWeightGrams: number;
+  unit?: string;
   netContentLabel: string;
   currentStock: number;
   minStock: number;
+  costPrice?: number;
   price: number;
   ingredients?: string;
   dietaryBadgeCodes: string[];
@@ -68,6 +70,8 @@ export interface FinalProduct {
   familyId?: string;
   familyName?: string;
   isBlend?: boolean;
+  isResale?: boolean;
+  supplierName?: string;
   ingredientsList?: ProductIngredient[];
   isActive: boolean;
   createdAt?: string;
@@ -80,15 +84,19 @@ export interface CreateFinalProductDTO {
   barcode?: string;
   name: string;
   unitWeightGrams: number;
+  unit?: string;
   netContentLabel: string;
   currentStock: number;
   minStock?: number;
+  costPrice?: number;
   price: number;
   ingredients?: string;
   dietaryBadgeCodes?: string[];
   defaultExpirationDays?: number;
   familyId?: string;
   isBlend?: boolean;
+  isResale?: boolean;
+  supplierName?: string;
   ingredientsList?: ProductIngredient[];
 }
 
@@ -98,15 +106,19 @@ export interface UpdateFinalProductDTO {
   barcode?: string;
   name?: string;
   unitWeightGrams?: number;
+  unit?: string;
   netContentLabel?: string;
   currentStock?: number;
   minStock?: number;
+  costPrice?: number;
   price?: number;
   ingredients?: string;
   dietaryBadgeCodes?: string[];
   defaultExpirationDays?: number;
   familyId?: string;
   isBlend?: boolean;
+  isResale?: boolean;
+  supplierName?: string;
   ingredientsList?: ProductIngredient[];
   isActive?: boolean;
 }

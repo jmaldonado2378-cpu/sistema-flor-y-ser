@@ -43,9 +43,11 @@ export interface FinalProduct {
   barcode: string;
   name: string;
   unitWeightGrams: number;
+  unit?: string;
   netContentLabel: string;
   currentStock: number;
   minStock: number;
+  costPrice?: number;
   price: number;
   ingredients: string;
   dietaryBadgeCodes: string[];
@@ -53,6 +55,8 @@ export interface FinalProduct {
   familyId?: string;
   familyName?: string;
   isBlend?: boolean;
+  isResale?: boolean;
+  supplierName?: string;
   ingredientsList?: ProductIngredient[];
   isActive?: boolean;
 }
@@ -63,15 +67,19 @@ export interface CreateFinalProductDTO {
   barcode?: string;
   name: string;
   unitWeightGrams: number;
+  unit?: string;
   netContentLabel?: string;
   currentStock: number;
   minStock?: number;
+  costPrice?: number;
   price: number;
   ingredients?: string;
   dietaryBadgeCodes?: string[];
   defaultExpirationDays?: number;
   familyId?: string;
   isBlend?: boolean;
+  isResale?: boolean;
+  supplierName?: string;
   ingredientsList?: ProductIngredient[];
 }
 

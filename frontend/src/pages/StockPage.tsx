@@ -66,15 +66,65 @@ const finalProductSchema = z.object({
   barcode: z.string().optional(),
   name: z.string().min(1, 'El nombre es requerido'),
   unitWeightGrams: z.number().min(0, 'Debe ser >= 0'),
+  unit: z.string().optional(),
   netContentLabel: z.string().optional(),
   currentStock: z.number().min(0, 'Debe ser >= 0'),
   minStock: z.number().min(0, 'Debe ser >= 0'),
+  costPrice: z.number().min(0, 'Debe ser >= 0').optional(),
   price: z.number().min(0, 'Debe ser >= 0'),
+  supplierName: z.string().optional(),
   ingredients: z.string().optional(),
   dietaryBadgeCodes: z.string().optional(),
   defaultExpirationDays: z.number().min(0, 'Debe ser >= 0'),
   familyId: z.string().optional(),
 });
+
+const normalizeUnitCode = (unit?: string, label?: string): string => {
+  if (unit && unit.trim()) {
+    const u = unit.trim().toUpperCase();
+    if (u === 'G' || u === 'GR' || u === 'GRS') return 'GRS';
+    if (u === 'UN' || u === 'UND') return 'UND';
+    if (u === 'L' || u === 'LT' || u === 'LTS') return 'LTS';
+    return u;
+  }
+  if (label) {
+    const l = label.toLowerCase();
+    if (l.includes('cm3') || l.includes('cc')) return 'CM3';
+    if (l.includes('ml')) return 'ML';
+    if (l.includes('lts') || l.includes('lt')) return 'LTS';
+    if (l.includes('kg')) return 'KG';
+    if (l.includes('und') || l.includes('un')) return 'UND';
+  }
+  return 'GRS';
+};
+
+const formatUnitSuffix = (unit?: string): string => {
+  const u = (unit || 'GRS').trim().toUpperCase();
+  switch (u) {
+    case 'GRS':
+    case 'GR':
+    case 'G':
+      return 'grs';
+    case 'KG':
+      return 'kg';
+    case 'ML':
+      return 'ml';
+    case 'CM3':
+      return 'cm3';
+    case 'LTS':
+    case 'L':
+      return 'lts';
+    case 'UND':
+    case 'UN':
+      return 'und';
+    case 'ROLL':
+      return 'roll';
+    case 'PACK':
+      return 'pack';
+    default:
+      return u.toLowerCase();
+  }
+};
 
 export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () => {
   const [activeTab, setActiveTab] = useState<'raw' | 'pkg' | 'final' | 'movements'>('raw');
@@ -101,6 +151,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   const [movementSearch, setMovementSearch] = useState<string>('');
 
   const [isBlendProduct, setIsBlendProduct] = useState(false);
+  const [isResaleProduct, setIsResaleProduct] = useState(false);
   const [blendIngredients, setBlendIngredients] = useState<Array<{ rawMaterialId: string; percentage: number }>>([
     { rawMaterialId: '', percentage: 50 },
     { rawMaterialId: '', percentage: 50 },
@@ -236,6 +287,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   // Filtros Tab 3: Productos Finales
   const [finalSearch, setFinalSearch] = useState('');
   const [finalFamilyFilter, setFinalFamilyFilter] = useState('');
+  const [finalTypeFilter, setFinalTypeFilter] = useState<'ALL' | 'ELABORATED' | 'RESALE'>('ALL');
   const [finalStockFilter, setFinalStockFilter] = useState<'ALL' | 'LOW' | 'WITH_STOCK' | 'OUT_OF_STOCK'>('ALL');
   const [finalStatusFilter, setFinalStatusFilter] = useState<'ALL' | 'ACTIVE' | 'SUSPENDED'>('ALL');
 
@@ -306,6 +358,9 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       const itemFam = item.familyId || (item as any).articleFamilyId;
       if (!matchesFamilyOrSubfamily(itemFam, finalFamilyFilter)) return false;
     }
+    const isResale = Boolean(item.isResale);
+    if (finalTypeFilter === 'RESALE' && !isResale) return false;
+    if (finalTypeFilter === 'ELABORATED' && isResale) return false;
     const isAct = item.isActive !== false;
     if (finalStatusFilter === 'ACTIVE' && !isAct) return false;
     if (finalStatusFilter === 'SUSPENDED' && isAct) return false;
@@ -524,13 +579,17 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       barcode: '',
       name: '',
       unitWeightGrams: 500,
+      unit: 'GRS',
       netContentLabel: '',
       currentStock: 0,
       minStock: 10,
+      costPrice: 0,
       price: 0,
+      supplierName: '',
       ingredients: '',
       dietaryBadgeCodes: '',
       defaultExpirationDays: 180,
+      familyId: '',
     },
   });
 
@@ -604,7 +663,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
     rawForm.reset({
       code: item.code,
       name: item.name,
-      unit: item.unit,
+      unit: normalizeUnitCode(item.unit),
       currentStock: item.currentStock,
       minStock: item.minStock,
       costPerUnit: item.costPerUnit,
@@ -621,7 +680,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       code: item.code,
       name: item.name,
       category: normalizePkgCategory(item.category),
-      unit: item.unit || 'UN',
+      unit: normalizeUnitCode(item.unit || 'UND'),
       currentStock: item.currentStock,
       minStock: item.minStock,
       costPerUnit: item.costPerUnit,
@@ -634,7 +693,9 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
 
   const openEditFinal = (item: any) => {
     setEditingFinalItem(item);
-    setIsBlendProduct(Boolean(item.isBlend));
+    const isResale = Boolean(item.isResale);
+    setIsResaleProduct(isResale);
+    setIsBlendProduct(!isResale && Boolean(item.isBlend));
     if (Array.isArray(item.ingredientsList) && item.ingredientsList.length > 0) {
       setBlendIngredients(item.ingredientsList.map((ing: any) => ({
         rawMaterialId: ing.rawMaterialId,
@@ -646,16 +707,21 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       ]);
     }
 
+    const resolvedUnit = normalizeUnitCode(item.unit, item.netContentLabel);
+
     finalForm.reset({
       rawMaterialId: item.rawMaterialId || '',
       code: item.code,
       barcode: item.barcode || '',
       name: item.name,
-      unitWeightGrams: item.unitWeightGrams,
+      unitWeightGrams: item.unitWeightGrams ?? 1,
+      unit: resolvedUnit,
       netContentLabel: item.netContentLabel || '',
       currentStock: item.currentStock,
       minStock: item.minStock,
+      costPrice: item.costPrice || 0,
       price: item.price,
+      supplierName: item.supplierName || '',
       ingredients: item.ingredients || '',
       dietaryBadgeCodes: Array.isArray(item.dietaryBadgeCodes) ? item.dietaryBadgeCodes.join(', ') : '',
       defaultExpirationDays: item.defaultExpirationDays || 180,
@@ -721,7 +787,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
           : data.dietaryBadgeCodes)
       : [];
 
-    const formattedIngredientsList = isBlendProduct 
+    const formattedIngredientsList = (!isResaleProduct && isBlendProduct)
       ? blendIngredients.filter(ing => ing && ing.rawMaterialId).map(ing => {
           const rm = rawMaterialsList.find(r => r && r.id === ing.rawMaterialId);
           return {
@@ -733,20 +799,27 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
         })
       : [];
 
-    const autoIngredientsText = isBlendProduct
+    const autoIngredientsText = (!isResaleProduct && isBlendProduct)
       ? formattedIngredientsList.map(ing => `${ing.rawMaterialName} (${ing.percentage}%)`).join(', ')
       : data.ingredients;
 
-    const weightGrams = Number(data.unitWeightGrams) || 0;
-    const syncedNetContentLabel = weightGrams > 0 ? `${weightGrams}g` : (data.netContentLabel || '');
+    const resolvedUnit = normalizeUnitCode(data.unit, data.netContentLabel);
+    const weightVal = Number(data.unitWeightGrams) || 1;
+    const syncedNetContentLabel = `${weightVal} ${formatUnitSuffix(resolvedUnit)}`;
 
     const payload = { 
       ...data,
-      code: finalCode, 
+      rawMaterialId: isResaleProduct ? undefined : data.rawMaterialId,
+      code: finalCode,
+      unitWeightGrams: weightVal,
+      unit: resolvedUnit,
       netContentLabel: syncedNetContentLabel,
+      costPrice: Number(data.costPrice) || 0,
+      supplierName: data.supplierName || undefined,
       dietaryBadgeCodes: badgeCodesArray, 
       barcode: data.barcode || finalCode,
-      isBlend: isBlendProduct,
+      isBlend: isResaleProduct ? false : isBlendProduct,
+      isResale: isResaleProduct,
       ingredientsList: formattedIngredientsList,
       ingredients: autoIngredientsText || data.ingredients
     };
@@ -912,6 +985,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                     setIsPkgModalOpen(true);
                   } else {
                     setEditingFinalItem(null);
+                    setIsResaleProduct(false);
                     setIsBlendProduct(false);
                     setBlendIngredients([
                       { rawMaterialId: rawMaterialsList.length > 0 ? rawMaterialsList[0]?.id || '' : '', percentage: 50 },
@@ -923,10 +997,13 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       barcode: '',
                       name: '',
                       unitWeightGrams: 500,
-                      netContentLabel: '500g',
+                      unit: 'GRS',
+                      netContentLabel: '500 grs',
                       currentStock: 0,
                       minStock: 10,
+                      costPrice: 0,
                       price: 0,
+                      supplierName: allSupplierNames[0] || '',
                       ingredients: '',
                       dietaryBadgeCodes: '',
                       defaultExpirationDays: 180,
@@ -1554,6 +1631,19 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                   </select>
                 </div>
 
+                <div style={{ minWidth: '170px' }}>
+                  <label className="text-xs text-text-muted mb-1 block">Origen / Tipo</label>
+                  <select 
+                    value={finalTypeFilter} 
+                    onChange={(e) => setFinalTypeFilter(e.target.value as any)}
+                    className="w-full text-sm font-medium"
+                  >
+                    <option value="ALL">Todos los tipos</option>
+                    <option value="ELABORATED">🏭 Elaboración / Fraccionado</option>
+                    <option value="RESALE">🛍️ Producto de Reventa</option>
+                  </select>
+                </div>
+
                 <div style={{ minWidth: '160px' }}>
                   <label className="text-xs text-text-muted mb-1 block">Estado de Stock</label>
                   <select 
@@ -1583,13 +1673,14 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               </div>
 
               <div className="flex items-end gap-2 pt-4">
-                {(finalSearch || finalFamilyFilter || finalStockFilter !== 'ALL' || finalStatusFilter !== 'ALL') && (
+                {(finalSearch || finalFamilyFilter || finalTypeFilter !== 'ALL' || finalStockFilter !== 'ALL' || finalStatusFilter !== 'ALL') && (
                   <button 
                     type="button" 
                     className="btn btn-secondary btn-sm"
                     onClick={() => {
                       setFinalSearch('');
                       setFinalFamilyFilter('');
+                      setFinalTypeFilter('ALL');
                       setFinalStockFilter('ALL');
                       setFinalStatusFilter('ALL');
                     }}
@@ -1661,8 +1752,23 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                             </span>
                           </td>
                           <td className="font-semibold text-text-dark">{(item.price || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
-                          <td>{item.unitWeightGrams || 0}g</td>
-                          <td><span className="badge gray">{baseRm ? baseRm.name : 'Insumo Base'}</span></td>
+                          <td>
+                            {item.unitWeightGrams || 1} {formatUnitSuffix(normalizeUnitCode(item.unit, item.netContentLabel))}
+                          </td>
+                          <td>
+                            {item.isResale ? (
+                              <div className="flex flex-col gap-0.5">
+                                <span className="badge blue text-xs w-fit">🛍️ Reventa</span>
+                                {item.supplierName && (
+                                  <span className="text-[11px] text-text-muted">{item.supplierName}</span>
+                                )}
+                              </div>
+                            ) : item.isBlend ? (
+                              <span className="badge purple text-xs">📚 Blend / Mix</span>
+                            ) : (
+                              <span className="badge gray">{baseRm ? baseRm.name : 'Insumo Base'}</span>
+                            )}
+                          </td>
                           <td>
                             {isAct ? (
                               <span className="badge green text-[10px]">Activo</span>
@@ -1968,10 +2074,12 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
             <div className="form-field">
               <label>Unidad de Medida *</label>
               <select {...rawForm.register('unit')}>
-                <option value="KG">Kilogramos (KG)</option>
-                <option value="GR">Gramos (GR)</option>
-                <option value="LTS">Litros (LTS)</option>
-                <option value="UN">Unidades (UN)</option>
+                <option value="GRS">Gramos (grs)</option>
+                <option value="KG">Kilogramos (kg)</option>
+                <option value="ML">Mililitros (ml)</option>
+                <option value="CM3">Centímetros Cúbicos (cm3)</option>
+                <option value="LTS">Litros (lts)</option>
+                <option value="UND">Unidades (und)</option>
               </select>
             </div>
             <div className="form-field">
@@ -2105,9 +2213,14 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
             <div className="form-field">
               <label>Unidad de Medida *</label>
               <select {...pkgForm.register('unit')}>
-                <option value="UN">Unidades (UN)</option>
-                <option value="ROLL">Rollos (ROLL)</option>
-                <option value="PACK">Paquetes (PACK)</option>
+                <option value="UND">Unidades (und)</option>
+                <option value="GRS">Gramos (grs)</option>
+                <option value="ML">Mililitros (ml)</option>
+                <option value="CM3">Centímetros Cúbicos (cm3)</option>
+                <option value="KG">Kilogramos (kg)</option>
+                <option value="LTS">Litros (lts)</option>
+                <option value="ROLL">Rollos (roll)</option>
+                <option value="PACK">Paquetes (pack)</option>
               </select>
             </div>
           </div>
@@ -2335,31 +2448,80 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       </Modal>
 
       {/* Modal Nuevo / Editar Producto Final */}
-      <Modal isOpen={isFinalModalOpen} onClose={() => { setIsFinalModalOpen(false); setEditingFinalItem(null); }} title={editingFinalItem ? "✏️ Editar Producto Elaborado Final" : "📦 Nuevo Producto Elaborado Final"} maxWidth="620px">
+      <Modal isOpen={isFinalModalOpen} onClose={() => { setIsFinalModalOpen(false); setEditingFinalItem(null); }} title={editingFinalItem ? "✏️ Editar Producto Final" : "📦 Nuevo Producto Final"} maxWidth="650px">
         <form onSubmit={finalForm.handleSubmit(onFinalSubmit)} className="flex flex-col gap-4">
           
-          {/* Selector de Tipo de Producto (Monoproducto vs Blend/Mix) */}
+          {/* Selector de Tipo de Producto (Monoproducto vs Blend/Mix vs Reventa) */}
           <div className="form-field">
-            <label className="font-semibold text-text-dark mb-2 block">Tipo de Formulación de Producto *</label>
-            <div className="grid grid-cols-2 gap-3">
+            <label className="font-semibold text-text-dark mb-2 block">Tipo de Producto / Origen *</label>
+            <div className="grid grid-cols-3 gap-2.5">
               <button
                 type="button"
-                className={`btn ${!isBlendProduct ? 'btn-primary' : 'btn-secondary'} flex items-center justify-center gap-2 py-3`}
-                onClick={() => setIsBlendProduct(false)}
+                className={`btn ${(!isBlendProduct && !isResaleProduct) ? 'btn-primary' : 'btn-secondary'} flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold`}
+                onClick={() => {
+                  setIsResaleProduct(false);
+                  setIsBlendProduct(false);
+                }}
               >
-                <Package size={18} /> Monoproducto (1 Insumo Base)
+                <Package size={16} /> Monoproducto (1 Insumo)
               </button>
               <button
                 type="button"
-                className={`btn ${isBlendProduct ? 'btn-primary' : 'btn-secondary'} flex items-center justify-center gap-2 py-3`}
-                onClick={() => setIsBlendProduct(true)}
+                className={`btn ${(isBlendProduct && !isResaleProduct) ? 'btn-primary' : 'btn-secondary'} flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold`}
+                onClick={() => {
+                  setIsResaleProduct(false);
+                  setIsBlendProduct(true);
+                }}
               >
-                <Layers size={18} /> Blend / Mix (Varios Insumos)
+                <Layers size={16} /> Blend / Mix (Fórmula)
+              </button>
+              <button
+                type="button"
+                className={`btn ${isResaleProduct ? 'btn-primary' : 'btn-secondary'} flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold`}
+                onClick={() => {
+                  setIsResaleProduct(true);
+                  setIsBlendProduct(false);
+                }}
+              >
+                <Tag size={16} /> Producto de Reventa
               </button>
             </div>
           </div>
 
-          {!isBlendProduct ? (
+          {isResaleProduct ? (
+            <div className="card p-4 bg-bg-linen rounded-md border border-card-border flex flex-col gap-3">
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-text-dark text-sm flex items-center gap-2">
+                  <Tag size={16} className="text-primary-sage" />
+                  Datos de Compra Directa (Producto de Reventa)
+                </span>
+                <span className="badge blue text-xs">🛍️ Sin Fraccionamiento</span>
+              </div>
+              <p className="text-xs text-text-muted m-0">
+                Este producto se adquiere ya elaborado/envasado listo para la venta. Su stock se incrementa desde Recepción de Mercadería o Ajuste Manual.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="form-field">
+                  <label>Costo de Compra Unitario ($)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    {...finalForm.register('costPrice', { valueAsNumber: true })}
+                    placeholder="Ej: 1800"
+                  />
+                </div>
+                <div className="form-field">
+                  <label>Proveedor del Producto</label>
+                  <select {...finalForm.register('supplierName')}>
+                    <option value="">Seleccione proveedor...</option>
+                    {allSupplierNames.map(sup => (
+                      <option key={sup} value={sup}>{sup}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          ) : !isBlendProduct ? (
             <div className="form-field">
               <label>Materia Prima Base (Insumo Origen) *</label>
               <select {...finalForm.register('rawMaterialId')}>
@@ -2454,7 +2616,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               <label>Nombre Comercial *</label>
               <input 
                 {...finalForm.register('name')} 
-                placeholder="Ej: Almendras Nonpareil 500g" 
+                placeholder="Ej: Almendras Nonpareil 500g / Aceite Coco 200ml" 
                 className={finalForm.formState.errors.name ? 'has-error' : ''} 
               />
               {finalForm.formState.errors.name && (
@@ -2475,7 +2637,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="form-field">
               <label>Precio de Venta ($) *</label>
               <input
@@ -2485,11 +2647,23 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               />
             </div>
             <div className="form-field">
-              <label>Peso Neto por Envase (Gramos) *</label>
+              <label>Contenido / Cantidad *</label>
               <input
                 type="number"
+                step="any"
                 {...finalForm.register('unitWeightGrams', { valueAsNumber: true })}
               />
+            </div>
+            <div className="form-field">
+              <label>Unidad de Medida *</label>
+              <select {...finalForm.register('unit')}>
+                <option value="GRS">Gramos (grs)</option>
+                <option value="ML">Mililitros (ml)</option>
+                <option value="CM3">Centímetros Cúbicos (cm3)</option>
+                <option value="UND">Unidades (und)</option>
+                <option value="KG">Kilogramos (kg)</option>
+                <option value="LTS">Litros (lts)</option>
+              </select>
             </div>
           </div>
 

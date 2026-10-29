@@ -99,6 +99,41 @@ const parseJsonArray = (val: any): any[] => {
   }
 };
 
+const inferUnitFromLabel = (unit?: string, label?: string): string => {
+  if (unit && unit.trim()) {
+    const u = unit.trim().toUpperCase();
+    if (u === 'G' || u === 'GR') return 'GRS';
+    if (u === 'UN') return 'UND';
+    if (u === 'L') return 'LTS';
+    return u;
+  }
+  if (label) {
+    const l = label.toLowerCase();
+    if (l.includes('cm3') || l.includes('cc')) return 'CM3';
+    if (l.includes('ml')) return 'ML';
+    if (l.includes('lts') || l.includes('lt')) return 'LTS';
+    if (l.includes('kg')) return 'KG';
+    if (l.includes('und') || l.includes('un')) return 'UND';
+  }
+  return 'GRS';
+};
+
+const formatNetContent = (amount: number, unit: string, existingLabel?: string): string => {
+  const unitSuffixMap: Record<string, string> = {
+    GRS: 'grs', GR: 'grs', G: 'grs',
+    KG: 'kg',
+    ML: 'ml',
+    CM3: 'cm3',
+    LTS: 'lts', L: 'lts',
+    UND: 'und', UN: 'und'
+  };
+  const suffix = unitSuffixMap[unit.toUpperCase()] || unit.toLowerCase();
+  if (amount > 0) {
+    return `${amount} ${suffix}`;
+  }
+  return existingLabel || `${amount} ${suffix}`;
+};
+
 export class FinalProductService {
   private inMemoryProducts: FinalProduct[] = [...initialFinalProducts];
 
@@ -110,12 +145,13 @@ export class FinalProductService {
       const res = await this.db.query(`
         SELECT fp.id, fp.raw_material_id AS "rawMaterialId", rm.name AS "rawMaterialName",
                fp.code, fp.barcode, fp.name, fp.unit_weight_grams AS "unitWeightGrams",
-               fp.net_content_label AS "netContentLabel", fp.current_stock AS "currentStock",
-               fp.min_stock AS "minStock", fp.price, fp.ingredients,
+               fp.unit, fp.net_content_label AS "netContentLabel", fp.current_stock AS "currentStock",
+               fp.min_stock AS "minStock", fp.cost_price AS "costPrice", fp.price, fp.ingredients,
                fp.dietary_badge_codes AS "dietaryBadgeCodes",
                fp.default_expiration_days AS "defaultExpirationDays",
                fp.family_id AS "familyId", f.name AS "familyName",
-               fp.is_blend AS "isBlend", fp.ingredients_json AS "ingredientsList",
+               fp.is_blend AS "isBlend", fp.is_resale AS "isResale", fp.supplier_name AS "supplierName",
+               fp.ingredients_json AS "ingredientsList",
                fp.is_active AS "isActive", fp.created_at AS "createdAt", fp.updated_at AS "updatedAt"
         FROM final_products fp
         LEFT JOIN raw_materials rm ON fp.raw_material_id = rm.id
@@ -126,17 +162,19 @@ export class FinalProductService {
       if (res.rows && res.rows.length > 0) {
         return res.rows.map((row: any) => {
           const unitWeightGrams = parseFloat(row.unitWeightGrams || 0);
-          const netContentLabel =
-            unitWeightGrams > 0 && (!row.netContentLabel || (row.netContentLabel === '500g' && unitWeightGrams !== 500))
-              ? `${unitWeightGrams}g`
-              : (row.netContentLabel || `${unitWeightGrams}g`);
+          const resolvedUnit = inferUnitFromLabel(row.unit, row.netContentLabel);
+          const netContentLabel = formatNetContent(unitWeightGrams, resolvedUnit, row.netContentLabel);
           return {
             ...row,
+            unit: resolvedUnit,
             isActive: row.isActive === 1 || row.isActive === true || row.isActive === '1' || row.isActive === 'true',
+            isBlend: row.isBlend === 1 || row.isBlend === true || row.isBlend === '1' || row.isBlend === 'true',
+            isResale: row.isResale === 1 || row.isResale === true || row.isResale === '1' || row.isResale === 'true',
             unitWeightGrams,
             netContentLabel,
             currentStock: parseFloat(row.currentStock || 0),
             minStock: parseFloat(row.minStock || 0),
+            costPrice: parseFloat(row.costPrice || 0),
             price: parseFloat(row.price || 0),
             dietaryBadgeCodes: parseJsonArray(row.dietaryBadgeCodes),
             ingredientsList: parseJsonArray(row.ingredientsList)
@@ -154,12 +192,13 @@ export class FinalProductService {
       const res = await this.db.query(`
         SELECT fp.id, fp.raw_material_id AS "rawMaterialId", rm.name AS "rawMaterialName",
                fp.code, fp.barcode, fp.name, fp.unit_weight_grams AS "unitWeightGrams",
-               fp.net_content_label AS "netContentLabel", fp.current_stock AS "currentStock",
-               fp.min_stock AS "minStock", fp.price, fp.ingredients,
+               fp.unit, fp.net_content_label AS "netContentLabel", fp.current_stock AS "currentStock",
+               fp.min_stock AS "minStock", fp.cost_price AS "costPrice", fp.price, fp.ingredients,
                fp.dietary_badge_codes AS "dietaryBadgeCodes",
                fp.default_expiration_days AS "defaultExpirationDays",
                fp.family_id AS "familyId", f.name AS "familyName",
-               fp.is_blend AS "isBlend", fp.ingredients_json AS "ingredientsList",
+               fp.is_blend AS "isBlend", fp.is_resale AS "isResale", fp.supplier_name AS "supplierName",
+               fp.ingredients_json AS "ingredientsList",
                fp.is_active AS "isActive", fp.created_at AS "createdAt", fp.updated_at AS "updatedAt"
         FROM final_products fp
         LEFT JOIN raw_materials rm ON fp.raw_material_id = rm.id
@@ -169,16 +208,19 @@ export class FinalProductService {
       if (res.rows.length > 0) {
         const row = res.rows[0];
         const unitWeightGrams = parseFloat(row.unitWeightGrams || 0);
-        const netContentLabel =
-          unitWeightGrams > 0 && (!row.netContentLabel || (row.netContentLabel === '500g' && unitWeightGrams !== 500))
-            ? `${unitWeightGrams}g`
-            : (row.netContentLabel || `${unitWeightGrams}g`);
+        const resolvedUnit = inferUnitFromLabel(row.unit, row.netContentLabel);
+        const netContentLabel = formatNetContent(unitWeightGrams, resolvedUnit, row.netContentLabel);
         return {
           ...row,
+          unit: resolvedUnit,
+          isActive: row.isActive === 1 || row.isActive === true || row.isActive === '1' || row.isActive === 'true',
+          isBlend: row.isBlend === 1 || row.isBlend === true || row.isBlend === '1' || row.isBlend === 'true',
+          isResale: row.isResale === 1 || row.isResale === true || row.isResale === '1' || row.isResale === 'true',
           unitWeightGrams,
           netContentLabel,
           currentStock: parseFloat(row.currentStock || 0),
           minStock: parseFloat(row.minStock || 0),
+          costPrice: parseFloat(row.costPrice || 0),
           price: parseFloat(row.price || 0),
           dietaryBadgeCodes: parseJsonArray(row.dietaryBadgeCodes),
           ingredientsList: parseJsonArray(row.ingredientsList)
@@ -190,37 +232,54 @@ export class FinalProductService {
 
   async create(dto: CreateFinalProductDTO): Promise<FinalProduct> {
     const generatedBarcode = dto.barcode || '779' + Math.floor(1000000000 + Math.random() * 9000000000);
+    const resolvedUnit = inferUnitFromLabel(dto.unit, dto.netContentLabel);
+    const resolvedNetLabel = formatNetContent(dto.unitWeightGrams, resolvedUnit, dto.netContentLabel);
     try {
       const res = await this.db.query(`
-        INSERT INTO final_products (raw_material_id, code, barcode, name, unit_weight_grams, net_content_label, current_stock, min_stock, price, ingredients, dietary_badge_codes, default_expiration_days, family_id, is_blend, ingredients_json)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15::jsonb)
+        INSERT INTO final_products (
+          raw_material_id, code, barcode, name, unit_weight_grams, unit, net_content_label,
+          current_stock, min_stock, cost_price, price, ingredients, dietary_badge_codes,
+          default_expiration_days, family_id, is_blend, is_resale, supplier_name, ingredients_json
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17, $18, $19::jsonb)
         RETURNING id, raw_material_id AS "rawMaterialId", code, barcode, name, unit_weight_grams AS "unitWeightGrams",
-                  net_content_label AS "netContentLabel", current_stock AS "currentStock",
-                  min_stock AS "minStock", price, ingredients, dietary_badge_codes AS "dietaryBadgeCodes",
+                  unit, net_content_label AS "netContentLabel", current_stock AS "currentStock",
+                  min_stock AS "minStock", cost_price AS "costPrice", price, ingredients,
+                  dietary_badge_codes AS "dietaryBadgeCodes",
                   default_expiration_days AS "defaultExpirationDays", family_id AS "familyId",
-                  is_blend AS "isBlend", ingredients_json AS "ingredientsList", is_active AS "isActive",
+                  is_blend AS "isBlend", is_resale AS "isResale", supplier_name AS "supplierName",
+                  ingredients_json AS "ingredientsList", is_active AS "isActive",
                   created_at AS "createdAt", updated_at AS "updatedAt";
       `, [
-        dto.rawMaterialId || null,
+        dto.isResale ? null : (dto.rawMaterialId || null),
         dto.code,
         generatedBarcode,
         dto.name,
         dto.unitWeightGrams,
-        dto.netContentLabel,
+        resolvedUnit,
+        resolvedNetLabel,
         dto.currentStock,
         dto.minStock ?? 10,
+        dto.costPrice ?? 0,
         dto.price ?? 0,
         dto.ingredients || null,
         JSON.stringify(dto.dietaryBadgeCodes || []),
         dto.defaultExpirationDays ?? 180,
         dto.familyId || null,
-        dto.isBlend ?? false,
-        JSON.stringify(dto.ingredientsList || [])
+        dto.isResale ? false : (dto.isBlend ?? false),
+        dto.isResale ?? false,
+        dto.supplierName || null,
+        JSON.stringify(dto.isResale ? [] : (dto.ingredientsList || []))
       ]);
       const row = res.rows[0];
       return {
         ...row,
+        unit: inferUnitFromLabel(row.unit, row.netContentLabel),
+        isActive: row.isActive === 1 || row.isActive === true || row.isActive === '1' || row.isActive === 'true',
+        isBlend: row.isBlend === 1 || row.isBlend === true || row.isBlend === '1' || row.isBlend === 'true',
+        isResale: row.isResale === 1 || row.isResale === true || row.isResale === '1' || row.isResale === 'true',
         unitWeightGrams: parseFloat(row.unitWeightGrams),
+        costPrice: parseFloat(row.costPrice || 0),
         price: parseFloat(row.price),
         dietaryBadgeCodes: Array.isArray(row.dietaryBadgeCodes) ? row.dietaryBadgeCodes : JSON.parse(row.dietaryBadgeCodes || '[]'),
         ingredientsList: Array.isArray(row.ingredientsList) ? row.ingredientsList : JSON.parse(row.ingredientsList || '[]')
@@ -228,21 +287,25 @@ export class FinalProductService {
     } catch {
       const newProduct: FinalProduct = {
         id: 'fp-' + Date.now(),
-        rawMaterialId: dto.rawMaterialId,
+        rawMaterialId: dto.isResale ? undefined : dto.rawMaterialId,
         code: dto.code,
         barcode: generatedBarcode,
         name: dto.name,
         unitWeightGrams: dto.unitWeightGrams,
-        netContentLabel: dto.netContentLabel,
+        unit: resolvedUnit,
+        netContentLabel: resolvedNetLabel,
         currentStock: dto.currentStock,
         minStock: dto.minStock ?? 10,
+        costPrice: dto.costPrice ?? 0,
         price: dto.price,
         ingredients: dto.ingredients,
         dietaryBadgeCodes: dto.dietaryBadgeCodes || [],
         defaultExpirationDays: dto.defaultExpirationDays ?? 180,
         familyId: dto.familyId,
-        isBlend: dto.isBlend ?? false,
-        ingredientsList: dto.ingredientsList || [],
+        isBlend: dto.isResale ? false : (dto.isBlend ?? false),
+        isResale: dto.isResale ?? false,
+        supplierName: dto.supplierName,
+        ingredientsList: dto.isResale ? [] : (dto.ingredientsList || []),
         isActive: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -290,27 +353,33 @@ export class FinalProductService {
       const values: any[] = [];
       let i = 1;
 
-      if (dto.rawMaterialId !== undefined) { updates.push(`raw_material_id = $${i++}`); values.push(dto.rawMaterialId || null); }
+      if (dto.rawMaterialId !== undefined) { updates.push(`raw_material_id = $${i++}`); values.push(dto.isResale ? null : (dto.rawMaterialId || null)); }
       if (dto.code !== undefined) { updates.push(`code = $${i++}`); values.push(dto.code); }
       if (dto.barcode !== undefined) { updates.push(`barcode = $${i++}`); values.push(dto.barcode); }
       if (dto.name !== undefined) { updates.push(`name = $${i++}`); values.push(dto.name); }
+      if (dto.unit !== undefined) {
+        updates.push(`unit = $${i++}`);
+        values.push(inferUnitFromLabel(dto.unit, dto.netContentLabel));
+      }
       if (dto.unitWeightGrams !== undefined) {
         updates.push(`unit_weight_grams = $${i++}`);
         values.push(dto.unitWeightGrams);
-        if (dto.netContentLabel === undefined || (dto.netContentLabel === '500g' && Number(dto.unitWeightGrams) !== 500)) {
-          dto.netContentLabel = `${dto.unitWeightGrams}g`;
-        }
+        const targetUnit = inferUnitFromLabel(dto.unit, dto.netContentLabel);
+        dto.netContentLabel = formatNetContent(Number(dto.unitWeightGrams), targetUnit, dto.netContentLabel);
       }
       if (dto.netContentLabel !== undefined) { updates.push(`net_content_label = $${i++}`); values.push(dto.netContentLabel); }
       if (dto.currentStock !== undefined) { updates.push(`current_stock = $${i++}`); values.push(dto.currentStock); }
       if (dto.minStock !== undefined) { updates.push(`min_stock = $${i++}`); values.push(dto.minStock); }
+      if (dto.costPrice !== undefined) { updates.push(`cost_price = $${i++}`); values.push(dto.costPrice); }
       if (dto.price !== undefined) { updates.push(`price = $${i++}`); values.push(dto.price); }
       if (dto.ingredients !== undefined) { updates.push(`ingredients = $${i++}`); values.push(dto.ingredients); }
       if (dto.dietaryBadgeCodes !== undefined) { updates.push(`dietary_badge_codes = $${i++}::jsonb`); values.push(JSON.stringify(dto.dietaryBadgeCodes)); }
       if (dto.defaultExpirationDays !== undefined) { updates.push(`default_expiration_days = $${i++}`); values.push(dto.defaultExpirationDays); }
       if (dto.familyId !== undefined) { updates.push(`family_id = $${i++}`); values.push(dto.familyId || null); }
-      if (dto.isBlend !== undefined) { updates.push(`is_blend = $${i++}`); values.push(dto.isBlend); }
-      if (dto.ingredientsList !== undefined) { updates.push(`ingredients_json = $${i++}::jsonb`); values.push(JSON.stringify(dto.ingredientsList)); }
+      if (dto.isBlend !== undefined) { updates.push(`is_blend = $${i++}`); values.push(dto.isResale ? false : dto.isBlend); }
+      if (dto.isResale !== undefined) { updates.push(`is_resale = $${i++}`); values.push(dto.isResale); }
+      if (dto.supplierName !== undefined) { updates.push(`supplier_name = $${i++}`); values.push(dto.supplierName || null); }
+      if (dto.ingredientsList !== undefined) { updates.push(`ingredients_json = $${i++}::jsonb`); values.push(JSON.stringify(dto.isResale ? [] : dto.ingredientsList)); }
       if (dto.isActive !== undefined) { updates.push(`is_active = $${i++}`); values.push(dto.isActive); }
 
       if (updates.length === 0) return this.getById(id);

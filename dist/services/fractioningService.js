@@ -57,6 +57,32 @@ class FractioningService {
         this.finalProductService = finalProductService;
         this.taskService = taskService;
     }
+    getUnitAmountInRawUnit(rawUnitStr, prodUnitStr, prodAmount = 250) {
+        const norm = (u) => {
+            const c = (u || '').trim().toUpperCase();
+            if (c === 'G' || c === 'GR' || c === 'GRS')
+                return 'GRS';
+            if (c === 'KG' || c === 'KGS')
+                return 'KG';
+            if (c === 'ML' || c === 'CM3' || c === 'CC')
+                return 'ML';
+            if (c === 'L' || c === 'LT' || c === 'LTS')
+                return 'LTS';
+            if (c === 'UN' || c === 'UND' || c === 'UNI' || c === 'UNIDADES')
+                return 'UND';
+            return c || 'GRS';
+        };
+        const rawU = norm(rawUnitStr || 'KG');
+        const prodU = norm(prodUnitStr || 'GRS');
+        const amt = prodAmount > 0 ? prodAmount : 250;
+        if (rawU === prodU)
+            return amt;
+        if ((rawU === 'KG' && prodU === 'GRS') || (rawU === 'LTS' && prodU === 'ML'))
+            return amt / 1000;
+        if ((rawU === 'GRS' && prodU === 'KG') || (rawU === 'ML' && prodU === 'LTS'))
+            return amt * 1000;
+        return amt >= 10 ? amt / 1000 : amt;
+    }
     async calculatePreview(dto) {
         const rawMaterial = await this.rawMaterialService.getById(dto.rawMaterialId);
         if (!rawMaterial) {
@@ -68,9 +94,10 @@ class FractioningService {
         }
         const unitWeightGrams = finalProduct.unitWeightGrams || 250;
         const inputQtyKg = dto.inputQtyKg || 0;
-        const targetUnits = Math.floor((inputQtyKg * 1000) / unitWeightGrams);
+        const perUnitRawConsumption = this.getUnitAmountInRawUnit(rawMaterial.unit, finalProduct.unit, unitWeightGrams);
+        const targetUnits = perUnitRawConsumption > 0 ? Math.floor(inputQtyKg / perUnitRawConsumption) : 0;
         const actualOutputUnits = dto.actualOutputUnits !== undefined ? dto.actualOutputUnits : targetUnits;
-        const expectedOutputKg = (actualOutputUnits * unitWeightGrams) / 1000;
+        const expectedOutputKg = parseFloat((actualOutputUnits * perUnitRawConsumption).toFixed(3));
         const wasteKg = Math.max(0, parseFloat((inputQtyKg - expectedOutputKg).toFixed(3)));
         const wastePercentage = inputQtyKg > 0 ? parseFloat(((wasteKg / inputQtyKg) * 100).toFixed(2)) : 0;
         const today = new Date();
@@ -109,9 +136,10 @@ class FractioningService {
         if (!finalProduct)
             throw new Error('Producto final no encontrado.');
         const unitWeightGrams = finalProduct.unitWeightGrams || 250;
-        const targetUnits = Math.floor((dto.inputQtyKg * 1000) / unitWeightGrams);
+        const perUnitRawConsumption = this.getUnitAmountInRawUnit(rawMaterial.unit, finalProduct.unit, unitWeightGrams);
+        const targetUnits = perUnitRawConsumption > 0 ? Math.floor(dto.inputQtyKg / perUnitRawConsumption) : 0;
         const actualOutputUnits = dto.actualOutputUnits;
-        const expectedOutputKg = (actualOutputUnits * unitWeightGrams) / 1000;
+        const expectedOutputKg = parseFloat((actualOutputUnits * perUnitRawConsumption).toFixed(3));
         const wasteKg = Math.max(0, parseFloat((dto.inputQtyKg - expectedOutputKg).toFixed(3)));
         const wastePercentage = dto.inputQtyKg > 0 ? parseFloat(((wasteKg / dto.inputQtyKg) * 100).toFixed(2)) : 0;
         const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');

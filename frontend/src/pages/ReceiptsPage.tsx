@@ -10,13 +10,14 @@ import {
   useDeleteMerchandiseReceipt,
 } from '../hooks/useReceipts';
 import { useSuppliers } from '../hooks/useSuppliers';
-import { useRawMaterials } from '../hooks/useInventory';
+import { useRawMaterials, useFinalProducts } from '../hooks/useInventory';
 import { Modal } from '../components/ui/Modal';
 import { MerchandiseReceipt } from '../api/receipts';
 
 const receiptItemSchema = z.object({
   productId: z.string().optional(),
   itemName: z.string().min(1, 'El nombre es requerido'),
+  itemType: z.string().optional(),
   quantity: z.number().min(0.01, 'Debe ser > 0'),
   unitOfMeasure: z.string().optional(),
   unitCost: z.number().min(0, 'Debe ser >= 0'),
@@ -41,6 +42,7 @@ export const ReceiptsPage: React.FC<{ onTabChange?: (tab: string) => void }> = (
   const { data: receipts, isLoading, isError, refetch } = useMerchandiseReceipts();
   const { data: suppliers } = useSuppliers();
   const { data: rawMaterials } = useRawMaterials();
+  const { data: finalProducts } = useFinalProducts();
   const createReceipt = useCreateMerchandiseReceipt();
   const updateReceipt = useUpdateMerchandiseReceipt();
   const deleteReceipt = useDeleteMerchandiseReceipt();
@@ -365,19 +367,43 @@ export const ReceiptsPage: React.FC<{ onTabChange?: (tab: string) => void }> = (
                     <select
                       {...register(`items.${index}.productId` as const)}
                       onChange={(e) => {
-                        const selectedRm = rawMaterials?.find(rm => rm.id === e.target.value);
+                        const val = e.target.value;
+                        const selectedRm = rawMaterials?.find(rm => rm.id === val);
                         if (selectedRm) {
                           setValue(`items.${index}.productId`, selectedRm.id);
                           setValue(`items.${index}.itemName`, selectedRm.name);
-                          setValue(`items.${index}.unitOfMeasure`, selectedRm.unit);
+                          setValue(`items.${index}.itemType`, 'GRANEL');
+                          setValue(`items.${index}.unitOfMeasure`, selectedRm.unit || 'KG');
                           setValue(`items.${index}.unitCost`, selectedRm.costPerUnit || 0);
+                          return;
+                        }
+                        const selectedFp = finalProducts?.find(fp => fp.id === val);
+                        if (selectedFp) {
+                          setValue(`items.${index}.productId`, selectedFp.id);
+                          setValue(`items.${index}.itemName`, selectedFp.name);
+                          setValue(`items.${index}.itemType`, 'ELABORADO');
+                          setValue(`items.${index}.unitOfMeasure`, selectedFp.isResale ? 'UND' : (selectedFp.unit || 'UND'));
+                          setValue(`items.${index}.unitCost`, selectedFp.costPrice || 0);
                         }
                       }}
                     >
-                      <option value="">Seleccionar insumo del catálogo...</option>
-                      {rawMaterials?.map(rm => (
-                        <option key={rm.id} value={rm.id}>{rm.name} ({rm.code})</option>
-                      ))}
+                      <option value="">Seleccionar insumo o producto del catálogo...</option>
+                      {finalProducts && finalProducts.length > 0 && (
+                        <optgroup label="🛍️ Productos de Reventa / Elaborados">
+                          {finalProducts.map(fp => (
+                            <option key={fp.id} value={fp.id}>
+                              {fp.name} ({fp.code}){fp.isResale ? ' • Reventa' : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {rawMaterials && rawMaterials.length > 0 && (
+                        <optgroup label="🌾 Materias Primas (Granel)">
+                          {rawMaterials.map(rm => (
+                            <option key={rm.id} value={rm.id}>{rm.name} ({rm.code})</option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                     <input
                       {...register(`items.${index}.itemName` as const)}
@@ -399,9 +425,13 @@ export const ReceiptsPage: React.FC<{ onTabChange?: (tab: string) => void }> = (
                   <div className="col-span-2">
                     <label className="text-xs text-text-muted mb-1 block">Unidad</label>
                     <select {...register(`items.${index}.unitOfMeasure` as const)}>
+                      <option value="GRS">GRS</option>
                       <option value="KG">KG</option>
-                      <option value="GR">GR</option>
+                      <option value="ML">ML</option>
+                      <option value="CM3">CM3</option>
                       <option value="LTS">LTS</option>
+                      <option value="UND">UND</option>
+                      <option value="GR">GR</option>
                       <option value="UN">UN</option>
                     </select>
                   </div>

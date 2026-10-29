@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSuppliers, createSupplier, updateSupplier, CreateSupplierDTO } from '../api/suppliers';
+import { getSuppliers, createSupplier, updateSupplier, deleteSupplier, toggleSupplierStatus, CreateSupplierDTO } from '../api/suppliers';
 
 export function useSuppliers() {
   return useQuery({
@@ -24,6 +24,28 @@ export function useUpdateSupplier() {
 
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<CreateSupplierDTO> }) => updateSupplier(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+    },
+  });
+}
+
+export function useDeleteSupplier() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => deleteSupplier(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+    },
+  });
+}
+
+export function useToggleSupplierStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive?: boolean }) => toggleSupplierStatus(id, isActive),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
     },

@@ -292,7 +292,8 @@ app.post('/api/v1/suppliers', requireAuth, supplierController.createSupplier);
 app.get('/api/v1/suppliers', requireAuth, supplierController.searchSuppliers);
 app.get('/api/v1/suppliers/:id', requireAuth, supplierController.getSupplierById);
 app.put('/api/v1/suppliers/:id', requireAuth, supplierController.updateSupplier);
-app.delete('/api/v1/suppliers/:id', requireAuth, requireRole('ADMIN'), supplierController.deleteSupplier);
+app.patch('/api/v1/suppliers/:id/status', requireAuth, supplierController.toggleSupplierStatus);
+app.delete('/api/v1/suppliers/:id', requireAuth, supplierController.deleteSupplier);
 
 app.post('/api/v1/merchandise-receipts', requireAuth, supplierController.createMerchandiseReceipt);
 app.post('/api/v1/merchandise-receipts/raw', requireAuth, supplierController.createRawMaterialReceipt);
