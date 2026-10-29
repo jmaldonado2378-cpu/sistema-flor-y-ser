@@ -51,11 +51,37 @@ class SaleService {
     customerService;
     checkingAccountService;
     inMemoryOrders = [...initialMockOrders];
+    schemaEnsured = false;
     constructor(db, paymentService, customerService, checkingAccountService) {
         this.db = db;
         this.paymentService = paymentService;
         this.customerService = customerService;
         this.checkingAccountService = checkingAccountService;
+    }
+    async ensureOrdersSchema() {
+        if (this.schemaEnsured)
+            return;
+        try {
+            await this.db.query(`ALTER TABLE orders ADD COLUMN payment_method VARCHAR(50) NULL DEFAULT 'EFECTIVO'`);
+        }
+        catch {
+            // Columna ya existe
+        }
+        this.schemaEnsured = true;
+    }
+    extractPaymentMethodFromRow(row) {
+        if (row.payment_method && String(row.payment_method).trim()) {
+            return String(row.payment_method).trim().toUpperCase();
+        }
+        const notesStr = String(row.notes || '');
+        const match = notesStr.match(/Pago:\s*([^|]+)/i);
+        if (match && match[1]) {
+            return match[1].trim().toUpperCase();
+        }
+        if (row.payment_status === 'UNPAID') {
+            return 'CUENTA_CORRIENTE';
+        }
+        return 'EFECTIVO';
     }
     // ------------------------------------------------------------------
     // Helpers
@@ -84,6 +110,7 @@ class SaleService {
             channel: row.channel,
             status: row.status,
             paymentStatus: row.payment_status,
+            paymentMethod: this.extractPaymentMethodFromRow(row),
             subtotal: parseFloat(row.subtotal || 0),
             discountAmount: parseFloat(row.discount_amount || 0),
             deliveryFee: parseFloat(row.delivery_fee || 0),
@@ -146,8 +173,10 @@ class SaleService {
         const paymentStatus = isCredit ? 'UNPAID' : 'PAID';
         const paidAmount = isCredit ? 0 : totalAmount;
         const balanceDue = totalAmount - paidAmount;
+        const normalizedPaymentMethod = (dto.paymentMethod || 'EFECTIVO').trim().toUpperCase();
         const customerName = (dto.customerName || 'Consumidor Final').trim();
         const orderNumber = this.generateOrderNumber();
+        await this.ensureOrdersSchema();
         let client = null;
         try {
             client = await this.db.connect();
@@ -175,12 +204,12 @@ class SaleService {
                 }
             }
             const commissionAmount = Math.round(totalAmount * commissionPct) / 100;
-            // 3. Cabecera del pedido
+            // 3. Cabecera del pedido (incluyendo payment_method)
             const orderRes = await client.query(`INSERT INTO orders (
-          order_number, customer_id, seller_id, seller_name, quote_id, channel, status, payment_status,
+          order_number, customer_id, seller_id, seller_name, quote_id, channel, status, payment_status, payment_method,
           subtotal, discount_amount, delivery_fee, total_amount, paid_amount, balance_due,
           points_earned, commission_amount, commission_settled, delivery_address, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, 'RECEIVED', $7, $8, $9, $10, $11, $12, $13, $14, $15, 0, $16, $17)
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'RECEIVED', $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 0, $17, $18)
         RETURNING id`, [
                 orderNumber,
                 dto.customerId,
@@ -189,6 +218,7 @@ class SaleService {
                 dto.quoteId || null,
                 channel,
                 paymentStatus,
+                normalizedPaymentMethod,
                 subtotal,
                 discountAmount,
                 deliveryFee,
@@ -198,7 +228,7 @@ class SaleService {
                 pointsEarned,
                 commissionAmount,
                 dto.deliveryAddress || null,
-                [dto.paymentMethod ? `Pago: ${dto.paymentMethod}` : null, dto.notes || null].filter(Boolean).join(' | ') || null
+                [dto.paymentMethod ? `Pago: ${normalizedPaymentMethod}` : null, dto.notes || null].filter(Boolean).join(' | ') || null
             ]);
             const orderId = orderRes.rows[0]?.id;
             if (!orderId) {
@@ -280,6 +310,7 @@ class SaleService {
                 channel,
                 status: 'RECEIVED',
                 paymentStatus,
+                paymentMethod: normalizedPaymentMethod,
                 subtotal,
                 discountAmount,
                 deliveryFee,
@@ -394,12 +425,13 @@ class SaleService {
         return { orders: this.inMemoryOrders, total: this.inMemoryOrders.length };
     }
     // ------------------------------------------------------------------
-    // Cambio de estado (Kanban)
+    // Cambio de estado, medio de pago, canal y vendedora (Kanban / Edición de Venta)
     // ------------------------------------------------------------------
     async updateOrderStatus(id, dto) {
-        if (!dto.status && !dto.paymentStatus) {
-            throw new PersistenceError('Debe indicar status o paymentStatus.', 400);
+        if (!dto.status && !dto.paymentStatus && !dto.paymentMethod && dto.sellerId === undefined && dto.sellerName === undefined && !dto.channel && dto.notes === undefined) {
+            throw new PersistenceError('Debe indicar al menos un campo a actualizar.', 400);
         }
+        await this.ensureOrdersSchema();
         try {
             const order = await this.getOrderById(id);
             const isCancelling = dto.status === 'CANCELLED' && order.status !== 'CANCELLED';
@@ -446,6 +478,57 @@ class SaleService {
                 sets.push(`payment_status = $${idx++}`);
                 values.push(dto.paymentStatus);
             }
+            if (dto.paymentMethod) {
+                const normPay = dto.paymentMethod.trim().toUpperCase();
+                sets.push(`payment_method = $${idx++}`);
+                values.push(normPay);
+                if (!dto.paymentStatus) {
+                    const isCredit = /cuenta\s*corriente|fiado|credit/i.test(normPay);
+                    sets.push(`payment_status = $${idx++}`);
+                    values.push(isCredit ? 'UNPAID' : 'PAID');
+                    sets.push(`paid_amount = $${idx++}`);
+                    values.push(isCredit ? 0 : order.totalAmount);
+                    sets.push(`balance_due = $${idx++}`);
+                    values.push(isCredit ? order.totalAmount : 0);
+                }
+            }
+            if (dto.channel) {
+                sets.push(`channel = $${idx++}`);
+                values.push(dto.channel);
+            }
+            if (dto.sellerId !== undefined) {
+                sets.push(`seller_id = $${idx++}`);
+                values.push(dto.sellerId || null);
+            }
+            if (dto.sellerName !== undefined) {
+                sets.push(`seller_name = $${idx++}`);
+                values.push(dto.sellerName || null);
+            }
+            if (dto.notes !== undefined) {
+                sets.push(`notes = $${idx++}`);
+                values.push(dto.notes || null);
+            }
+            // Recalcular comisión si cambió la vendedora o el canal
+            if (dto.sellerId !== undefined || dto.channel !== undefined) {
+                const targetSellerId = dto.sellerId !== undefined ? dto.sellerId : order.sellerId;
+                const targetChannel = dto.channel || order.channel || 'LOCAL';
+                let commissionPct = 3.0;
+                if (targetSellerId) {
+                    try {
+                        const commRes = await this.db.query('SELECT commission_percentage FROM seller_channel_commissions WHERE user_id = $1 AND channel = $2', [targetSellerId, targetChannel]);
+                        if (commRes.rows.length > 0) {
+                            commissionPct = parseFloat(commRes.rows[0].commission_percentage) || 0;
+                        }
+                    }
+                    catch { }
+                }
+                else {
+                    commissionPct = 0;
+                }
+                const newCommissionAmount = Math.round((Number(order.totalAmount) || 0) * commissionPct) / 100;
+                sets.push(`commission_amount = $${idx++}`);
+                values.push(newCommissionAmount);
+            }
             sets.push('updated_at = CURRENT_TIMESTAMP');
             values.push(id);
             const updateRes = await this.db.query(`UPDATE orders SET ${sets.join(', ')} WHERE id = $${idx}`, values);
@@ -454,7 +537,7 @@ class SaleService {
             }
         }
         catch (error) {
-            this.handleDbError(error, 'actualizar el estado del pedido');
+            this.handleDbError(error, 'actualizar el pedido');
         }
         const order = this.inMemoryOrders.find(o => o.id === id);
         if (order) {
@@ -462,6 +545,16 @@ class SaleService {
                 order.status = dto.status;
             if (dto.paymentStatus)
                 order.paymentStatus = dto.paymentStatus;
+            if (dto.paymentMethod)
+                order.paymentMethod = dto.paymentMethod.trim().toUpperCase();
+            if (dto.channel)
+                order.channel = dto.channel;
+            if (dto.sellerId !== undefined)
+                order.sellerId = dto.sellerId;
+            if (dto.sellerName !== undefined)
+                order.sellerName = dto.sellerName;
+            if (dto.notes !== undefined)
+                order.notes = dto.notes;
             order.updatedAt = new Date().toISOString();
             return order;
         }

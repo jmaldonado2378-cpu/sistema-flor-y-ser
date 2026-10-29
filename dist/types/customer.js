@@ -7,6 +7,10 @@ var AcquisitionChannel;
     AcquisitionChannel["WHATSAPP"] = "WHATSAPP";
     AcquisitionChannel["ONLINE_STORE"] = "ONLINE_STORE";
     AcquisitionChannel["INSTAGRAM"] = "INSTAGRAM";
+    AcquisitionChannel["REFERIDO"] = "REFERIDO";
+    AcquisitionChannel["FERIA"] = "FERIA";
+    AcquisitionChannel["FACEBOOK"] = "FACEBOOK";
+    AcquisitionChannel["OTRO"] = "OTRO";
 })(AcquisitionChannel || (exports.AcquisitionChannel = AcquisitionChannel = {}));
 var CustomerSegment;
 (function (CustomerSegment) {

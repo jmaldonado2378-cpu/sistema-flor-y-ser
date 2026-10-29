@@ -46,11 +46,13 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Switches explícitos en el modal para evitar cualquier número oculto
-  const [includePackaging, setIncludePackaging] = useState<boolean>(true);
+  // Switches explícitos en el modal (Impuestos y Comisiones 100% separados)
+  const [includePackaging, setIncludePackaging] = useState<boolean>(false);
   const [includeLabor, setIncludeLabor] = useState<boolean>(false);
   const [includeFixedCosts, setIncludeFixedCosts] = useState<boolean>(false);
-  const [includeTaxesAndCommissions, setIncludeTaxesAndCommissions] = useState<boolean>(false);
+  const [includeTaxes, setIncludeTaxes] = useState<boolean>(false);
+  const [includeCommissions, setIncludeCommissions] = useState<boolean>(false);
+  const [showStepHelp, setShowStepHelp] = useState<boolean>(false);
 
   // Filtros de la tabla principal de Precios y Costos
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -182,7 +184,7 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
   const watchedPackCost = includePackaging ? (Number(watch('packagingLabelCost')) || 0) : 0;
   const watchedLaborCost = includeLabor ? (Number(watch('laborCost')) || 0) : 0;
   const watchedFixedCost = includeFixedCosts ? (Number(watch('allocatedFixedCosts')) || 0) : 0;
-  const watchedTaxPct = includeTaxesAndCommissions ? (Number(watch('taxPercentage')) || 0) : 0;
+  const watchedTaxPct = includeTaxes ? (Number(watch('taxPercentage')) || 0) : 0;
 
   const totalDirectCost = watchedRawCost + watchedPackCost + watchedLaborCost;
   const totalUnitCost = totalDirectCost + watchedFixedCost;
@@ -262,42 +264,110 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
     return calcRawCostBreakdown(fp, rm).cost;
   };
 
-  // Helper para calcular métricas paso a paso por canal (Recargo directo sobre Costo + Bidireccional)
+  // Helper para calcular precio sugerido de un canal según costo, % recargo, % impuesto y % comisión separados
+  const computeSuggestedChannelPrice = (
+    unitCost: number,
+    markupPct: number,
+    taxPct: number,
+    commPct: number
+  ): number => {
+    const baseWithMarkup = unitCost * (1 + (Number(markupPct) || 0) / 100);
+    const dedRatio = ((Number(taxPct) || 0) + (Number(commPct) || 0)) / 100;
+    if (dedRatio > 0 && dedRatio < 0.95) {
+      return Math.round(baseWithMarkup / (1 - dedRatio));
+    }
+    if (dedRatio >= 0.95) {
+      return Math.round(baseWithMarkup * (1 + dedRatio));
+    }
+    return Math.round(baseWithMarkup);
+  };
+
+  // Recalcular en tiempo real los precios finales de todos los canales cuando cambia CUALQUIER escalón (1, 2, 3, 4 o 5)
+  const recalculateAllChannelsLive = (overrides?: {
+    rawCost?: number;
+    pkgCost?: number;
+    laborCost?: number;
+    fixedCost?: number;
+    taxPct?: number;
+    incPkg?: boolean;
+    incLabor?: boolean;
+    incFixed?: boolean;
+    incTax?: boolean;
+    incComm?: boolean;
+    mCommPct?: number;
+    wCommPct?: number;
+    oCommPct?: number;
+    mMarginPct?: number;
+    wMarginPct?: number;
+    oMarginPct?: number;
+  }) => {
+    const useIncPkg = overrides?.incPkg !== undefined ? overrides.incPkg : includePackaging;
+    const useIncLabor = overrides?.incLabor !== undefined ? overrides.incLabor : includeLabor;
+    const useIncFixed = overrides?.incFixed !== undefined ? overrides.incFixed : includeFixedCosts;
+    const useIncTax = overrides?.incTax !== undefined ? overrides.incTax : includeTaxes;
+    const useIncComm = overrides?.incComm !== undefined ? overrides.incComm : includeCommissions;
+
+    const rCost = overrides?.rawCost !== undefined ? overrides.rawCost : (Number(watch('rawMaterialCost')) || 0);
+    const pCost = useIncPkg
+      ? (overrides?.pkgCost !== undefined ? overrides.pkgCost : (Number(watch('packagingLabelCost')) || 0))
+      : 0;
+    const lCost = useIncLabor
+      ? (overrides?.laborCost !== undefined ? overrides.laborCost : (Number(watch('laborCost')) || 0))
+      : 0;
+    const fCost = useIncFixed
+      ? (overrides?.fixedCost !== undefined ? overrides.fixedCost : (Number(watch('allocatedFixedCosts')) || 0))
+      : 0;
+    const tPct = useIncTax
+      ? (overrides?.taxPct !== undefined ? overrides.taxPct : (Number(watch('taxPercentage')) || 0))
+      : 0;
+
+    const nextUnitCost = rCost + pCost + lCost + fCost;
+
+    const mMargin = overrides?.mMarginPct !== undefined ? overrides.mMarginPct : (Number(watch('mostradorMarginPct')) || 0);
+    const wMargin = overrides?.wMarginPct !== undefined ? overrides.wMarginPct : (Number(watch('whatsappMarginPct')) || 0);
+    const oMargin = overrides?.oMarginPct !== undefined ? overrides.oMarginPct : (Number(watch('onlineMarginPct')) || 0);
+
+    const mComm = useIncComm
+      ? (overrides?.mCommPct !== undefined ? overrides.mCommPct : (Number(watch('mostradorCommissionPct')) || 0))
+      : 0;
+    const wComm = useIncComm
+      ? (overrides?.wCommPct !== undefined ? overrides.wCommPct : (Number(watch('whatsappCommissionPct')) || 0))
+      : 0;
+    const oComm = useIncComm
+      ? (overrides?.oCommPct !== undefined ? overrides.oCommPct : (Number(watch('onlineCommissionPct')) || 0))
+      : 0;
+
+    setValue('mostradorFinalPrice', computeSuggestedChannelPrice(nextUnitCost, mMargin, tPct, mComm));
+    setValue('whatsappFinalPrice', computeSuggestedChannelPrice(nextUnitCost, wMargin, tPct, wComm));
+    setValue('onlineFinalPrice', computeSuggestedChannelPrice(nextUnitCost, oMargin, tPct, oComm));
+  };
+
+  // Helper para calcular métricas paso a paso por canal (Impuestos y Comisiones separados)
   const calcChannelMetrics = (commPctInput: number, markupPctInput: number, customFinalPriceInput: number) => {
-    const commPct = includeTaxesAndCommissions ? (Number(commPctInput) || 0) : 0;
+    const commPct = includeCommissions ? (Number(commPctInput) || 0) : 0;
     const markupPct = Number(markupPctInput) || 0;
     const customFinalPrice = Number(customFinalPriceInput) || 0;
 
-    // 1. Ganancia deseada aplicando Recargo directo sobre el Costo Unitario Total
     const desiredProfitFromMarkup = Math.round(totalUnitCost * (markupPct / 100));
-    const baseWithMarkup = totalUnitCost + desiredProfitFromMarkup;
-
-    // 2. Si el usuario activó Impuestos o Comisiones explícitamente:
-    const deductionsRatio = (watchedTaxPct + commPct) / 100;
-    let suggested = baseWithMarkup;
-    if (deductionsRatio > 0 && deductionsRatio < 1) {
-      suggested = Math.round(baseWithMarkup / (1 - deductionsRatio));
-    } else if (deductionsRatio >= 1) {
-      suggested = Math.round(baseWithMarkup * (1 + deductionsRatio));
-    }
+    const suggested = computeSuggestedChannelPrice(totalUnitCost, markupPct, watchedTaxPct, commPct);
 
     const finalPrice = customFinalPrice > 0 ? Math.round(customFinalPrice) : suggested;
-    const commDeduction = Math.round(finalPrice * (commPct / 100));
     const taxDeduction = Math.round(finalPrice * (watchedTaxPct / 100));
-    const totalDeductions = commDeduction + taxDeduction;
+    const commDeduction = Math.round(finalPrice * (commPct / 100));
+    const totalDeductions = taxDeduction + commDeduction;
 
     const profit = finalPrice - (totalUnitCost + totalDeductions);
-    // % de Recargo Real sobre el Costo Total (ej: Costo $1.000 -> Ganancia $500 = +50% s/costo)
     const realMarkupOverCost = totalUnitCost > 0 ? (profit / totalUnitCost) * 100 : 0;
-    // % que representa la ganancia sobre el Precio Final de Venta
     const realMarginOverSale = finalPrice > 0 ? (profit / finalPrice) * 100 : 0;
 
     return {
       suggested,
       finalPrice,
       desiredProfitFromMarkup,
-      commDeduction,
+      taxPct: watchedTaxPct,
+      commPct,
       taxDeduction,
+      commDeduction,
       totalDeductions,
       profit,
       realMarkupOverCost,
@@ -312,13 +382,14 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
   const handleOpenConfigModal = (p?: PricingStructure | null, fpFallback?: any) => {
     setSuccessMsg(null);
     setErrorMsg(null);
+    setShowStepHelp(false);
 
     const matchedFp = fpFallback || (p ? products.find(prod => prod.id === p.productId || prod.code === p.productSku) : null);
     const isPack = isProductPack(matchedFp);
     const isResale = Boolean(matchedFp?.isResale) && !isPack;
     const baseRm = matchedFp ? raws.find(rm => rm.id === matchedFp.rawMaterialId) : null;
 
-    // 1. Calcular el costo de compra / insumo base real sin números ocultos
+    // 1. Calcular el costo de compra / insumo base real
     let calculatedRawCost = p?.rawMaterialCost || 0;
     if (!calculatedRawCost && matchedFp) {
       if (isPack && Array.isArray(matchedFp.ingredientsList) && matchedFp.ingredientsList.length > 0) {
@@ -352,40 +423,78 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
       }
     }
 
-    // 2. Empaque: En Reventa o Pack es $0 por defecto salvo que ya tuviera uno guardado
+    // 2. Detectar si el registro existente tenía los valores antiguos por defecto (labor=150, fixed=250, tax=21, waComm=15)
+    // pero el precio de venta del producto fue calculado directo sin esos cargos
+    const currentMostradorPrice = p?.channels?.mostrador?.finalPrice || Number(matchedFp?.price) || 0;
+    const savedMargin = p?.channels?.mostrador?.marginPercentage || 50;
+    const isDirectPriceWithoutExtras =
+      calculatedRawCost > 0 &&
+      currentMostradorPrice > 0 &&
+      Math.abs(currentMostradorPrice - Math.round(calculatedRawCost * (1 + savedMargin / 100))) <= 5;
+
     const defaultPkgs = (isResale || isPack) ? [] : pkgs.filter(pkg => pkg.category === 'DOYPACK' || pkg.category === 'LABEL');
     const initialPkgIds = defaultPkgs.map(item => item.id);
     const calculatedPkgCost = p?.packagingLabelCost !== undefined
-      ? Number(p.packagingLabelCost)
+      ? (isDirectPriceWithoutExtras ? 0 : Number(p.packagingLabelCost))
       : ((isResale || isPack) ? 0 : defaultPkgs.reduce((sum, item) => sum + (Number(item.costPerUnit) || 0), 0));
 
-    const existingLaborCost = p?.laborCost !== undefined ? Number(p.laborCost) : 0;
-    const existingFixedCost = p?.allocatedFixedCosts !== undefined ? Number(p.allocatedFixedCosts) : 0;
-    const existingTaxPct = p?.taxPercentage !== undefined ? Number(p.taxPercentage) : 0;
+    const existingLaborCost = (p?.laborCost !== undefined && !isDirectPriceWithoutExtras && !(isResale && Number(p.laborCost) === 150))
+      ? Number(p.laborCost)
+      : 0;
+    const existingFixedCost = (p?.allocatedFixedCosts !== undefined && !isDirectPriceWithoutExtras && !(isResale && Number(p.allocatedFixedCosts) === 250))
+      ? Number(p.allocatedFixedCosts)
+      : 0;
+    const existingTaxPct = (p?.taxPercentage !== undefined && !isDirectPriceWithoutExtras && !(Number(p.taxPercentage) === 21 && isResale))
+      ? Number(p.taxPercentage)
+      : 0;
 
-    // Activar switches solo si realmente tienen valores > 0 (o empaque en elaborados)
-    setIncludePackaging(calculatedPkgCost > 0 || (!isResale && !isPack));
-    setIncludeLabor(existingLaborCost > 0);
-    setIncludeFixedCosts(existingFixedCost > 0);
-    setIncludeTaxesAndCommissions(existingTaxPct > 0);
+    const existingMostradorComm = (!isDirectPriceWithoutExtras && p?.channels?.mostrador?.commissionPercentage) ? Number(p.channels.mostrador.commissionPercentage) : 0;
+    const existingWhatsappComm = (!isDirectPriceWithoutExtras && p?.channels?.whatsapp?.commissionPercentage && !(Number(p.channels.whatsapp.commissionPercentage) === 15 && isResale))
+      ? Number(p.channels.whatsapp.commissionPercentage)
+      : 0;
+    const existingOnlineComm = (!isDirectPriceWithoutExtras && p?.channels?.tiendaOnline?.commissionPercentage) ? Number(p.channels.tiendaOnline.commissionPercentage) : 0;
+    const hasActiveComm = (existingMostradorComm > 0 || existingWhatsappComm > 0 || existingOnlineComm > 0);
+
+    const nextIncPkg = calculatedPkgCost > 0;
+    const nextIncLabor = existingLaborCost > 0;
+    const nextIncFixed = existingFixedCost > 0;
+    const nextIncTax = existingTaxPct > 0;
+    const nextIncComm = hasActiveComm;
+
+    setIncludePackaging(nextIncPkg);
+    setIncludeLabor(nextIncLabor);
+    setIncludeFixedCosts(nextIncFixed);
+    setIncludeTaxes(nextIncTax);
+    setIncludeCommissions(nextIncComm);
 
     setSelectedRawMaterialId(baseRm ? baseRm.id : '');
-    setSelectedPackagingIds(initialPkgIds);
+    setSelectedPackagingIds(nextIncPkg ? initialPkgIds : []);
 
     const activeUnitCost =
       calculatedRawCost +
-      ((calculatedPkgCost > 0 || (!isResale && !isPack)) ? calculatedPkgCost : 0) +
-      existingLaborCost +
-      existingFixedCost;
+      (nextIncPkg ? calculatedPkgCost : 0) +
+      (nextIncLabor ? existingLaborCost : 0) +
+      (nextIncFixed ? existingFixedCost : 0);
 
-    // Si el producto ya tiene un precio de venta cargado, calcular qué % de recargo sobre costo representa
-    const currentMostradorPrice = p?.channels?.mostrador?.finalPrice || Number(matchedFp?.price) || 0;
     const inferredMarkup = (activeUnitCost > 0 && currentMostradorPrice > 0)
       ? Number((((currentMostradorPrice - activeUnitCost) / activeUnitCost) * 100).toFixed(1))
       : (p?.channels?.mostrador?.marginPercentage || 50);
 
+    const defaultSalePrice = currentMostradorPrice > 0
+      ? currentMostradorPrice
+      : computeSuggestedChannelPrice(activeUnitCost, inferredMarkup, nextIncTax ? existingTaxPct : 0, nextIncComm ? existingMostradorComm : 0);
+
     if (p) {
       setSelectedProductPricing(p);
+      const waPrice = p.channels?.whatsapp?.finalPrice || defaultSalePrice;
+      const onPrice = p.channels?.tiendaOnline?.finalPrice || defaultSalePrice;
+      const waMarkup = (activeUnitCost > 0 && waPrice > 0)
+        ? Number((((waPrice - activeUnitCost) / activeUnitCost) * 100).toFixed(1))
+        : inferredMarkup;
+      const onMarkup = (activeUnitCost > 0 && onPrice > 0)
+        ? Number((((onPrice - activeUnitCost) / activeUnitCost) * 100).toFixed(1))
+        : inferredMarkup;
+
       reset({
         productId: p.productId,
         productSku: p.productSku || matchedFp?.code || '',
@@ -396,21 +505,18 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
         laborCost: existingLaborCost,
         allocatedFixedCosts: existingFixedCost,
         taxPercentage: existingTaxPct,
-        mostradorCommissionPct: p.channels?.mostrador?.commissionPercentage || 0,
-        mostradorMarginPct: p.channels?.mostrador?.marginPercentage || inferredMarkup,
-        mostradorFinalPrice: currentMostradorPrice,
-        whatsappCommissionPct: p.channels?.whatsapp?.commissionPercentage || 0,
-        whatsappMarginPct: p.channels?.whatsapp?.marginPercentage || Math.max(0, inferredMarkup - 5),
-        whatsappFinalPrice: p.channels?.whatsapp?.finalPrice || currentMostradorPrice,
-        onlineCommissionPct: p.channels?.tiendaOnline?.commissionPercentage || 0,
-        onlineMarginPct: p.channels?.tiendaOnline?.marginPercentage || Math.max(0, inferredMarkup - 5),
-        onlineFinalPrice: p.channels?.tiendaOnline?.finalPrice || currentMostradorPrice,
+        mostradorCommissionPct: existingMostradorComm,
+        mostradorMarginPct: inferredMarkup,
+        mostradorFinalPrice: defaultSalePrice,
+        whatsappCommissionPct: existingWhatsappComm,
+        whatsappMarginPct: waMarkup,
+        whatsappFinalPrice: waPrice,
+        onlineCommissionPct: existingOnlineComm,
+        onlineMarginPct: onMarkup,
+        onlineFinalPrice: onPrice,
       });
     } else if (matchedFp) {
       setSelectedProductPricing(null);
-      const defaultSalePrice = currentMostradorPrice > 0
-        ? currentMostradorPrice
-        : Math.round(activeUnitCost * (1 + inferredMarkup / 100));
       reset({
         productId: matchedFp.id,
         productSku: matchedFp.code || '',
@@ -458,16 +564,6 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
     setIsModalOpen(true);
   };
 
-  // Recalcular precios sugeridos cuando cambia el costo base en vivo
-  const syncChannelPricesWithNewCost = (newTotalUnitCost: number) => {
-    const mPct = Number(watch('mostradorMarginPct')) || 0;
-    const wPct = Number(watch('whatsappMarginPct')) || 0;
-    const oPct = Number(watch('onlineMarginPct')) || 0;
-    setValue('mostradorFinalPrice', Math.round(newTotalUnitCost * (1 + mPct / 100)));
-    setValue('whatsappFinalPrice', Math.round(newTotalUnitCost * (1 + wPct / 100)));
-    setValue('onlineFinalPrice', Math.round(newTotalUnitCost * (1 + oPct / 100)));
-  };
-
   const togglePackagingSelection = (id: string) => {
     let updated: string[];
     if (selectedPackagingIds.includes(id)) {
@@ -484,6 +580,7 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
 
     setIncludePackaging(true);
     setValue('packagingLabelCost', totalCost);
+    recalculateAllChannelsLive({ incPkg: true, pkgCost: totalCost });
   };
 
   const onSubmitSave = (formData: any) => {
@@ -493,7 +590,7 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
     const effectivePkgCost = includePackaging ? Number(formData.packagingLabelCost || 0) : 0;
     const effectiveLaborCost = includeLabor ? Number(formData.laborCost || 0) : 0;
     const effectiveFixedCost = includeFixedCosts ? Number(formData.allocatedFixedCosts || 0) : 0;
-    const effectiveTaxPct = includeTaxesAndCommissions ? Number(formData.taxPercentage || 0) : 0;
+    const effectiveTaxPct = includeTaxes ? Number(formData.taxPercentage || 0) : 0;
 
     const dto = {
       productId: formData.productId,
@@ -507,17 +604,17 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
       taxPercentage: effectiveTaxPct,
       channels: {
         mostrador: {
-          commissionPercentage: includeTaxesAndCommissions ? Number(formData.mostradorCommissionPct || 0) : 0,
+          commissionPercentage: includeCommissions ? Number(formData.mostradorCommissionPct || 0) : 0,
           marginPercentage: Number(formData.mostradorMarginPct || 0),
           finalPrice: Number(formData.mostradorFinalPrice) > 0 ? Number(formData.mostradorFinalPrice) : mostradorCalc.suggested
         },
         whatsapp: {
-          commissionPercentage: includeTaxesAndCommissions ? Number(formData.whatsappCommissionPct || 0) : 0,
+          commissionPercentage: includeCommissions ? Number(formData.whatsappCommissionPct || 0) : 0,
           marginPercentage: Number(formData.whatsappMarginPct || 0),
           finalPrice: Number(formData.whatsappFinalPrice) > 0 ? Number(formData.whatsappFinalPrice) : whatsappCalc.suggested
         },
         tiendaOnline: {
-          commissionPercentage: includeTaxesAndCommissions ? Number(formData.onlineCommissionPct || 0) : 0,
+          commissionPercentage: includeCommissions ? Number(formData.onlineCommissionPct || 0) : 0,
           marginPercentage: Number(formData.onlineMarginPct || 0),
           finalPrice: Number(formData.onlineFinalPrice) > 0 ? Number(formData.onlineFinalPrice) : onlineCalc.suggested
         }
@@ -572,51 +669,60 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
     ? calcRawCostBreakdown(currentModalFp, selectedRmObj)
     : null;
 
-  // Renderizador de barra visual "¿A dónde va cada peso del precio final?"
+  // Renderizador de desglose con Impuestos y Comisiones 100% separados
   const renderPriceBreakdownBar = (calc: ReturnType<typeof calcChannelMetrics>) => {
     const finalP = Math.max(1, calc.finalPrice);
     const rawPct = Math.min(100, Math.max(0, (watchedRawCost / finalP) * 100));
     const extrasCost = watchedPackCost + watchedLaborCost + watchedFixedCost;
     const extrasPct = Math.min(100 - rawPct, Math.max(0, (extrasCost / finalP) * 100));
-    const taxCommPct = Math.min(100 - rawPct - extrasPct, Math.max(0, (calc.totalDeductions / finalP) * 100));
-    const profitPct = Math.max(0, 100 - rawPct - extrasPct - taxCommPct);
+    const taxBarPct = Math.min(100 - rawPct - extrasPct, Math.max(0, (calc.taxDeduction / finalP) * 100));
+    const commBarPct = Math.min(100 - rawPct - extrasPct - taxBarPct, Math.max(0, (calc.commDeduction / finalP) * 100));
+    const profitPct = Math.max(0, 100 - rawPct - extrasPct - taxBarPct - commBarPct);
 
     return (
       <div className="mt-2 pt-2 border-t">
-        <div className="flex justify-between items-center text-[11px] mb-1">
+        <div className="flex justify-between items-center text-[11px] mb-1 flex-wrap gap-1">
           <span className="text-text-muted font-medium">
-            Fórmula: <strong>{formatCurrency(totalUnitCost)}</strong> (Costo) + <strong>{formatCurrency(calc.profit)}</strong> (Ganancia {calc.realMarkupOverCost >= 0 ? `+${calc.realMarkupOverCost.toFixed(1)}%` : `${calc.realMarkupOverCost.toFixed(1)}%`} s/costo)
-            {calc.totalDeductions > 0 ? ` + ${formatCurrency(calc.totalDeductions)} (Imp./Com.)` : ''} = <strong>{formatCurrency(calc.finalPrice)}</strong>
+            Costo Total: <strong>{formatCurrency(totalUnitCost)}</strong> + Ganancia: <strong>{formatCurrency(calc.profit)}</strong> ({calc.realMarkupOverCost >= 0 ? `+${calc.realMarkupOverCost.toFixed(1)}%` : `${calc.realMarkupOverCost.toFixed(1)}%`} s/costo)
+            {calc.taxDeduction > 0 ? ` + Impuestos: ${formatCurrency(calc.taxDeduction)} (${calc.taxPct}%)` : ''}
+            {calc.commDeduction > 0 ? ` + Comisión: ${formatCurrency(calc.commDeduction)} (${calc.commPct}%)` : ''}
+            {' '}= <strong>{formatCurrency(calc.finalPrice)}</strong>
           </span>
-          <span className={`font-bold ${calc.profit > 0 ? 'text-primary-sage' : 'text-terracotta'}`}>
-            En mano: {formatCurrency(calc.profit)} ({calc.realMarginOverSale.toFixed(1)}% del precio)
+          <span className={`font-bold ${calc.profit >= 0 ? 'text-primary-sage' : 'text-terracotta'}`}>
+            Ganancia limpia: {formatCurrency(calc.profit)} ({calc.realMarginOverSale.toFixed(1)}% s/venta)
           </span>
         </div>
 
         {/* Barra segmentada proporcional */}
-        <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden flex border border-gray-200" title="Distribución de cada peso del precio de venta">
+        <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden flex border border-gray-200">
           {rawPct > 0 && (
             <div
               style={{ width: `${rawPct}%`, backgroundColor: '#D97706' }}
-              title={`Costo Producto/MP: ${formatCurrency(watchedRawCost)} (${rawPct.toFixed(0)}%)`}
+              title={`Costo Compra/Insumos: ${formatCurrency(watchedRawCost)} (${rawPct.toFixed(0)}%)`}
             />
           )}
           {extrasPct > 0 && (
             <div
               style={{ width: `${extrasPct}%`, backgroundColor: '#3B82F6' }}
-              title={`Empaque / M. Obra / Fijos: ${formatCurrency(extrasCost)} (${extrasPct.toFixed(0)}%)`}
+              title={`Empaque / Mano de Obra / Fijos: ${formatCurrency(extrasCost)} (${extrasPct.toFixed(0)}%)`}
             />
           )}
-          {taxCommPct > 0 && (
+          {taxBarPct > 0 && (
             <div
-              style={{ width: `${taxCommPct}%`, backgroundColor: '#F59E0B' }}
-              title={`Impuestos y Comisiones: ${formatCurrency(calc.totalDeductions)} (${taxCommPct.toFixed(0)}%)`}
+              style={{ width: `${taxBarPct}%`, backgroundColor: '#F59E0B' }}
+              title={`Impuestos (${calc.taxPct}%): ${formatCurrency(calc.taxDeduction)}`}
+            />
+          )}
+          {commBarPct > 0 && (
+            <div
+              style={{ width: `${commBarPct}%`, backgroundColor: '#8B5CF6' }}
+              title={`Comisión Canal (${calc.commPct}%): ${formatCurrency(calc.commDeduction)}`}
             />
           )}
           {profitPct > 0 && (
             <div
               style={{ width: `${profitPct}%`, backgroundColor: '#2E5339' }}
-              title={`Tu Ganancia Neta: ${formatCurrency(calc.profit)} (${profitPct.toFixed(0)}%)`}
+              title={`Ganancia Limpia: ${formatCurrency(calc.profit)} (${profitPct.toFixed(0)}%)`}
             />
           )}
         </div>
@@ -624,23 +730,29 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
         <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-text-muted">
           <span className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#D97706' }} />
-            Costo Compra/Insumos: <strong>{formatCurrency(watchedRawCost)}</strong> ({rawPct.toFixed(0)}%)
+            Costo Base: <strong>{formatCurrency(watchedRawCost)}</strong>
           </span>
           {extrasCost > 0 && (
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#3B82F6' }} />
-              Empaque/M.Obra/Fijos: <strong>{formatCurrency(extrasCost)}</strong> ({extrasPct.toFixed(0)}%)
+              Empaque/M.Obra/Fijos: <strong>{formatCurrency(extrasCost)}</strong>
             </span>
           )}
-          {calc.totalDeductions > 0 && (
+          {calc.taxDeduction > 0 && (
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#F59E0B' }} />
-              Impuestos/Comisión: <strong>{formatCurrency(calc.totalDeductions)}</strong> ({taxCommPct.toFixed(0)}%)
+              Impuestos ({calc.taxPct}%): <strong>{formatCurrency(calc.taxDeduction)}</strong>
+            </span>
+          )}
+          {calc.commDeduction > 0 && (
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#8B5CF6' }} />
+              Comisión Canal ({calc.commPct}%): <strong>{formatCurrency(calc.commDeduction)}</strong>
             </span>
           )}
           <span className="flex items-center gap-1 text-primary-sage font-semibold">
             <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: '#2E5339' }} />
-            Ganancia Limpia: <strong>{formatCurrency(calc.profit)}</strong> ({profitPct.toFixed(0)}%)
+            Ganancia Limpia: <strong>{formatCurrency(calc.profit)}</strong>
           </span>
         </div>
       </div>
@@ -915,34 +1027,45 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
         )}
       </div>
 
-      {/* Modal Rediseñado: Constitución Paso a Paso de Precios y Costos (Sin Números Ocultos) */}
+      {/* Modal Rediseñado: Constitución Paso a Paso de Precios y Costos */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="🧮 Constitución Paso a Paso del Precio de Venta (Sin Números Ocultos)"
+        title="🧮 Constitución Paso a Paso del Precio de Venta"
         maxWidth="840px"
       >
-        <form onSubmit={handleSubmit(onSubmitSave)} className="flex flex-col gap-4">
-          {/* Selección de Producto y Resumen de Categoría */}
+        <form onSubmit={handleSubmit(onSubmitSave)} className="flex flex-col gap-3.5">
+          {/* Selección de Producto y Botón para Mostrar/Ocultar Indicaciones */}
           <div className="p-3 bg-bg-linen rounded-lg border flex flex-col gap-2">
             <div className="flex justify-between items-center flex-wrap gap-2">
               <label className="text-xs font-bold text-text-dark uppercase tracking-wide">
-                Producto a Analizar / Configurar *
+                Producto a Configurar *
               </label>
-              {currentModalFp && (
-                <div className="flex items-center gap-1.5">
-                  <span className="badge gray text-xs">{getFamilyDisplayLabel(currentModalFp)}</span>
-                  {isCurrentModalPack ? (
-                    <span className="badge amber text-xs">🎁 Pack / Combo</span>
-                  ) : isCurrentModalResale ? (
-                    <span className="badge blue text-xs">🛍️ Producto de Reventa</span>
-                  ) : isCurrentModalBlend ? (
-                    <span className="badge purple text-xs">📚 Blend / Mix</span>
-                  ) : (
-                    <span className="badge green text-xs">🏭 Elaborado / Fraccionado</span>
-                  )}
-                </div>
-              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {currentModalFp && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="badge gray text-xs">{getFamilyDisplayLabel(currentModalFp)}</span>
+                    {isCurrentModalPack ? (
+                      <span className="badge amber text-xs">🎁 Pack / Combo</span>
+                    ) : isCurrentModalResale ? (
+                      <span className="badge blue text-xs">🛍️ Reventa</span>
+                    ) : isCurrentModalBlend ? (
+                      <span className="badge purple text-xs">📚 Blend</span>
+                    ) : (
+                      <span className="badge green text-xs">🏭 Elaborado</span>
+                    )}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowStepHelp(!showStepHelp)}
+                  className="btn btn-secondary btn-sm text-[11px] py-0.5 px-2 flex items-center gap-1"
+                  title="Mostrar u ocultar las explicaciones de cada escalón"
+                >
+                  <Info size={13} />
+                  {showStepHelp ? 'Ocultar indicaciones' : '? Ver indicaciones'}
+                </button>
+              </div>
             </div>
             <select 
               className="input font-semibold"
@@ -966,37 +1089,38 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
           </div>
 
           {/* =====================================================================
-              ESCALÓN 1: ORIGEN DEL COSTO (DESDE LA COMPRA / INSUMOS)
+              ESCALÓN 1: COSTO BASE DEL PRODUCTO (COMPRA / MATERIA PRIMA)
              ===================================================================== */}
-          <div className="border rounded-lg p-3.5 bg-white shadow-sm flex flex-col gap-3">
-            <div className="flex justify-between items-center border-b pb-2">
+          <div className="border rounded-lg p-3 bg-white shadow-sm flex flex-col gap-2.5">
+            <div className="flex justify-between items-center border-b pb-1.5">
               <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-primary-sage text-white text-xs font-bold flex items-center justify-center">
+                <span className="w-5 h-5 rounded-full bg-primary-sage text-white text-xs font-bold flex items-center justify-center">
                   1
                 </span>
                 <div>
                   <h4 className="font-bold text-sm text-text-dark m-0">
-                    Costo Base del Producto (Origen en la Compra)
+                    Costo Base de Compra / Materia Prima
                   </h4>
-                  <p className="text-[11px] text-text-muted m-0">
-                    De dónde nace el costo de la mercadería antes de sumar cualquier extra
-                  </p>
+                  {showStepHelp && (
+                    <p className="text-[11px] text-text-muted m-0">
+                      Costo puro de adquisición de la mercadería o suma de sus insumos antes de agregar extras.
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-xs text-text-muted block">Costo Base Producto</span>
-                <span className="text-lg font-bold text-primary-sage">{formatCurrency(watchedRawCost)}</span>
+                <span className="text-[11px] text-text-muted block">Subtotal Escalón 1</span>
+                <span className="text-base font-bold text-primary-sage">{formatCurrency(watchedRawCost)}</span>
               </div>
             </div>
 
-            {/* Trazabilidad del último comprobante de compra si existe */}
             {lastPurchaseReceipt && (
-              <div className="p-2.5 bg-green-50/70 border border-green-200 rounded text-xs flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <FileText size={15} className="text-primary-sage flex-shrink-0" />
+              <div className="p-2 bg-green-50/70 border border-green-200 rounded text-xs flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-1.5">
+                  <FileText size={14} className="text-primary-sage flex-shrink-0" />
                   <span>
-                    <strong>Última Compra Registrada:</strong> Comprobante <strong>{lastPurchaseReceipt.receiptNumber}</strong> ({lastPurchaseReceipt.supplierName})
-                    {lastPurchaseReceipt.date ? ` el ${new Date(lastPurchaseReceipt.date).toLocaleDateString('es-AR')}` : ''} — Pagado: <strong>{formatCurrency(lastPurchaseReceipt.unitCost)} / {lastPurchaseReceipt.unitOfMeasure}</strong>
+                    <strong>Última Compra:</strong> {lastPurchaseReceipt.receiptNumber} ({lastPurchaseReceipt.supplierName})
+                    {lastPurchaseReceipt.date ? ` • ${new Date(lastPurchaseReceipt.date).toLocaleDateString('es-AR')}` : ''} — <strong>{formatCurrency(lastPurchaseReceipt.unitCost)} / {lastPurchaseReceipt.unitOfMeasure}</strong>
                   </span>
                 </div>
                 {isCurrentModalResale && lastPurchaseReceipt.unitCost > 0 && lastPurchaseReceipt.unitCost !== watchedRawCost && (
@@ -1004,44 +1128,45 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
                     type="button"
                     className="btn btn-secondary btn-sm text-[11px] py-0.5 px-2"
                     onClick={() => {
-                      setValue('rawMaterialCost', Math.round(lastPurchaseReceipt.unitCost));
-                      const newTotal = Math.round(lastPurchaseReceipt.unitCost) + watchedPackCost + watchedLaborCost + watchedFixedCost;
-                      syncChannelPricesWithNewCost(newTotal);
+                      const nextRaw = Math.round(lastPurchaseReceipt.unitCost);
+                      setValue('rawMaterialCost', nextRaw);
+                      recalculateAllChannelsLive({ rawCost: nextRaw });
                     }}
                   >
-                    Usar ${lastPurchaseReceipt.unitCost.toLocaleString('es-AR')}
+                    Aplicar ${lastPurchaseReceipt.unitCost.toLocaleString('es-AR')}
                   </button>
                 )}
               </div>
             )}
 
-            {/* Desglose específico según sea Pack/Combo, Reventa, Blend o Monoproducto */}
             {isCurrentModalPack && Array.isArray(currentModalFp?.ingredientsList) && currentModalFp.ingredientsList.length > 0 ? (
-              <div className="bg-amber-50/50 border border-amber-200 rounded p-2.5 text-xs flex flex-col gap-2">
+              <div className="bg-amber-50/50 border border-amber-200 rounded p-2 text-xs flex flex-col gap-1.5">
                 <div className="font-bold text-amber-900 flex justify-between items-center">
-                  <span>🎁 Desglose de Productos que integran este Pack / Combo:</span>
+                  <span>🎁 Integrantes del Pack / Combo:</span>
                   <button
                     type="button"
                     className="text-primary-sage underline font-semibold cursor-pointer"
                     onClick={() => {
-                      const sumPack = currentModalFp.ingredientsList.reduce(
-                        (s: number, i: any) => s + ((Number(i.quantity) || 1) * (Number(i.unitCost) || 0)),
-                        0
+                      const sumPack = Math.round(
+                        currentModalFp.ingredientsList.reduce(
+                          (s: number, i: any) => s + ((Number(i.quantity) || 1) * (Number(i.unitCost) || 0)),
+                          0
+                        )
                       );
-                      setValue('rawMaterialCost', Math.round(sumPack));
-                      syncChannelPricesWithNewCost(Math.round(sumPack) + watchedPackCost + watchedLaborCost + watchedFixedCost);
+                      setValue('rawMaterialCost', sumPack);
+                      recalculateAllChannelsLive({ rawCost: sumPack });
                     }}
                   >
-                    🔄 Actualizar suma del Pack
+                    🔄 Recalcular suma del Pack
                   </button>
                 </div>
                 <table className="w-full text-xs border-collapse">
                   <thead>
                     <tr className="border-b text-text-muted">
-                      <th className="text-left py-1">Artículo Integrante</th>
-                      <th className="text-center py-1">Cantidad</th>
-                      <th className="text-right py-1">Costo Unitario</th>
-                      <th className="text-right py-1">Subtotal</th>
+                      <th className="text-left py-0.5">Artículo</th>
+                      <th className="text-center py-0.5">Cant.</th>
+                      <th className="text-right py-0.5">Costo Unit.</th>
+                      <th className="text-right py-0.5">Subtotal</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1050,10 +1175,10 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
                       const uCost = Number(ing.unitCost) || 0;
                       return (
                         <tr key={i} className="border-b border-amber-100">
-                          <td className="py-1 font-medium">{ing.rawMaterialName || 'Componente'}</td>
-                          <td className="py-1 text-center">{qty} {ing.unit || 'UND'}</td>
-                          <td className="py-1 text-right">{formatCurrency(uCost)}</td>
-                          <td className="py-1 text-right font-bold">{formatCurrency(qty * uCost)}</td>
+                          <td className="py-0.5 font-medium">{ing.rawMaterialName || 'Componente'}</td>
+                          <td className="py-0.5 text-center">{qty} {ing.unit || 'UND'}</td>
+                          <td className="py-0.5 text-right">{formatCurrency(uCost)}</td>
+                          <td className="py-0.5 text-right font-bold">{formatCurrency(qty * uCost)}</td>
                         </tr>
                       );
                     })}
@@ -1061,30 +1186,31 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
                 </table>
               </div>
             ) : isCurrentModalResale ? (
-              <div className="p-2.5 bg-blue-50/50 border border-blue-200 rounded text-xs flex justify-between items-center flex-wrap gap-2">
-                <div>
-                  <strong>🛍️ Producto de Reventa Directa:</strong> Costo de compra cargado en ficha:{' '}
-                  <strong>{formatCurrency(currentModalFp?.costPrice || watchedRawCost)}</strong> por unidad
+              showStepHelp && (
+                <div className="p-2 bg-blue-50/50 border border-blue-200 rounded text-xs">
+                  <strong>🛍️ Producto de Reventa:</strong> Costo de compra en ficha: <strong>{formatCurrency(currentModalFp?.costPrice || watchedRawCost)}</strong>
                   {currentModalFp?.supplierName ? ` • Proveedor: ${currentModalFp.supplierName}` : ''}.
                 </div>
-              </div>
+              )
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-bg-linen p-2.5 rounded border text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 bg-bg-linen p-2 rounded border text-xs">
                 <div>
                   <label className="font-semibold text-text-dark mb-1 block">🌾 Materia Prima Base (Granel)</label>
                   <select 
-                    className="input text-xs"
+                    className="input text-xs py-1"
                     value={selectedRawMaterialId}
                     onChange={(e) => {
                       const rmId = e.target.value;
                       setSelectedRawMaterialId(rmId);
                       const rm = raws.find(r => r.id === rmId);
+                      let nextRaw = watchedRawCost;
                       if (rm && currentModalFp) {
-                        const newCost = calcRawCostWithUnits(currentModalFp, rm);
-                        setValue('rawMaterialCost', newCost);
+                        nextRaw = calcRawCostWithUnits(currentModalFp, rm);
                       } else if (rm) {
-                        setValue('rawMaterialCost', Math.round(rm.costPerUnit || 0));
+                        nextRaw = Math.round(rm.costPerUnit || 0);
                       }
+                      setValue('rawMaterialCost', nextRaw);
+                      recalculateAllChannelsLive({ rawCost: nextRaw });
                     }}
                   >
                     <option value="">Seleccionar insumo granel...</option>
@@ -1096,27 +1222,26 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
                   </select>
                 </div>
                 <div className="flex flex-col justify-center">
-                  <span className="text-text-muted font-medium">Conversión de Compra a Unidad de Venta:</span>
-                  <span className="font-bold text-text-dark mt-0.5">
-                    {rawBreakdown ? rawBreakdown.formulaText : `Presentación: ${currentModalFp?.unitWeightGrams || 1} ${currentModalFp?.unit || 'GRS'}`}
+                  <span className="text-text-muted">Conversión a presentación:</span>
+                  <span className="font-bold text-text-dark">
+                    {rawBreakdown ? rawBreakdown.formulaText : `${currentModalFp?.unitWeightGrams || 1} ${currentModalFp?.unit || 'GRS'}`}
                   </span>
                 </div>
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-4 pt-1">
-              <span className="text-xs font-medium text-text-dark">
-                Monto exacto de Costo de Compra / Materia Prima para 1 unidad ($):
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-xs font-semibold text-text-dark">
+                Costo de Compra / Insumos por unidad ($):
               </span>
               <input
                 type="number"
                 step="0.01"
-                className="input font-bold text-right w-40"
+                className="input font-bold text-right w-36 py-1"
                 {...register('rawMaterialCost', {
                   onChange: (e) => {
                     const val = parseFloat(e.target.value) || 0;
-                    const newTotal = val + watchedPackCost + watchedLaborCost + watchedFixedCost;
-                    syncChannelPricesWithNewCost(newTotal);
+                    recalculateAllChannelsLive({ rawCost: val });
                   }
                 })}
               />
@@ -1124,140 +1249,141 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
           </div>
 
           {/* =====================================================================
-              ESCALÓN 2: EMPAQUE Y MANO DE OBRA (CON SWITCHES VISIBLES)
+              ESCALONES 2, 3, 4 Y 5: ADICIONALES E IMPUESTOS / COMISIONES SEPARADOS
              ===================================================================== */}
-          <div className="border rounded-lg p-3.5 bg-white shadow-sm flex flex-col gap-3">
-            <div className="flex justify-between items-center border-b pb-2">
-              <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-primary-sage text-white text-xs font-bold flex items-center justify-center">
-                  2
-                </span>
-                <div>
-                  <h4 className="font-bold text-sm text-text-dark m-0">
-                    Empaque, Etiqueta y Mano de Obra Directa
-                  </h4>
-                  <p className="text-[11px] text-text-muted m-0">
-                    Activa o desactiva cada ítem. Si está desactivado suma exactamente $0.
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="text-xs text-text-muted block">Subtotal Costo Directo (1 + 2)</span>
-                <span className="text-lg font-bold text-text-dark">{formatCurrency(totalDirectCost)}</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Sub-bloque Empaque */}
-              <div className={`p-2.5 rounded border ${includePackaging ? 'bg-bg-linen border-primary-sage/40' : 'bg-gray-50 opacity-75'}`}>
-                <div className="flex items-center justify-between mb-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Escalón 2A: Empaque / Etiqueta */}
+            <div className={`border rounded-lg p-3 bg-white shadow-sm flex flex-col justify-between ${includePackaging ? 'border-primary-sage' : 'opacity-80'}`}>
+              <div>
+                <div className="flex items-center justify-between">
                   <label className="flex items-center gap-2 text-xs font-bold text-text-dark cursor-pointer">
+                    <span className="w-5 h-5 rounded-full bg-primary-sage text-white text-[11px] font-bold flex items-center justify-center">
+                      2
+                    </span>
                     <input
                       type="checkbox"
                       checked={includePackaging}
                       onChange={(e) => {
-                        setIncludePackaging(e.target.checked);
-                        const pkgVal = e.target.checked ? (Number(watch('packagingLabelCost')) || 0) : 0;
-                        syncChannelPricesWithNewCost(watchedRawCost + pkgVal + watchedLaborCost + watchedFixedCost);
+                        const checked = e.target.checked;
+                        setIncludePackaging(checked);
+                        recalculateAllChannelsLive({ incPkg: checked });
                       }}
                     />
-                    <span>📦 Sumar Material de Empaque / Etiqueta</span>
+                    <span>📦 Empaque y Etiqueta</span>
                   </label>
                   <span className="font-bold text-xs text-primary-sage">
                     + {formatCurrency(watchedPackCost)}
                   </span>
                 </div>
-
-                {includePackaging && (
-                  <>
-                    <div className="border rounded bg-white p-1.5 max-h-28 overflow-y-auto flex flex-col gap-1 text-xs mb-2">
-                      {pkgs.map((pkg) => {
-                        const isSelected = selectedPackagingIds.includes(pkg.id);
-                        return (
-                          <div
-                            key={pkg.id}
-                            onClick={() => togglePackagingSelection(pkg.id)}
-                            className={`flex items-center justify-between p-1 rounded cursor-pointer transition select-none ${
-                              isSelected 
-                                ? 'bg-green-50 border border-primary-sage text-primary-sage font-semibold' 
-                                : 'hover:bg-gray-50 text-text-dark'
-                            }`}
-                          >
-                            <div className="flex items-center gap-1.5">
-                              {isSelected ? <CheckSquare size={13} className="text-primary-sage" /> : <Square size={13} className="text-text-muted" />}
-                              <span>{pkg.name}</span>
-                            </div>
-                            <span className="font-bold">${pkg.costPerUnit?.toLocaleString('es-AR')}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span>Costo Empaque Manual ($):</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        className="input text-right font-semibold w-28 py-1 text-xs"
-                        {...register('packagingLabelCost')}
-                      />
-                    </div>
-                  </>
+                {showStepHelp && (
+                  <p className="text-[11px] text-text-muted m-0 mt-1">
+                    Suma bolsa doypack, frasco o etiqueta. Si está destildado suma $0.
+                  </p>
                 )}
               </div>
 
-              {/* Sub-bloque Mano de Obra */}
-              <div className={`p-2.5 rounded border flex flex-col justify-between ${includeLabor ? 'bg-bg-linen border-primary-sage/40' : 'bg-gray-50 opacity-75'}`}>
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="flex items-center gap-2 text-xs font-bold text-text-dark cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={includeLabor}
-                        onChange={(e) => {
-                          const checked = e.target.checked;
-                          setIncludeLabor(checked);
-                          if (checked && Number(watch('laborCost')) === 0) {
-                            setValue('laborCost', 150);
-                          }
-                        }}
-                      />
-                      <span>👩‍🍳 Sumar Mano de Obra de Fraccionado</span>
-                    </label>
-                    <span className="font-bold text-xs text-primary-sage">
-                      + {formatCurrency(watchedLaborCost)}
-                    </span>
+              {includePackaging && (
+                <div className="mt-2 pt-2 border-t flex flex-col gap-2">
+                  <div className="border rounded bg-bg-linen p-1.5 max-h-24 overflow-y-auto flex flex-col gap-1 text-xs">
+                    {pkgs.map((pkg) => {
+                      const isSelected = selectedPackagingIds.includes(pkg.id);
+                      return (
+                        <div
+                          key={pkg.id}
+                          onClick={() => togglePackagingSelection(pkg.id)}
+                          className={`flex items-center justify-between p-1 rounded cursor-pointer transition select-none ${
+                            isSelected 
+                              ? 'bg-green-50 border border-primary-sage text-primary-sage font-semibold' 
+                              : 'hover:bg-white text-text-dark'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            {isSelected ? <CheckSquare size={12} className="text-primary-sage" /> : <Square size={12} className="text-text-muted" />}
+                            <span>{pkg.name}</span>
+                          </div>
+                          <span className="font-bold">${pkg.costPerUnit?.toLocaleString('es-AR')}</span>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <p className="text-[11px] text-text-muted m-0">
-                    Tiempo de envasado, pesado y etiquetado. En productos de reventa suele ser $0.
-                  </p>
-                </div>
-
-                {includeLabor && (
-                  <div className="flex items-center justify-between text-xs mt-2 pt-2 border-t">
-                    <span>Monto Mano de Obra por unidad ($):</span>
+                  <div className="flex items-center justify-between text-xs">
+                    <span>Costo Empaque ($):</span>
                     <input
                       type="number"
                       step="0.01"
                       className="input text-right font-semibold w-28 py-1 text-xs"
-                      {...register('laborCost')}
+                      {...register('packagingLabelCost', {
+                        onChange: (e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          recalculateAllChannelsLive({ incPkg: true, pkgCost: val });
+                        }
+                      })}
                     />
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* =====================================================================
-              ESCALÓN 3 Y 4: COSTOS FIJOS E IMPUESTOS (100% OPCIONALES Y VISIBLES)
-             ===================================================================== */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Escalón 3: Costos Fijos */}
-            <div className={`border rounded-lg p-3 bg-white shadow-sm flex flex-col justify-between ${includeFixedCosts ? 'border-primary-sage' : ''}`}>
+            {/* Escalón 2B: Mano de Obra */}
+            <div className={`border rounded-lg p-3 bg-white shadow-sm flex flex-col justify-between ${includeLabor ? 'border-primary-sage' : 'opacity-80'}`}>
               <div>
-                <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center justify-between">
                   <label className="flex items-center gap-2 text-xs font-bold text-text-dark cursor-pointer">
                     <span className="w-5 h-5 rounded-full bg-primary-sage text-white text-[11px] font-bold flex items-center justify-center">
                       3
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={includeLabor}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIncludeLabor(checked);
+                        let lVal = Number(watch('laborCost')) || 0;
+                        if (checked && lVal === 0) {
+                          lVal = 150;
+                          setValue('laborCost', lVal);
+                        }
+                        recalculateAllChannelsLive({ incLabor: checked, laborCost: lVal });
+                      }}
+                    />
+                    <span>👩‍🍳 Mano de Obra Fraccionado</span>
+                  </label>
+                  <span className="font-bold text-xs text-primary-sage">
+                    + {formatCurrency(watchedLaborCost)}
+                  </span>
+                </div>
+                {showStepHelp && (
+                  <p className="text-[11px] text-text-muted m-0 mt-1">
+                    Tiempo de fraccionado/armado por unidad. En reventa suele ser $0.
+                  </p>
+                )}
+              </div>
+
+              {includeLabor && (
+                <div className="flex items-center justify-between text-xs mt-2 pt-2 border-t">
+                  <span>Mano de Obra por unidad ($):</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="input text-right font-semibold w-28 py-1 text-xs"
+                    {...register('laborCost', {
+                      onChange: (e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        recalculateAllChannelsLive({ incLabor: true, laborCost: val });
+                      }
+                    })}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Escalón 4: Costos Fijos Prorrateados */}
+            <div className={`border rounded-lg p-3 bg-white shadow-sm flex flex-col justify-between ${includeFixedCosts ? 'border-primary-sage' : 'opacity-80'}`}>
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 text-xs font-bold text-text-dark cursor-pointer">
+                    <span className="w-5 h-5 rounded-full bg-primary-sage text-white text-[11px] font-bold flex items-center justify-center">
+                      4
                     </span>
                     <input
                       type="checkbox"
@@ -1265,22 +1391,25 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
                       onChange={(e) => {
                         const checked = e.target.checked;
                         setIncludeFixedCosts(checked);
-                        if (checked && Number(watch('allocatedFixedCosts')) === 0) {
-                          setValue('allocatedFixedCosts', 250);
+                        let fVal = Number(watch('allocatedFixedCosts')) || 0;
+                        if (checked && fVal === 0) {
+                          fVal = 250;
+                          setValue('allocatedFixedCosts', fVal);
                         }
+                        recalculateAllChannelsLive({ incFixed: checked, fixedCost: fVal });
                       }}
                     />
-                    <span>🏢 Sumar Costos Fijos Prorrateados</span>
+                    <span>🏢 Costos Fijos Prorrateados</span>
                   </label>
                   <span className="font-bold text-xs text-primary-sage">
                     + {formatCurrency(watchedFixedCost)}
                   </span>
                 </div>
-                <p className="text-[11px] text-text-muted m-0">
-                  {includeFixedCosts
-                    ? 'Suma una porción de alquiler/servicios a cada unidad.'
-                    : 'Desactivado ($0). No se suma ningún costo fijo oculto.'}
-                </p>
+                {showStepHelp && (
+                  <p className="text-[11px] text-text-muted m-0 mt-1">
+                    Cuota de alquiler/servicios por unidad. Destildado suma $0.
+                  </p>
+                )}
               </div>
               {includeFixedCosts && (
                 <div className="flex items-center justify-between text-xs mt-2 pt-2 border-t">
@@ -1289,147 +1418,182 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
                     type="number"
                     step="0.01"
                     className="input text-right font-semibold w-28 py-1 text-xs"
-                    {...register('allocatedFixedCosts')}
+                    {...register('allocatedFixedCosts', {
+                      onChange: (e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        recalculateAllChannelsLive({ incFixed: true, fixedCost: val });
+                      }
+                    })}
                   />
                 </div>
               )}
             </div>
 
-            {/* Escalón 4: Impuestos / Comisiones */}
-            <div className={`border rounded-lg p-3 bg-white shadow-sm flex flex-col justify-between ${includeTaxesAndCommissions ? 'border-primary-sage' : ''}`}>
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="flex items-center gap-2 text-xs font-bold text-text-dark cursor-pointer">
-                    <span className="w-5 h-5 rounded-full bg-primary-sage text-white text-[11px] font-bold flex items-center justify-center">
-                      4
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={includeTaxesAndCommissions}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setIncludeTaxesAndCommissions(checked);
-                        if (checked && Number(watch('taxPercentage')) === 0) {
-                          setValue('taxPercentage', 21);
-                        }
-                      }}
-                    />
-                    <span>🏛️ Incluir Impuestos / Comisiones (%)</span>
-                  </label>
-                  <span className="font-bold text-xs text-amber-700">
-                    {includeTaxesAndCommissions ? `${watchedTaxPct}% Imp.` : '0% (Directo)'}
+            {/* Escalón 5: Impuestos y Comisiones (Con switches independientes, sin mezclar) */}
+            <div className="border rounded-lg p-3 bg-white shadow-sm flex flex-col gap-2">
+              {/* Sub-switch Impuestos */}
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 text-xs font-bold text-text-dark cursor-pointer">
+                  <span className="w-5 h-5 rounded-full bg-primary-sage text-white text-[11px] font-bold flex items-center justify-center">
+                    5
                   </span>
-                </div>
-                <p className="text-[11px] text-text-muted m-0">
-                  {includeTaxesAndCommissions
-                    ? 'Se adiciona el porcentaje impositivo al precio sugerido.'
-                    : 'Desactivado (0%). El precio se calcula directo: Costo + % Recargo.'}
-                </p>
-              </div>
-              {includeTaxesAndCommissions && (
-                <div className="flex items-center justify-between text-xs mt-2 pt-2 border-t">
-                  <span>% Impuestos / IVA sobre venta:</span>
                   <input
-                    type="number"
-                    step="0.1"
-                    className="input text-right font-semibold w-24 py-1 text-xs"
-                    {...register('taxPercentage')}
+                    type="checkbox"
+                    checked={includeTaxes}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIncludeTaxes(checked);
+                      let tVal = Number(watch('taxPercentage')) || 0;
+                      if (checked && tVal === 0) {
+                        tVal = 21;
+                        setValue('taxPercentage', tVal);
+                      }
+                      recalculateAllChannelsLive({ incTax: checked, taxPct: tVal });
+                    }}
                   />
-                </div>
+                  <span>🏛️ Impuestos sobre Venta (%)</span>
+                </label>
+                {includeTaxes ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      step="0.1"
+                      className="input text-right font-bold w-20 py-0.5 px-1.5 text-xs"
+                      {...register('taxPercentage', {
+                        onChange: (e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          recalculateAllChannelsLive({ incTax: true, taxPct: val });
+                        }
+                      })}
+                    />
+                    <span className="text-xs font-bold text-amber-700">%</span>
+                  </div>
+                ) : (
+                  <span className="text-xs text-text-muted font-medium">0% (Sin impuestos)</span>
+                )}
+              </div>
+
+              {/* Sub-switch Comisiones de Canal (separado de Impuestos) */}
+              <div className="flex items-center justify-between pt-1.5 border-t">
+                <label className="flex items-center gap-2 text-xs font-bold text-text-dark cursor-pointer">
+                  <span className="w-5 h-5 rounded-full bg-purple-700 text-white text-[11px] font-bold flex items-center justify-center">
+                    6
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={includeCommissions}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIncludeCommissions(checked);
+                      recalculateAllChannelsLive({ incComm: checked });
+                    }}
+                  />
+                  <span>💳 Comisiones por Canal (%)</span>
+                </label>
+                <span className="text-xs font-medium text-purple-700">
+                  {includeCommissions ? 'Habilitado por canal' : '0% (Sin comisión en precio)'}
+                </span>
+              </div>
+
+              {showStepHelp && (
+                <p className="text-[11px] text-text-muted m-0">
+                  Impuestos y Comisiones se calculan por separado. Si están destildados no alteran el precio ni descuentan ganancia.
+                </p>
               )}
             </div>
           </div>
 
-          {/* Banner Resumen de Costo Total (Punto de Equilibrio) */}
-          <div className="p-3 bg-primary-sage/10 rounded-lg border border-primary-sage flex justify-between items-center flex-wrap gap-2">
+          {/* Banner Resumen de Costo Total Unitario */}
+          <div className="p-2.5 bg-primary-sage/10 rounded-lg border border-primary-sage flex justify-between items-center flex-wrap gap-2">
             <div className="text-xs text-text-dark">
-              <strong>Cuenta del Costo Total Unitario:</strong>{' '}
-              Compra/MP (<strong>{formatCurrency(watchedRawCost)}</strong>)
+              <strong>Suma de Costo Unitario:</strong>{' '}
+              Base (<strong>{formatCurrency(watchedRawCost)}</strong>)
               {watchedPackCost > 0 ? ` + Empaque (${formatCurrency(watchedPackCost)})` : ''}
               {watchedLaborCost > 0 ? ` + Mano de Obra (${formatCurrency(watchedLaborCost)})` : ''}
-              {watchedFixedCost > 0 ? ` + Costos Fijos (${formatCurrency(watchedFixedCost)})` : ''}
+              {watchedFixedCost > 0 ? ` + Fijos (${formatCurrency(watchedFixedCost)})` : ''}
             </div>
-            <div className="text-base font-bold text-primary-sage">
+            <div className="text-sm font-bold text-primary-sage">
               = COSTO TOTAL UNITARIO: {formatCurrency(totalUnitCost)}
             </div>
           </div>
 
           {/* =====================================================================
-              ESCALÓN 5: FORMACIÓN BIDIRECCIONAL DEL PRECIO Y GANANCIA POR CANAL
+              PRECIOS DE VENTA POR CANAL (CÁLCULO BIDIRECCIONAL EN VIVO)
              ===================================================================== */}
-          <div className="flex items-center justify-between border-b pb-1 mt-1">
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-primary-sage text-white text-xs font-bold flex items-center justify-center">
-                5
-              </span>
-              <h4 className="font-bold text-sm text-text-dark m-0">
-                Formación del Precio de Venta (Cálculo Bidireccional: % Recargo ⇄ Precio Final $)
-              </h4>
-            </div>
+          <div className="flex items-center justify-between border-b pb-1">
+            <h4 className="font-bold text-sm text-text-dark m-0">
+              Formación del Precio de Venta por Canal (% Recargo ⇄ Precio Final $)
+            </h4>
             <button
               type="button"
               className="btn btn-secondary btn-sm text-xs py-1 px-2.5"
-              onClick={() => {
-                setValue('mostradorFinalPrice', mostradorCalc.suggested);
-                setValue('whatsappFinalPrice', whatsappCalc.suggested);
-                setValue('onlineFinalPrice', onlineCalc.suggested);
-              }}
-              title="Adoptar los precios sugeridos según el % de recargo actual"
+              onClick={() => recalculateAllChannelsLive()}
+              title="Recalcular los precios finales según los escalones activos y el % de recargo"
             >
               ⚡ Aplicar Precios Sugeridos
             </button>
           </div>
 
           {/* Canal 1: Mostrador */}
-          <div className="p-3.5 border rounded-lg bg-white shadow-sm">
+          <div className="p-3 border rounded-lg bg-white shadow-sm">
             <div className="flex justify-between items-center mb-2">
               <span className="font-bold text-sm text-text-dark">🏪 Canal 1: Mostrador / Venta Presencial</span>
               <span className="text-xs bg-green-50 text-primary-sage px-2 py-0.5 rounded font-semibold border border-green-200">
-                Sugerido por fórmula: {formatCurrency(mostradorCalc.suggested)}
+                Sugerido: {formatCurrency(mostradorCalc.suggested)}
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
               <div>
                 <label className="mb-1 block font-semibold text-text-dark">
-                  + % Recargo sobre Costo ({formatCurrency(totalUnitCost)})
+                  + % Recargo s/Costo ({formatCurrency(totalUnitCost)})
                 </label>
                 <input
                   type="number"
                   step="0.5"
-                  className="input font-bold text-primary-sage"
+                  className="input font-bold text-primary-sage py-1"
                   {...register('mostradorMarginPct', {
                     onChange: (e) => {
                       const pct = parseFloat(e.target.value) || 0;
-                      const ded = (watchedTaxPct + (includeTaxesAndCommissions ? Number(watch('mostradorCommissionPct') || 0) : 0)) / 100;
-                      const base = totalUnitCost * (1 + pct / 100);
-                      const nextPrice = ded > 0 && ded < 1 ? Math.round(base / (1 - ded)) : Math.round(base);
-                      setValue('mostradorFinalPrice', nextPrice);
+                      const mComm = includeCommissions ? (Number(watch('mostradorCommissionPct')) || 0) : 0;
+                      setValue('mostradorFinalPrice', computeSuggestedChannelPrice(totalUnitCost, pct, watchedTaxPct, mComm));
                     }
                   })}
                 />
               </div>
-              {includeTaxesAndCommissions && (
+              {includeCommissions && (
                 <div>
-                  <label className="mb-1 block font-medium text-text-muted">% Comisión Canal</label>
-                  <input type="number" step="0.5" className="input" {...register('mostradorCommissionPct')} />
+                  <label className="mb-1 block font-semibold text-purple-800">% Comisión Mostrador</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    className="input py-1"
+                    {...register('mostradorCommissionPct', {
+                      onChange: (e) => {
+                        const comm = parseFloat(e.target.value) || 0;
+                        const pct = Number(watch('mostradorMarginPct')) || 0;
+                        setValue('mostradorFinalPrice', computeSuggestedChannelPrice(totalUnitCost, pct, watchedTaxPct, comm));
+                      }
+                    })}
+                  />
                 </div>
               )}
-              <div className={includeTaxesAndCommissions ? '' : 'md:col-span-2'}>
+              <div className={includeCommissions ? '' : 'md:col-span-2'}>
                 <label className="mb-1 block font-bold text-text-dark">
-                  = Precio Final de Venta ($) <span className="font-normal text-text-muted">(Editable: recalcula tu % de ganancia)</span>
+                  = Precio Final de Venta ($)
                 </label>
                 <input
                   type="number"
                   step="1"
                   placeholder={mostradorCalc.suggested.toString()}
-                  className="input font-bold border-primary-sage text-base"
+                  className="input font-bold border-primary-sage py-1"
                   {...register('mostradorFinalPrice', {
                     onChange: (e) => {
                       const priceVal = parseFloat(e.target.value) || 0;
                       if (totalUnitCost > 0 && priceVal > 0) {
-                        const ded = (watchedTaxPct + (includeTaxesAndCommissions ? Number(watch('mostradorCommissionPct') || 0) : 0)) / 100;
-                        const netAfterTax = priceVal * (1 - ded);
-                        const newPct = Number((((netAfterTax - totalUnitCost) / totalUnitCost) * 100).toFixed(1));
+                        const mComm = includeCommissions ? (Number(watch('mostradorCommissionPct')) || 0) : 0;
+                        const ded = (watchedTaxPct + mComm) / 100;
+                        const netAfterDeductions = priceVal * (1 - ded);
+                        const newPct = Number((((netAfterDeductions - totalUnitCost) / totalUnitCost) * 100).toFixed(1));
                         setValue('mostradorMarginPct', newPct);
                       }
                     }
@@ -1441,55 +1605,65 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
           </div>
 
           {/* Canal 2: WhatsApp */}
-          <div className="p-3.5 border rounded-lg bg-white shadow-sm">
+          <div className="p-3 border rounded-lg bg-white shadow-sm">
             <div className="flex justify-between items-center mb-2">
               <span className="font-bold text-sm text-text-dark">📱 Canal 2: WhatsApp / Pedidos Directos</span>
               <span className="text-xs bg-green-50 text-primary-sage px-2 py-0.5 rounded font-semibold border border-green-200">
-                Sugerido por fórmula: {formatCurrency(whatsappCalc.suggested)}
+                Sugerido: {formatCurrency(whatsappCalc.suggested)}
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
               <div>
                 <label className="mb-1 block font-semibold text-text-dark">
-                  + % Recargo sobre Costo ({formatCurrency(totalUnitCost)})
+                  + % Recargo s/Costo ({formatCurrency(totalUnitCost)})
                 </label>
                 <input
                   type="number"
                   step="0.5"
-                  className="input font-bold text-primary-sage"
+                  className="input font-bold text-primary-sage py-1"
                   {...register('whatsappMarginPct', {
                     onChange: (e) => {
                       const pct = parseFloat(e.target.value) || 0;
-                      const ded = (watchedTaxPct + (includeTaxesAndCommissions ? Number(watch('whatsappCommissionPct') || 0) : 0)) / 100;
-                      const base = totalUnitCost * (1 + pct / 100);
-                      const nextPrice = ded > 0 && ded < 1 ? Math.round(base / (1 - ded)) : Math.round(base);
-                      setValue('whatsappFinalPrice', nextPrice);
+                      const wComm = includeCommissions ? (Number(watch('whatsappCommissionPct')) || 0) : 0;
+                      setValue('whatsappFinalPrice', computeSuggestedChannelPrice(totalUnitCost, pct, watchedTaxPct, wComm));
                     }
                   })}
                 />
               </div>
-              {includeTaxesAndCommissions && (
+              {includeCommissions && (
                 <div>
-                  <label className="mb-1 block font-medium text-text-muted">% Comisión Canal</label>
-                  <input type="number" step="0.5" className="input" {...register('whatsappCommissionPct')} />
+                  <label className="mb-1 block font-semibold text-purple-800">% Comisión WhatsApp</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    className="input py-1"
+                    {...register('whatsappCommissionPct', {
+                      onChange: (e) => {
+                        const comm = parseFloat(e.target.value) || 0;
+                        const pct = Number(watch('whatsappMarginPct')) || 0;
+                        setValue('whatsappFinalPrice', computeSuggestedChannelPrice(totalUnitCost, pct, watchedTaxPct, comm));
+                      }
+                    })}
+                  />
                 </div>
               )}
-              <div className={includeTaxesAndCommissions ? '' : 'md:col-span-2'}>
+              <div className={includeCommissions ? '' : 'md:col-span-2'}>
                 <label className="mb-1 block font-bold text-text-dark">
-                  = Precio Final de Venta ($) <span className="font-normal text-text-muted">(Editable: recalcula tu % de ganancia)</span>
+                  = Precio Final de Venta ($)
                 </label>
                 <input
                   type="number"
                   step="1"
                   placeholder={whatsappCalc.suggested.toString()}
-                  className="input font-bold"
+                  className="input font-bold py-1"
                   {...register('whatsappFinalPrice', {
                     onChange: (e) => {
                       const priceVal = parseFloat(e.target.value) || 0;
                       if (totalUnitCost > 0 && priceVal > 0) {
-                        const ded = (watchedTaxPct + (includeTaxesAndCommissions ? Number(watch('whatsappCommissionPct') || 0) : 0)) / 100;
-                        const netAfterTax = priceVal * (1 - ded);
-                        const newPct = Number((((netAfterTax - totalUnitCost) / totalUnitCost) * 100).toFixed(1));
+                        const wComm = includeCommissions ? (Number(watch('whatsappCommissionPct')) || 0) : 0;
+                        const ded = (watchedTaxPct + wComm) / 100;
+                        const netAfterDeductions = priceVal * (1 - ded);
+                        const newPct = Number((((netAfterDeductions - totalUnitCost) / totalUnitCost) * 100).toFixed(1));
                         setValue('whatsappMarginPct', newPct);
                       }
                     }
@@ -1501,55 +1675,65 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
           </div>
 
           {/* Canal 3: Tienda Online */}
-          <div className="p-3.5 border rounded-lg bg-white shadow-sm">
+          <div className="p-3 border rounded-lg bg-white shadow-sm">
             <div className="flex justify-between items-center mb-2">
               <span className="font-bold text-sm text-text-dark">🌐 Canal 3: Tienda Online / E-commerce</span>
               <span className="text-xs bg-green-50 text-primary-sage px-2 py-0.5 rounded font-semibold border border-green-200">
-                Sugerido por fórmula: {formatCurrency(onlineCalc.suggested)}
+                Sugerido: {formatCurrency(onlineCalc.suggested)}
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
               <div>
                 <label className="mb-1 block font-semibold text-text-dark">
-                  + % Recargo sobre Costo ({formatCurrency(totalUnitCost)})
+                  + % Recargo s/Costo ({formatCurrency(totalUnitCost)})
                 </label>
                 <input
                   type="number"
                   step="0.5"
-                  className="input font-bold text-primary-sage"
+                  className="input font-bold text-primary-sage py-1"
                   {...register('onlineMarginPct', {
                     onChange: (e) => {
                       const pct = parseFloat(e.target.value) || 0;
-                      const ded = (watchedTaxPct + (includeTaxesAndCommissions ? Number(watch('onlineCommissionPct') || 0) : 0)) / 100;
-                      const base = totalUnitCost * (1 + pct / 100);
-                      const nextPrice = ded > 0 && ded < 1 ? Math.round(base / (1 - ded)) : Math.round(base);
-                      setValue('onlineFinalPrice', nextPrice);
+                      const oComm = includeCommissions ? (Number(watch('onlineCommissionPct')) || 0) : 0;
+                      setValue('onlineFinalPrice', computeSuggestedChannelPrice(totalUnitCost, pct, watchedTaxPct, oComm));
                     }
                   })}
                 />
               </div>
-              {includeTaxesAndCommissions && (
+              {includeCommissions && (
                 <div>
-                  <label className="mb-1 block font-medium text-text-muted">% Comisión Pasarela</label>
-                  <input type="number" step="0.5" className="input" {...register('onlineCommissionPct')} />
+                  <label className="mb-1 block font-semibold text-purple-800">% Comisión Pasarela</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    className="input py-1"
+                    {...register('onlineCommissionPct', {
+                      onChange: (e) => {
+                        const comm = parseFloat(e.target.value) || 0;
+                        const pct = Number(watch('onlineMarginPct')) || 0;
+                        setValue('onlineFinalPrice', computeSuggestedChannelPrice(totalUnitCost, pct, watchedTaxPct, comm));
+                      }
+                    })}
+                  />
                 </div>
               )}
-              <div className={includeTaxesAndCommissions ? '' : 'md:col-span-2'}>
+              <div className={includeCommissions ? '' : 'md:col-span-2'}>
                 <label className="mb-1 block font-bold text-text-dark">
-                  = Precio Final de Venta ($) <span className="font-normal text-text-muted">(Editable: recalcula tu % de ganancia)</span>
+                  = Precio Final de Venta ($)
                 </label>
                 <input
                   type="number"
                   step="1"
                   placeholder={onlineCalc.suggested.toString()}
-                  className="input font-bold"
+                  className="input font-bold py-1"
                   {...register('onlineFinalPrice', {
                     onChange: (e) => {
                       const priceVal = parseFloat(e.target.value) || 0;
                       if (totalUnitCost > 0 && priceVal > 0) {
-                        const ded = (watchedTaxPct + (includeTaxesAndCommissions ? Number(watch('onlineCommissionPct') || 0) : 0)) / 100;
-                        const netAfterTax = priceVal * (1 - ded);
-                        const newPct = Number((((netAfterTax - totalUnitCost) / totalUnitCost) * 100).toFixed(1));
+                        const oComm = includeCommissions ? (Number(watch('onlineCommissionPct')) || 0) : 0;
+                        const ded = (watchedTaxPct + oComm) / 100;
+                        const netAfterDeductions = priceVal * (1 - ded);
+                        const newPct = Number((((netAfterDeductions - totalUnitCost) / totalUnitCost) * 100).toFixed(1));
                         setValue('onlineMarginPct', newPct);
                       }
                     }
@@ -1560,7 +1744,7 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
             {renderPriceBreakdownBar(onlineCalc)}
           </div>
 
-          <div className="form-actions flex justify-end gap-3 mt-2 border-t pt-4">
+          <div className="form-actions flex justify-end gap-3 mt-1 border-t pt-3">
             <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary">Cancelar</button>
             <button type="submit" className="btn btn-primary" disabled={savePricing.isPending}>
               {savePricing.isPending ? 'Guardando...' : '💾 Guardar Precios y Actualizar Catálogo'}

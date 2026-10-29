@@ -15,6 +15,18 @@ export interface CreateOrderDTO {
   totalAmount: number;
   paymentMethod: string;
   channel?: string;
+  sellerId?: string;
+  sellerName?: string;
+  notes?: string;
+}
+
+export interface UpdateOrderDetailsDTO {
+  status?: string;
+  paymentStatus?: string;
+  paymentMethod?: string;
+  sellerId?: string;
+  sellerName?: string;
+  channel?: string;
   notes?: string;
 }
 
@@ -23,9 +35,15 @@ export interface Order {
   orderNumber?: string;
   customerId?: string;
   customerName?: string;
+  sellerId?: string;
+  sellerName?: string;
+  channel?: string;
   totalAmount: number;
   status: string;
+  paymentStatus?: string;
   paymentMethod: string;
+  commissionAmount?: number;
+  notes?: string;
   createdAt: string;
   items: OrderItem[];
 }
@@ -74,6 +92,14 @@ export async function updateOrderStatus(id: string, status: string): Promise<Ord
   const res = await apiRequest<any>(`/sales/orders/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),
+  });
+  return res.data || res;
+}
+
+export async function updateOrderDetails(id: string, data: UpdateOrderDetailsDTO): Promise<Order> {
+  const res = await apiRequest<any>(`/sales/orders/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
   });
   return res.data || res;
 }

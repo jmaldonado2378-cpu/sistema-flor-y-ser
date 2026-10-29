@@ -41,10 +41,15 @@ export class CustomerService {
   constructor(private db: any) {}
 
   /**
-   * Persistencia estricta: ya NO se insertan clientes de ejemplo en la base real.
-   * Se mantiene el método por compatibilidad con otros servicios que lo invocan.
+   * Garantiza que la columna preferred_channel soporte cualquier Origen del Contacto (VARCHAR 100 en lugar de ENUM).
    */
   public async ensureSeedCustomers(): Promise<void> {
+    if (this.seeded) return;
+    try {
+      await this.db.query(`ALTER TABLE customers MODIFY COLUMN preferred_channel VARCHAR(100) NOT NULL DEFAULT 'LOCAL'`);
+    } catch {
+      // Ya es VARCHAR o la tabla aún no existe
+    }
     this.seeded = true;
   }
 
@@ -80,6 +85,8 @@ export class CustomerService {
     if (!dto.firstName || !dto.lastName || !dto.phoneWhatsapp) {
       throw new Error('Nombre, apellido y número de WhatsApp son obligatorios para registrar un cliente.');
     }
+
+    await this.ensureSeedCustomers();
 
     const customerId = uuidv4();
     const cleanPhone = dto.phoneWhatsapp.trim().replace(/\s+/g, '');
@@ -324,6 +331,7 @@ export class CustomerService {
    * Actualiza datos de un cliente existente y sus preferencias dietéticas.
    */
   async updateCustomer(customerId: string, dto: UpdateCustomerDTO): Promise<UnifiedCustomerProfile> {
+    await this.ensureSeedCustomers();
     const existing = await this.getUnifiedProfile(customerId);
 
     const firstName = dto.firstName !== undefined ? dto.firstName.trim() : existing.firstName;

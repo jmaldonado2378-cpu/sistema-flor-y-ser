@@ -19,6 +19,33 @@ const DIETARY_OPTIONS = [
   { id: '10000000-0000-0000-0000-000000000004', code: 'DIABETIC', name: 'Apto Diabéticos' },
 ];
 
+const DEFAULT_CONTACT_ORIGINS: { code: string; label: string }[] = [
+  { code: 'REFERIDO', label: '🤝 Referido / Recomendación' },
+  { code: 'INSTAGRAM', label: '📷 Instagram' },
+  { code: 'WHATSAPP', label: '📱 WhatsApp' },
+  { code: 'LOCAL', label: '🏪 Paso por el Local / Mostrador' },
+  { code: 'FERIA', label: '🎪 Feria / Evento' },
+  { code: 'ONLINE_STORE', label: '🌐 Google / Tienda Web' },
+  { code: 'FACEBOOK', label: '📘 Facebook' },
+  { code: 'OTRO', label: '📌 Otro' },
+];
+
+function extractReferredBy(notes?: string): { referredBy: string; cleanNotes: string } {
+  if (!notes) return { referredBy: '', cleanNotes: '' };
+  const match = notes.match(/\[Referido por:\s*([^\]]+)\]/i);
+  const referredBy = match ? match[1].trim() : '';
+  const cleanNotes = notes.replace(/\[Referido por:\s*[^\]]+\]\s*/gi, '').trim();
+  return { referredBy, cleanNotes };
+}
+
+function buildNotesWithReferral(cleanNotes?: string, referredBy?: string, origin?: string): string | undefined {
+  const base = (cleanNotes || '').replace(/\[Referido por:\s*[^\]]+\]\s*/gi, '').trim();
+  if (origin === 'REFERIDO' && referredBy && referredBy.trim()) {
+    return base ? `[Referido por: ${referredBy.trim()}] ${base}` : `[Referido por: ${referredBy.trim()}]`;
+  }
+  return base || undefined;
+}
+
 const customerSchema = z.object({
   firstName: z.string().min(1, 'El nombre es requerido'),
   lastName: z.string().min(1, 'El apellido es requerido'),
@@ -45,8 +72,19 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
   const [channelFilter, setChannelFilter] = useState('');
   const [dietaryFilter, setDietaryFilter] = useState('');
 
-  // Selected Dietary Profiles for Form
+  // Selected Dietary Profiles & Referral / Custom Origin States
   const [selectedDietaryIds, setSelectedDietaryIds] = useState<string[]>([]);
+  const [referredByInput, setReferredByInput] = useState('');
+  const [customOrigins, setCustomOrigins] = useState<{ code: string; label: string }[]>(() => {
+    try {
+      const saved = localStorage.getItem('floryser_custom_contact_origins');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [showNewOriginInput, setShowNewOriginInput] = useState(false);
+  const [newOriginName, setNewOriginName] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const { data: customerResult, isLoading, isError, refetch } = useCustomers();
@@ -54,12 +92,52 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
   const updateCustomer = useUpdateCustomer();
   const deleteCustomer = useDeleteCustomer();
 
-  const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<CustomerFormValues>({
+  const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema),
     defaultValues: {
-      preferredChannel: 'LOCAL'
+      preferredChannel: 'REFERIDO'
     }
   });
+
+  const watchedOrigin = watch('preferredChannel');
+
+  const allContactOrigins = React.useMemo(() => {
+    const map = new Map<string, string>();
+    DEFAULT_CONTACT_ORIGINS.forEach(o => map.set(o.code, o.label));
+    customOrigins.forEach(o => map.set(o.code, o.label));
+    const list: Customer[] = customerResult?.data || [];
+    list.forEach(c => {
+      const code = c.preferredChannel;
+      if (code && !map.has(code)) {
+        map.set(code, `📌 ${code}`);
+      }
+    });
+    return Array.from(map.entries()).map(([code, label]) => ({ code, label }));
+  }, [customOrigins, customerResult]);
+
+  const formatOriginBadge = (code?: string) => {
+    if (!code) return '🏪 Paso por el Local';
+    const found = allContactOrigins.find(o => o.code === code);
+    if (found) return found.label;
+    return `📌 ${code}`;
+  };
+
+  const handleAddCustomOrigin = () => {
+    const clean = newOriginName.trim();
+    if (!clean) return;
+    const code = clean.toUpperCase().replace(/\s+/g, '_');
+    const entry = { code, label: `📌 ${clean}` };
+    const updated = [...customOrigins.filter(o => o.code !== code), entry];
+    setCustomOrigins(updated);
+    try {
+      localStorage.setItem('floryser_custom_contact_origins', JSON.stringify(updated));
+    } catch {
+      // ignore storage errors
+    }
+    setValue('preferredChannel', code);
+    setNewOriginName('');
+    setShowNewOriginInput(false);
+  };
 
   const handleOpenCreateModal = () => {
     reset({
@@ -70,10 +148,12 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
       instagram: '',
       address: '',
       birthDate: '',
-      preferredChannel: 'LOCAL',
+      preferredChannel: 'INSTAGRAM',
       notes: ''
     });
     setSelectedDietaryIds([]);
+    setReferredByInput('');
+    setShowNewOriginInput(false);
     setErrorMessage(null);
     setIsCreateModalOpen(true);
   };
@@ -88,6 +168,10 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
       lName = parts.slice(1).join(' ') || '';
     }
 
+    const { referredBy, cleanNotes } = extractReferredBy((customer as any).notes || '');
+    setReferredByInput(referredBy);
+    setShowNewOriginInput(false);
+
     reset({
       firstName: fName,
       lastName: lName,
@@ -96,8 +180,8 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
       instagram: customer.instagram || '',
       address: customer.address || '',
       birthDate: customer.birthDate ? customer.birthDate.split('T')[0] : '',
-      preferredChannel: customer.preferredChannel || (customer as any).channelPreference || 'LOCAL',
-      notes: (customer as any).notes || ''
+      preferredChannel: customer.preferredChannel || (customer as any).channelPreference || (referredBy ? 'REFERIDO' : 'LOCAL'),
+      notes: cleanNotes
     });
     const currentDietIds = (customer.dietaryProfiles || []).map((p: any) => typeof p === 'string' ? p : p.id || p.code);
     setSelectedDietaryIds(currentDietIds);
@@ -112,6 +196,7 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
 
   const onSubmitCreate = (data: CustomerFormValues) => {
     setErrorMessage(null);
+    const origin = data.preferredChannel || 'LOCAL';
     const dto: CreateCustomerDTO & { dietaryProfileIds?: string[] } = {
       firstName: data.firstName.trim(),
       lastName: data.lastName.trim(),
@@ -120,8 +205,8 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
       instagram: data.instagram?.trim() || undefined,
       address: data.address?.trim() || undefined,
       birthDate: data.birthDate || undefined,
-      preferredChannel: data.preferredChannel || 'LOCAL',
-      notes: data.notes?.trim() || undefined,
+      preferredChannel: origin,
+      notes: buildNotesWithReferral(data.notes, referredByInput, origin),
       dietaryProfileIds: selectedDietaryIds
     };
 
@@ -129,6 +214,7 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
       onSuccess: () => {
         setIsCreateModalOpen(false);
         reset();
+        setReferredByInput('');
       },
       onError: (err: any) => {
         setErrorMessage(err.message || 'Error al registrar el cliente. Verifique si el teléfono ya existe.');
@@ -140,6 +226,7 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
     if (!editingCustomer) return;
     setErrorMessage(null);
 
+    const origin = data.preferredChannel || 'LOCAL';
     const dto = {
       firstName: data.firstName.trim(),
       lastName: data.lastName.trim(),
@@ -148,8 +235,8 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
       instagram: data.instagram?.trim() || undefined,
       address: data.address?.trim() || undefined,
       birthDate: data.birthDate || undefined,
-      preferredChannel: data.preferredChannel || 'LOCAL',
-      notes: data.notes?.trim() || undefined,
+      preferredChannel: origin,
+      notes: buildNotesWithReferral(data.notes, referredByInput, origin),
       dietaryProfileIds: selectedDietaryIds
     };
 
@@ -157,6 +244,7 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
       onSuccess: () => {
         setEditingCustomer(null);
         reset();
+        setReferredByInput('');
       },
       onError: (err: any) => {
         setErrorMessage(err.message || 'Error al actualizar el cliente.');
@@ -229,15 +317,14 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <select 
               className="input" 
-              style={{ width: '170px' }}
+              style={{ width: '210px' }}
               value={channelFilter}
               onChange={(e) => setChannelFilter(e.target.value)}
             >
-              <option value="">Todos los Canales</option>
-              <option value="WHATSAPP">WhatsApp</option>
-              <option value="LOCAL">Local / Mostrador</option>
-              <option value="ONLINE_STORE">Tienda Online</option>
-              <option value="INSTAGRAM">Instagram</option>
+              <option value="">Todos los Orígenes</option>
+              {allContactOrigins.map(o => (
+                <option key={o.code} value={o.code}>{o.label}</option>
+              ))}
             </select>
             <select 
               className="input" 
@@ -268,14 +355,16 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
             <table className="data-table w-full">
               <thead>
                 <tr>
-                  <th style={{ width: '40%' }}>Nombre y Apellido</th>
-                  <th style={{ width: '25%' }}>Canal</th>
+                  <th style={{ width: '38%' }}>Nombre y Apellido</th>
+                  <th style={{ width: '27%' }}>Origen del Contacto</th>
                   <th style={{ width: '20%' }}>Segmento</th>
                   <th style={{ width: '15%' }} className="text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredCustomers.map((customer: Customer) => (
+                {filteredCustomers.map((customer: Customer) => {
+                  const { referredBy } = extractReferredBy((customer as any).notes || '');
+                  return (
                   <tr key={customer.id}>
                     <td className="font-semibold text-text-dark">
                       {customer.firstName || customer.lastName 
@@ -286,9 +375,16 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
                       )}
                     </td>
                     <td>
-                      <span className="badge gray">
-                        {customer.preferredChannel === 'WHATSAPP' ? '📱 WhatsApp' : customer.preferredChannel === 'ONLINE_STORE' ? '🌐 Online' : customer.preferredChannel === 'INSTAGRAM' ? '📷 Instagram' : '🏪 Local'}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
+                        <span className="badge gray">
+                          {formatOriginBadge(customer.preferredChannel)}
+                        </span>
+                        {referredBy && (
+                          <span style={{ fontSize: '0.72rem', color: '#2E5339', fontWeight: 600 }}>
+                            🤝 Por: {referredBy}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td><span className="badge green">{customer.segment || 'FRECUENTE'}</span></td>
                     <td className="text-center">
@@ -356,7 +452,8 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {filteredCustomers.length === 0 && (
                   <tr>
                     <td colSpan={4} className="py-8 text-center text-text-muted">
@@ -369,6 +466,13 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
           </div>
         )}
       </section>
+
+      <datalist id="crm-customers-referral-list">
+        {customers.map(c => {
+          const fullName = `${c.firstName || ''} ${c.lastName || ''}`.trim();
+          return fullName ? <option key={c.id} value={fullName} /> : null;
+        })}
+      </datalist>
 
       {/* Modal Alta de Cliente */}
       <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="➕ Alta de Cliente CRM">
@@ -421,15 +525,52 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
               <input {...register('birthDate')} type="date" />
             </div>
             <div className="form-field">
-              <label>Canal Preferido</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={{ marginBottom: 0 }}>Origen del Contacto</label>
+                <button
+                  type="button"
+                  onClick={() => setShowNewOriginInput(!showNewOriginInput)}
+                  style={{ fontSize: '0.72rem', color: '#2E5339', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                >
+                  {showNewOriginInput ? 'Cancelar' : '+ Nuevo origen'}
+                </button>
+              </div>
               <select {...register('preferredChannel')}>
-                <option value="LOCAL">Local / Mostrador</option>
-                <option value="WHATSAPP">WhatsApp</option>
-                <option value="ONLINE_STORE">Tienda Online</option>
-                <option value="INSTAGRAM">Instagram</option>
+                {allContactOrigins.map(o => (
+                  <option key={o.code} value={o.code}>{o.label}</option>
+                ))}
               </select>
             </div>
           </div>
+
+          {showNewOriginInput && (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', background: '#F9FAFB', padding: '8px 10px', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
+              <input
+                type="text"
+                className="input"
+                placeholder="Ej: TikTok, Folleto, Evento..."
+                value={newOriginName}
+                onChange={(e) => setNewOriginName(e.target.value)}
+                style={{ flex: 1, fontSize: '0.84rem' }}
+              />
+              <button type="button" className="btn btn-secondary btn-sm" onClick={handleAddCustomOrigin}>
+                Agregar
+              </button>
+            </div>
+          )}
+
+          {watchedOrigin === 'REFERIDO' && (
+            <div className="form-field" style={{ background: '#F0FDF4', padding: '10px 12px', borderRadius: '8px', border: '1px solid #BBF7D0' }}>
+              <label style={{ color: '#166534', fontWeight: 700 }}>🤝 ¿Quién lo refirió? (Cliente o Contacto)</label>
+              <input
+                type="text"
+                list="crm-customers-referral-list"
+                value={referredByInput}
+                onChange={(e) => setReferredByInput(e.target.value)}
+                placeholder="Escribe o selecciona el nombre de quien lo recomendó..."
+              />
+            </div>
+          )}
 
           <div className="form-field">
             <label className="font-semibold mb-2 block">Perfiles / Hábitos Dietéticos</label>
@@ -511,15 +652,52 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
               <input {...register('birthDate')} type="date" />
             </div>
             <div className="form-field">
-              <label>Canal Preferido</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={{ marginBottom: 0 }}>Origen del Contacto</label>
+                <button
+                  type="button"
+                  onClick={() => setShowNewOriginInput(!showNewOriginInput)}
+                  style={{ fontSize: '0.72rem', color: '#2E5339', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                >
+                  {showNewOriginInput ? 'Cancelar' : '+ Nuevo origen'}
+                </button>
+              </div>
               <select {...register('preferredChannel')}>
-                <option value="LOCAL">Local / Mostrador</option>
-                <option value="WHATSAPP">WhatsApp</option>
-                <option value="ONLINE_STORE">Tienda Online</option>
-                <option value="INSTAGRAM">Instagram</option>
+                {allContactOrigins.map(o => (
+                  <option key={o.code} value={o.code}>{o.label}</option>
+                ))}
               </select>
             </div>
           </div>
+
+          {showNewOriginInput && (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', background: '#F9FAFB', padding: '8px 10px', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
+              <input
+                type="text"
+                className="input"
+                placeholder="Ej: TikTok, Folleto, Evento..."
+                value={newOriginName}
+                onChange={(e) => setNewOriginName(e.target.value)}
+                style={{ flex: 1, fontSize: '0.84rem' }}
+              />
+              <button type="button" className="btn btn-secondary btn-sm" onClick={handleAddCustomOrigin}>
+                Agregar
+              </button>
+            </div>
+          )}
+
+          {watchedOrigin === 'REFERIDO' && (
+            <div className="form-field" style={{ background: '#F0FDF4', padding: '10px 12px', borderRadius: '8px', border: '1px solid #BBF7D0' }}>
+              <label style={{ color: '#166534', fontWeight: 700 }}>🤝 ¿Quién lo refirió? (Cliente o Contacto)</label>
+              <input
+                type="text"
+                list="crm-customers-referral-list"
+                value={referredByInput}
+                onChange={(e) => setReferredByInput(e.target.value)}
+                placeholder="Escribe o selecciona el nombre de quien lo recomendó..."
+              />
+            </div>
+          )}
 
           <div className="form-field">
             <label className="font-semibold mb-2 block">Perfiles / Hábitos Dietéticos</label>
@@ -553,12 +731,22 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
 
       {/* Modal Ficha Unificada / Detalle de Cliente */}
       <Modal isOpen={!!viewingCustomer} onClose={() => setViewingCustomer(null)} title="👤 Ficha Unificada de Cliente" maxWidth="620px">
-        {viewingCustomer && (
+        {viewingCustomer && (() => {
+          const { referredBy, cleanNotes } = extractReferredBy((viewingCustomer as any).notes || '');
+          return (
           <div className="flex flex-col gap-4">
             <div className="flex justify-between items-start border-b pb-3">
               <div>
                 <h2 className="text-xl font-bold text-text-dark">{viewingCustomer.firstName} {viewingCustomer.lastName}</h2>
-                <span className="badge green mt-1">{viewingCustomer.segment || 'FRECUENTE'}</span>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
+                  <span className="badge green">{viewingCustomer.segment || 'FRECUENTE'}</span>
+                  <span className="badge gray">Origen: {formatOriginBadge(viewingCustomer.preferredChannel)}</span>
+                  {referredBy && (
+                    <span className="badge green" style={{ background: '#DCFCE7', color: '#166534' }}>
+                      🤝 Referido por: {referredBy}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="text-right">
                 <div className="text-xs text-text-muted">Puntos de Fidelización</div>
@@ -572,6 +760,7 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
               <div className="flex items-center gap-2"><span className="text-primary-sage">📷</span> <span>{viewingCustomer.instagram || 'Sin Instagram registrado'}</span></div>
               <div className="flex items-center gap-2"><MapPin size={16} className="text-primary-sage" /> <span>{viewingCustomer.address || 'Sin dirección registrada'}</span></div>
               <div className="flex items-center gap-2"><Calendar size={16} className="text-primary-sage" /> <span>Nac: {viewingCustomer.birthDate || 'No informada'}</span></div>
+              <div className="flex items-center gap-2"><span className="text-primary-sage">🧭</span> <span><strong>Origen del Contacto:</strong> {formatOriginBadge(viewingCustomer.preferredChannel)}</span></div>
             </div>
 
             <div className="border-t pt-3">
@@ -589,10 +778,10 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
               </div>
             </div>
 
-            {(viewingCustomer as any).notes && (
+            {cleanNotes && (
               <div className="border-t pt-3">
                 <h4 className="font-semibold text-sm mb-1">Notas Internas:</h4>
-                <p className="text-sm text-text-dark bg-bg-linen p-3 rounded">{(viewingCustomer as any).notes}</p>
+                <p className="text-sm text-text-dark bg-bg-linen p-3 rounded">{cleanNotes}</p>
               </div>
             )}
 
@@ -604,7 +793,8 @@ export const CustomersPage: React.FC<CustomersPageProps> = () => {
               <button className="btn btn-secondary" onClick={() => setViewingCustomer(null)}>Cerrar Ficha</button>
             </div>
           </div>
-        )}
+          );
+        })()}
       </Modal>
 
       {/* Modal Confirmar Desactivación */}

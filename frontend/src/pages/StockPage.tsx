@@ -182,7 +182,6 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   const [promoteCode, setPromoteCode] = useState('');
   const [promoteFamilyId, setPromoteFamilyId] = useState('');
   const [promoteCostPrice, setPromoteCostPrice] = useState<number>(0);
-  const [promoteMarkupPct, setPromoteMarkupPct] = useState<number>(50);
   const [promoteSalePrice, setPromoteSalePrice] = useState<number>(0);
   const [promoteCurrentStock, setPromoteCurrentStock] = useState<number>(0);
   const [promoteMinStock, setPromoteMinStock] = useState<number>(5);
@@ -787,7 +786,6 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   });
 
   const totalPackCost = packItems.reduce((acc, curr) => acc + ((Number(curr.quantity) || 0) * (Number(curr.unitCost) || 0)), 0);
-  const totalPackIndividualSalePrices = packItems.reduce((acc, curr) => acc + ((Number(curr.quantity) || 0) * (Number(curr.salePrice) || 0)), 0);
 
   const openPromoteRawToResale = (rawItem: any) => {
     setPromoteRawItem(rawItem);
@@ -798,7 +796,6 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
     setPromoteCode(generateFinalCode(rawItem.name || ''));
     setPromoteFamilyId(rawItem.familyId || rawItem.articleFamilyId || '');
     setPromoteCostPrice(defaultCost);
-    setPromoteMarkupPct(defaultMarkup);
     setPromoteSalePrice(suggestedSale);
     setPromoteCurrentStock(Number(rawItem.currentStock) || 0);
     setPromoteMinStock(Number(rawItem.minStock) || 5);
@@ -2998,34 +2995,9 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                 >
                   <Plus size={14} /> Agregar otro Producto / Insumo al Pack
                 </button>
-
-                {/* Mini calculadora de Recargo directo para el Pack */}
-                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded border text-xs">
-                  <span className="text-text-muted">Costo Pack: <strong>${totalPackCost.toLocaleString('es-AR')}</strong></span>
-                  <span>+ Recargo %:</span>
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={packMarkupPct}
-                    onChange={(e) => {
-                      const pct = parseFloat(e.target.value) || 0;
-                      setPackMarkupPct(pct);
-                      finalForm.setValue('costPrice', totalPackCost);
-                      if (totalPackCost > 0) {
-                        finalForm.setValue('price', Math.round(totalPackCost * (1 + pct / 100)));
-                      }
-                    }}
-                    className="w-16 text-center font-bold py-0.5 px-1"
-                  />
-                  <span className="text-primary-sage font-bold">
-                    ➔ Sugerido: ${Math.round(totalPackCost * (1 + packMarkupPct / 100)).toLocaleString('es-AR')}
-                  </span>
-                  {totalPackIndividualSalePrices > 0 && (
-                    <span className="text-[11px] text-text-muted ml-1">
-                      (Suma sueltos: ${totalPackIndividualSalePrices.toLocaleString('es-AR')})
-                    </span>
-                  )}
-                </div>
+                <span className="text-xs text-text-muted">
+                  Costo suma de integrantes: <strong className="text-text-dark">${totalPackCost.toLocaleString('es-AR')}</strong>
+                </span>
               </div>
             </div>
           ) : isResaleProduct ? (
@@ -3321,65 +3293,24 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               </select>
             </div>
 
-            {/* Calculadora Bidireccional de Costo -> Recargo % -> Precio Final */}
-            <div className="p-3.5 bg-bg-linen rounded-lg border flex flex-col gap-3">
-              <div className="text-xs font-bold text-text-dark flex items-center justify-between">
-                <span>💲 Formación Directa del Precio de Venta (Sin Números Ocultos)</span>
-                <span className="text-primary-sage">
-                  Ganancia Limpia: ${(Math.max(0, promoteSalePrice - promoteCostPrice)).toLocaleString('es-AR')}/un.
-                </span>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="form-field">
+                <label className="text-xs font-semibold">Costo de Compra Unitario ($)</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={promoteCostPrice}
+                  onChange={(e) => setPromoteCostPrice(parseFloat(e.target.value) || 0)}
+                />
               </div>
-              <div className="grid grid-cols-3 gap-3 items-end">
-                <div className="form-field">
-                  <label className="text-xs">1. Costo Compra ($)</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={promoteCostPrice}
-                    onChange={(e) => {
-                      const c = parseFloat(e.target.value) || 0;
-                      setPromoteCostPrice(c);
-                      setPromoteSalePrice(Math.round(c * (1 + promoteMarkupPct / 100)));
-                    }}
-                    className="font-semibold"
-                  />
-                </div>
-                <div className="form-field">
-                  <label className="text-xs">2. + % Recargo s/Costo</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={promoteMarkupPct}
-                    onChange={(e) => {
-                      const pct = parseFloat(e.target.value) || 0;
-                      setPromoteMarkupPct(pct);
-                      setPromoteSalePrice(Math.round(promoteCostPrice * (1 + pct / 100)));
-                    }}
-                    className="font-bold text-primary-sage text-center"
-                  />
-                </div>
-                <div className="form-field">
-                  <label className="text-xs font-bold">3. = Precio Venta ($)</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={promoteSalePrice}
-                    onChange={(e) => {
-                      const p = parseFloat(e.target.value) || 0;
-                      setPromoteSalePrice(p);
-                      if (promoteCostPrice > 0) {
-                        setPromoteMarkupPct(Number((((p - promoteCostPrice) / promoteCostPrice) * 100).toFixed(1)));
-                      }
-                    }}
-                    className="font-bold border-primary-sage"
-                  />
-                </div>
-              </div>
-              <div className="text-[11px] text-text-muted flex justify-between border-t pt-2">
-                <span>
-                  Cuenta exacta: <strong>${promoteCostPrice.toLocaleString('es-AR')}</strong> + <strong>{promoteMarkupPct}%</strong> (${Math.round(promoteCostPrice * (promoteMarkupPct / 100)).toLocaleString('es-AR')}) = <strong>${promoteSalePrice.toLocaleString('es-AR')}</strong>
-                </span>
-                <span>Proveedor: <strong>{promoteRawItem.supplierName || 'Sin asignar'}</strong></span>
+              <div className="form-field">
+                <label className="text-xs font-semibold">Precio de Venta Inicial ($)</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={promoteSalePrice}
+                  onChange={(e) => setPromoteSalePrice(parseFloat(e.target.value) || 0)}
+                />
               </div>
             </div>
 

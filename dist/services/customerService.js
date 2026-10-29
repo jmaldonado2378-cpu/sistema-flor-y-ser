@@ -37,10 +37,17 @@ class CustomerService {
         this.db = db;
     }
     /**
-     * Persistencia estricta: ya NO se insertan clientes de ejemplo en la base real.
-     * Se mantiene el método por compatibilidad con otros servicios que lo invocan.
+     * Garantiza que la columna preferred_channel soporte cualquier Origen del Contacto (VARCHAR 100 en lugar de ENUM).
      */
     async ensureSeedCustomers() {
+        if (this.seeded)
+            return;
+        try {
+            await this.db.query(`ALTER TABLE customers MODIFY COLUMN preferred_channel VARCHAR(100) NOT NULL DEFAULT 'LOCAL'`);
+        }
+        catch {
+            // Ya es VARCHAR o la tabla aún no existe
+        }
         this.seeded = true;
     }
     /** Error explícito de persistencia: nunca se simula éxito si MySQL no guardó. */
@@ -73,6 +80,7 @@ class CustomerService {
         if (!dto.firstName || !dto.lastName || !dto.phoneWhatsapp) {
             throw new Error('Nombre, apellido y número de WhatsApp son obligatorios para registrar un cliente.');
         }
+        await this.ensureSeedCustomers();
         const customerId = (0, uuid_1.v4)();
         const cleanPhone = dto.phoneWhatsapp.trim().replace(/\s+/g, '');
         let client = null;
@@ -296,6 +304,7 @@ class CustomerService {
      * Actualiza datos de un cliente existente y sus preferencias dietéticas.
      */
     async updateCustomer(customerId, dto) {
+        await this.ensureSeedCustomers();
         const existing = await this.getUnifiedProfile(customerId);
         const firstName = dto.firstName !== undefined ? dto.firstName.trim() : existing.firstName;
         const lastName = dto.lastName !== undefined ? dto.lastName.trim() : existing.lastName;

@@ -2,15 +2,52 @@ import React, { useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Trash2, ShoppingBag, CheckCircle2, AlertCircle } from 'lucide-react';
-import { useCustomers, useSales, useCreateOrder } from '../hooks';
+import { Plus, Trash2, ShoppingBag, CheckCircle2, AlertCircle, Pencil, UserCheck, CreditCard } from 'lucide-react';
+import { useCustomers, useSales, useCreateOrder, useUpdateOrderDetails } from '../hooks';
 import { useFinalProducts } from '../hooks/useInventory';
+import { useAuth } from '../context/AuthContext';
+import { Modal } from '../components/ui/Modal';
 import { Customer } from '../api/customers';
 import { Order } from '../api/sales';
 
 interface SalesPageProps {
   onTabChange?: (tab: string) => void;
 }
+
+const PAYMENT_METHOD_OPTIONS = [
+  { value: 'EFECTIVO', label: '💵 Efectivo' },
+  { value: 'MERCADO_PAGO', label: '💳 Mercado Pago' },
+  { value: 'TRANSFERENCIA', label: '🏦 Transferencia Bancaria' },
+  { value: 'TARJETA_DEBITO', label: '💳 Tarjeta Débito' },
+  { value: 'TARJETA_CREDITO', label: '💳 Tarjeta Crédito' },
+  { value: 'CUENTA_CORRIENTE', label: '📒 Cuenta Corriente (Fiado)' },
+];
+
+export const formatPaymentMethodLabel = (method?: string): string => {
+  if (!method) return '💵 Efectivo';
+  const clean = method.trim().toUpperCase();
+  const found = PAYMENT_METHOD_OPTIONS.find(
+    o => o.value === clean || o.label.toUpperCase().includes(clean)
+  );
+  if (found) return found.label;
+  if (clean.includes('MERCADO')) return '💳 Mercado Pago';
+  if (clean.includes('TRANSF')) return '🏦 Transferencia Bancaria';
+  if (clean.includes('CUENTA') || clean.includes('FIADO') || clean.includes('CREDIT')) return '📒 Cuenta Corriente';
+  if (clean.includes('DEBIT')) return '💳 Tarjeta Débito';
+  if (clean.includes('EFECTIVO') || clean.includes('CASH')) return '💵 Efectivo';
+  return method;
+};
+
+export const normalizePaymentMethodCode = (method?: string): string => {
+  if (!method) return 'EFECTIVO';
+  const clean = method.trim().toUpperCase();
+  if (clean.includes('MERCADO')) return 'MERCADO_PAGO';
+  if (clean.includes('TRANSF')) return 'TRANSFERENCIA';
+  if (clean.includes('CUENTA') || clean.includes('FIADO')) return 'CUENTA_CORRIENTE';
+  if (clean.includes('DEBIT')) return 'TARJETA_DEBITO';
+  if (clean.includes('TARJETA') || clean.includes('CREDITO')) return 'TARJETA_CREDITO';
+  return 'EFECTIVO';
+};
 
 const saleItemSchema = z.object({
   productId: z.string().min(1, 'Seleccione un producto'),
@@ -22,6 +59,7 @@ const saleItemSchema = z.object({
 const saleSchema = z.object({
   customerId: z.string().min(1, 'Seleccione un cliente'),
   channel: z.string().optional(),
+  sellerId: z.string().optional(),
   items: z.array(saleItemSchema).min(1, 'Agregue al menos un producto al pedido'),
   discount: z.number().min(0).optional(),
   shippingFee: z.number().min(0).optional(),
@@ -31,13 +69,25 @@ const saleSchema = z.object({
 type SaleFormValues = z.infer<typeof saleSchema>;
 
 export const SalesPage: React.FC<SalesPageProps> = () => {
+  const { user: currentUser, users: systemUsers } = useAuth();
+  const isAdmin = currentUser?.role === 'ADMIN';
+  const activeSellers = (systemUsers || []).filter(u => u.active !== false);
+
   const { data: customerResult } = useCustomers();
   const { data: salesResult, isLoading: loadingOrders, refetch: refetchSales } = useSales();
   const { data: finalProducts } = useFinalProducts();
   const createOrder = useCreateOrder();
+  const updateOrderDetails = useUpdateOrderDetails();
 
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Estado del Modal de Edición de Venta (para el Administrador)
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [editSellerId, setEditSellerId] = useState<string>('');
+  const [editPaymentMethod, setEditPaymentMethod] = useState<string>('EFECTIVO');
+  const [editChannel, setEditChannel] = useState<string>('LOCAL');
+  const [editNotes, setEditNotes] = useState<string>('');
 
   const customers: Customer[] = customerResult?.data || [];
 
@@ -50,10 +100,11 @@ export const SalesPage: React.FC<SalesPageProps> = () => {
     defaultValues: {
       customerId: '',
       channel: 'LOCAL',
+      sellerId: currentUser?.id || '',
       items: [{ productId: '', productName: '', quantity: 1, unitPrice: 0 }],
       discount: 0,
       shippingFee: 0,
-      paymentMethod: 'Efectivo'
+      paymentMethod: 'EFECTIVO'
     }
   });
 
@@ -76,30 +127,75 @@ export const SalesPage: React.FC<SalesPageProps> = () => {
     const selectedCust = customers.find(c => c.id === data.customerId);
     const customerName = selectedCust ? `${selectedCust.firstName} ${selectedCust.lastName}` : 'Cliente Registrado';
 
+    const targetSellerId = isAdmin ? (data.sellerId || currentUser?.id) : currentUser?.id;
+    const matchedSeller = activeSellers.find(u => u.id === targetSellerId);
+    const targetSellerName = matchedSeller ? matchedSeller.name : (currentUser?.name || 'Vendedora');
+
     createOrder.mutate({
       customerId: data.customerId,
       customerName,
       channel: data.channel || 'LOCAL',
+      sellerId: targetSellerId,
+      sellerName: targetSellerName,
       items: data.items,
       totalAmount: total,
       paymentMethod: data.paymentMethod,
     }, {
       onSuccess: () => {
-        setSuccessMsg(`✅ Venta registrada exitosamente para ${customerName}.`);
+        setSuccessMsg(`✅ Venta registrada exitosamente para ${customerName} (${formatPaymentMethodLabel(data.paymentMethod)} • Vendedora: ${targetSellerName}).`);
         refetchSales();
         reset({
           customerId: '',
           channel: 'LOCAL',
+          sellerId: currentUser?.id || '',
           items: [{ productId: '', productName: '', quantity: 1, unitPrice: 0 }],
           discount: 0,
           shippingFee: 0,
-          paymentMethod: 'Efectivo'
+          paymentMethod: 'EFECTIVO'
         });
       },
       onError: (err: any) => {
         setErrorMsg(err.message || 'Error al procesar la venta. Verifique los datos ingresados.');
       }
     });
+  };
+
+  const handleOpenEditOrder = (order: Order) => {
+    setEditingOrder(order);
+    setEditSellerId(order.sellerId || currentUser?.id || '');
+    setEditPaymentMethod(normalizePaymentMethodCode(order.paymentMethod));
+    setEditChannel(order.channel || 'LOCAL');
+    setEditNotes(order.notes || '');
+  };
+
+  const handleSaveEditOrder = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingOrder) return;
+    const matchedSeller = activeSellers.find(u => u.id === editSellerId);
+    const sellerName = matchedSeller ? matchedSeller.name : (editingOrder.sellerName || '');
+
+    updateOrderDetails.mutate(
+      {
+        id: editingOrder.id,
+        data: {
+          sellerId: editSellerId,
+          sellerName,
+          paymentMethod: editPaymentMethod,
+          channel: editChannel,
+          notes: editNotes
+        }
+      },
+      {
+        onSuccess: () => {
+          setSuccessMsg(`✅ Venta actualizada: Vendedora asignada a ${sellerName || 'Sin asignar'} y medio de pago ${formatPaymentMethodLabel(editPaymentMethod)}.`);
+          setEditingOrder(null);
+          refetchSales();
+        },
+        onError: (err: any) => {
+          setErrorMsg(err.message || 'Error al actualizar la venta.');
+        }
+      }
+    );
   };
 
   const formatCurrency = (amount?: number) => {
@@ -139,7 +235,7 @@ export const SalesPage: React.FC<SalesPageProps> = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className={`grid grid-cols-1 ${isAdmin ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
               <div className="form-field">
                 <label className="text-sm font-medium text-text-dark mb-1 block">Cliente CRM *</label>
                 <select className={`input ${errors.customerId ? 'has-error' : ''}`} {...register('customerId')}>
@@ -157,8 +253,24 @@ export const SalesPage: React.FC<SalesPageProps> = () => {
                   <option value="LOCAL">🏪 Local / Mostrador</option>
                   <option value="WHATSAPP">📱 WhatsApp</option>
                   <option value="ONLINE_STORE">🌐 Tienda Online</option>
+                  <option value="INSTAGRAM">📷 Instagram</option>
                 </select>
               </div>
+
+              {isAdmin && (
+                <div className="form-field">
+                  <label className="text-sm font-semibold text-primary-sage mb-1 flex items-center gap-1">
+                    <UserCheck size={14} /> Vendedora Asignada (Admin)
+                  </label>
+                  <select className="input font-medium" {...register('sellerId')}>
+                    {activeSellers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.role === 'ADMIN' ? 'Admin' : 'Vendedora'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             <div className="form-field">
@@ -246,12 +358,13 @@ export const SalesPage: React.FC<SalesPageProps> = () => {
                 <input type="number" className="input" {...register('shippingFee', { valueAsNumber: true })} min="0" />
               </div>
               <div className="form-field">
-                <label className="text-sm font-medium text-text-dark mb-1 block">Método de Pago *</label>
-                <select className="input" {...register('paymentMethod')}>
-                  <option value="Efectivo">Efectivo</option>
-                  <option value="Mercado Pago">Mercado Pago</option>
-                  <option value="Transferencia">Transferencia Bancaria</option>
-                  <option value="Cuenta Corriente">Cuenta Corriente (Fiado)</option>
+                <label className="text-sm font-medium text-text-dark mb-1 flex items-center gap-1">
+                  <CreditCard size={14} /> Método de Pago *
+                </label>
+                <select className="input font-semibold" {...register('paymentMethod')}>
+                  {PAYMENT_METHOD_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -277,21 +390,48 @@ export const SalesPage: React.FC<SalesPageProps> = () => {
             {loadingOrders ? (
               <div className="py-8 text-center text-text-muted">Cargando ventas recientes...</div>
             ) : (
-              <div className="flex flex-col gap-2">
-                {recentOrders.slice(0, 8).map((order: Order) => {
+              <div className="flex flex-col gap-2.5">
+                {recentOrders.slice(0, 12).map((order: Order) => {
                   const cust = customers.find((c: Customer) => c.id === order.customerId);
                   const custName = order.customerName || (cust ? `${cust.firstName} ${cust.lastName}` : 'Cliente Registrado');
                   const dateStr = order.createdAt ? new Date(order.createdAt).toLocaleDateString('es-AR') : '-';
+                  const sellerObj = activeSellers.find(u => u.id === order.sellerId);
+                  const sellerLabel = order.sellerName || sellerObj?.name || 'Sin vendedora asignada';
 
                   return (
-                    <div key={order.id} className="p-3 border rounded bg-bg-linen flex flex-col gap-1">
-                      <div className="flex justify-between items-center">
-                        <span className="font-semibold text-sm text-text-dark">{custName}</span>
+                    <div key={order.id} className="p-3 border rounded-lg bg-bg-linen flex flex-col gap-1.5">
+                      <div className="flex justify-between items-start gap-2">
+                        <div>
+                          <span className="font-semibold text-sm text-text-dark block">{custName}</span>
+                          {order.orderNumber && (
+                            <span className="text-[10px] text-text-muted font-mono">{order.orderNumber}</span>
+                          )}
+                        </div>
                         <span className="font-bold text-sm text-primary-sage">{formatCurrency(order.totalAmount)}</span>
                       </div>
-                      <div className="flex justify-between text-xs text-text-muted">
-                        <span>{order.paymentMethod || 'Efectivo'}</span>
+
+                      <div className="flex justify-between items-center text-xs text-text-muted flex-wrap gap-1">
+                        <span className="badge gray text-[11px] font-semibold">
+                          {formatPaymentMethodLabel(order.paymentMethod)}
+                        </span>
                         <span>{dateStr}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center pt-1.5 border-t border-gray-200/80 text-xs">
+                        <span className="text-text-dark flex items-center gap-1 truncate" title={sellerLabel}>
+                          <UserCheck size={12} className="text-primary-sage flex-shrink-0" />
+                          <span className="truncate">{sellerLabel}</span>
+                        </span>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditOrder(order)}
+                            className="btn btn-secondary btn-sm text-[11px] py-0.5 px-2 flex items-center gap-1"
+                            title="Modificar vendedora asignada, medio de pago o canal"
+                          >
+                            <Pencil size={11} /> Editar
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -304,6 +444,104 @@ export const SalesPage: React.FC<SalesPageProps> = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal Administrador: Modificar Vendedora, Medio de Pago y Canal de una Venta ya cargada */}
+      <Modal
+        isOpen={!!editingOrder}
+        onClose={() => setEditingOrder(null)}
+        title="✏️ Modificar Venta y Asignación de Vendedora"
+        maxWidth="520px"
+      >
+        {editingOrder && (
+          <form onSubmit={handleSaveEditOrder} className="flex flex-col gap-4">
+            <div className="p-3 bg-bg-linen rounded border text-xs flex justify-between items-center">
+              <div>
+                <div className="font-bold text-text-dark text-sm">
+                  {editingOrder.orderNumber || `Pedido #${editingOrder.id.slice(0, 6)}`}
+                </div>
+                <div className="text-text-muted">
+                  Cliente: <strong>{editingOrder.customerName || 'Cliente Registrado'}</strong>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-text-muted">Total Venta</div>
+                <div className="text-base font-bold text-primary-sage">{formatCurrency(editingOrder.totalAmount)}</div>
+              </div>
+            </div>
+
+            <div className="form-field">
+              <label className="text-xs font-bold text-text-dark mb-1 block">
+                👩‍💼 Vendedora Asignada (Recalcula su comisión automáticamente) *
+              </label>
+              <select
+                className="input font-semibold"
+                value={editSellerId}
+                onChange={(e) => setEditSellerId(e.target.value)}
+              >
+                <option value="">-- Sin vendedora asignada --</option>
+                {activeSellers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.role === 'ADMIN' ? 'Administrador' : 'Vendedora'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="form-field">
+                <label className="text-xs font-bold text-text-dark mb-1 block">
+                  💳 Método de Pago *
+                </label>
+                <select
+                  className="input font-semibold"
+                  value={editPaymentMethod}
+                  onChange={(e) => setEditPaymentMethod(e.target.value)}
+                >
+                  {PAYMENT_METHOD_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-field">
+                <label className="text-xs font-bold text-text-dark mb-1 block">
+                  🏪 Canal de Venta
+                </label>
+                <select
+                  className="input"
+                  value={editChannel}
+                  onChange={(e) => setEditChannel(e.target.value)}
+                >
+                  <option value="LOCAL">🏪 Local / Mostrador</option>
+                  <option value="WHATSAPP">📱 WhatsApp</option>
+                  <option value="ONLINE_STORE">🌐 Tienda Online</option>
+                  <option value="INSTAGRAM">📷 Instagram</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="form-field">
+              <label className="text-xs font-semibold text-text-dark mb-1 block">Notas / Observaciones</label>
+              <textarea
+                rows={2}
+                className="input text-xs"
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                placeholder="Notas adicionales del pedido..."
+              />
+            </div>
+
+            <div className="form-actions flex justify-end gap-2 border-t pt-3">
+              <button type="button" className="btn btn-secondary" onClick={() => setEditingOrder(null)}>
+                Cancelar
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={updateOrderDetails.isPending}>
+                {updateOrderDetails.isPending ? 'Guardando...' : '💾 Guardar Cambios en la Venta'}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 };

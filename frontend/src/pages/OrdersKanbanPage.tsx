@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { useSalesKanbanBoard, useUpdateOrderStatus } from '../hooks/useOrders';
+import { useUpdateOrderDetails } from '../hooks/useSales';
 import { useCustomers } from '../hooks/useCustomers';
+import { useAuth } from '../context/AuthContext';
+import { Modal } from '../components/ui/Modal';
 import { Customer } from '../api/customers';
-import { ChevronRight, ChevronLeft, Search, RotateCcw, Package, AlertCircle } from 'lucide-react';
+import { formatPaymentMethodLabel, normalizePaymentMethodCode } from './SalesPage';
+import { ChevronRight, ChevronLeft, Search, RotateCcw, Package, AlertCircle, Pencil, UserCheck } from 'lucide-react';
 
 interface OrdersKanbanPageProps {
   onTabChange?: (tab: string) => void;
@@ -62,12 +66,22 @@ const COLUMN_CONFIGS = [
 ];
 
 export const OrdersKanbanPage: React.FC<OrdersKanbanPageProps> = () => {
+  const { user: currentUser, users: systemUsers } = useAuth();
+  const isAdmin = currentUser?.role === 'ADMIN';
+  const activeSellers = (systemUsers || []).filter(u => u.active !== false);
+
   const { data: boardData, isLoading, isError, refetch } = useSalesKanbanBoard();
   const { mutate: updateStatus, isPending: isUpdating } = useUpdateOrderStatus();
+  const updateOrderDetails = useUpdateOrderDetails();
   const { data: customerResult } = useCustomers();
   const customers: Customer[] = customerResult?.data || [];
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+
+  const [editingOrder, setEditingOrder] = useState<any | null>(null);
+  const [editSellerId, setEditSellerId] = useState<string>('');
+  const [editPaymentMethod, setEditPaymentMethod] = useState<string>('EFECTIVO');
+  const [editChannel, setEditChannel] = useState<string>('LOCAL');
 
   const formatCurrency = (val?: number) => (val || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
 
@@ -251,8 +265,32 @@ export const OrdersKanbanPage: React.FC<OrdersKanbanPageProps> = () => {
                       
                       <div className="flex items-center justify-between text-xs text-text-muted">
                         <span>Canal: <strong className="text-text-dark font-medium">{item.channel || 'LOCAL'}</strong></span>
-                        {item.paymentMethod && (
-                          <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">{item.paymentMethod}</span>
+                        <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-semibold">
+                          {formatPaymentMethodLabel(item.paymentMethod)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs text-text-muted pt-1 border-t border-gray-100">
+                        <span className="flex items-center gap-1 truncate" title={item.sellerName || 'Sin vendedora asignada'}>
+                          <UserCheck size={12} className="text-primary-sage flex-shrink-0" />
+                          <span className="truncate font-medium text-text-dark">
+                            {item.sellerName || activeSellers.find(u => u.id === item.sellerId)?.name || 'Sin vendedora'}
+                          </span>
+                        </span>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingOrder(item);
+                              setEditSellerId(item.sellerId || currentUser?.id || '');
+                              setEditPaymentMethod(normalizePaymentMethodCode(item.paymentMethod));
+                              setEditChannel(item.channel || 'LOCAL');
+                            }}
+                            className="text-[11px] text-primary-sage hover:underline flex items-center gap-0.5 font-semibold"
+                            title="Modificar vendedora, medio de pago o canal"
+                          >
+                            <Pencil size={11} /> Editar
+                          </button>
                         )}
                       </div>
 
@@ -332,6 +370,108 @@ export const OrdersKanbanPage: React.FC<OrdersKanbanPageProps> = () => {
           ))}
         </div>
       )}
+
+      {/* Modal Administrador en Kanban: Modificar Vendedora, Medio de Pago y Canal */}
+      <Modal
+        isOpen={!!editingOrder}
+        onClose={() => setEditingOrder(null)}
+        title="✏️ Modificar Pedido / Vendedora / Medio de Pago"
+        maxWidth="480px"
+      >
+        {editingOrder && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const matchedSeller = activeSellers.find(u => u.id === editSellerId);
+              const sellerName = matchedSeller ? matchedSeller.name : '';
+              updateOrderDetails.mutate(
+                {
+                  id: editingOrder.id,
+                  data: {
+                    sellerId: editSellerId,
+                    sellerName,
+                    paymentMethod: editPaymentMethod,
+                    channel: editChannel
+                  }
+                },
+                {
+                  onSuccess: () => {
+                    setEditingOrder(null);
+                    refetch();
+                  }
+                }
+              );
+            }}
+            className="flex flex-col gap-4"
+          >
+            <div className="p-3 bg-bg-linen rounded border text-xs flex justify-between items-center">
+              <div>
+                <div className="font-bold text-text-dark text-sm">{editingOrder.orderNumber || 'Pedido'}</div>
+                <div className="text-text-muted">Cliente: <strong>{editingOrder.customerName}</strong></div>
+              </div>
+              <div className="text-right font-bold text-primary-sage text-sm">
+                {formatCurrency(editingOrder.totalAmount)}
+              </div>
+            </div>
+
+            <div className="form-field">
+              <label className="text-xs font-bold text-text-dark mb-1 block">👩‍💼 Vendedora Asignada *</label>
+              <select
+                className="input font-semibold"
+                value={editSellerId}
+                onChange={(e) => setEditSellerId(e.target.value)}
+              >
+                <option value="">-- Sin vendedora asignada --</option>
+                {activeSellers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.role === 'ADMIN' ? 'Admin' : 'Vendedora'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="form-field">
+                <label className="text-xs font-bold text-text-dark mb-1 block">💳 Método de Pago</label>
+                <select
+                  className="input font-semibold"
+                  value={editPaymentMethod}
+                  onChange={(e) => setEditPaymentMethod(e.target.value)}
+                >
+                  <option value="EFECTIVO">💵 Efectivo</option>
+                  <option value="MERCADO_PAGO">💳 Mercado Pago</option>
+                  <option value="TRANSFERENCIA">🏦 Transferencia Bancaria</option>
+                  <option value="TARJETA_DEBITO">💳 Tarjeta Débito</option>
+                  <option value="TARJETA_CREDITO">💳 Tarjeta Crédito</option>
+                  <option value="CUENTA_CORRIENTE">📒 Cuenta Corriente (Fiado)</option>
+                </select>
+              </div>
+              <div className="form-field">
+                <label className="text-xs font-bold text-text-dark mb-1 block">🏪 Canal de Venta</label>
+                <select
+                  className="input"
+                  value={editChannel}
+                  onChange={(e) => setEditChannel(e.target.value)}
+                >
+                  <option value="LOCAL">🏪 Local / Mostrador</option>
+                  <option value="WHATSAPP">📱 WhatsApp</option>
+                  <option value="ONLINE_STORE">🌐 Tienda Online</option>
+                  <option value="INSTAGRAM">📷 Instagram</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="form-actions flex justify-end gap-2 border-t pt-3">
+              <button type="button" className="btn btn-secondary" onClick={() => setEditingOrder(null)}>
+                Cancelar
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={updateOrderDetails.isPending}>
+                {updateOrderDetails.isPending ? 'Guardando...' : '💾 Guardar Cambios'}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 };

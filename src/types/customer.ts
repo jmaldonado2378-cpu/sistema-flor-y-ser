@@ -2,7 +2,11 @@ export enum AcquisitionChannel {
   LOCAL = 'LOCAL',
   WHATSAPP = 'WHATSAPP',
   ONLINE_STORE = 'ONLINE_STORE',
-  INSTAGRAM = 'INSTAGRAM'
+  INSTAGRAM = 'INSTAGRAM',
+  REFERIDO = 'REFERIDO',
+  FERIA = 'FERIA',
+  FACEBOOK = 'FACEBOOK',
+  OTRO = 'OTRO'
 }
 
 export enum CustomerSegment {

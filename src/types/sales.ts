@@ -53,6 +53,7 @@ export interface CreateOrderDTO {
   deliveryFee?: number;
   sellerId?: string;
   sellerName?: string;
+  paymentMethod?: string;
   deliveryAddress?: string;
   notes?: string;
   initialPayment?: {
@@ -66,6 +67,10 @@ export interface CreateOrderDTO {
 export interface UpdateOrderStatusDTO {
   status?: OrderStatus;
   paymentStatus?: PaymentStatus;
+  paymentMethod?: string;
+  sellerId?: string;
+  sellerName?: string;
+  channel?: AcquisitionChannel;
   notes?: string;
 }
 
@@ -92,6 +97,7 @@ export interface Order {
   channel: AcquisitionChannel;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
+  paymentMethod?: string;
   subtotal: number;
   discountAmount: number;
   deliveryFee: number;

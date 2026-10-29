@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getOrders, createOrder, getOrderById, OrderFilterDTO, CreateOrderDTO } from '../api/sales';
+import { getOrders, createOrder, getOrderById, updateOrderDetails, OrderFilterDTO, CreateOrderDTO, UpdateOrderDetailsDTO } from '../api/sales';
 
 export function useSales(filters?: OrderFilterDTO) {
   return useQuery({
@@ -21,6 +21,19 @@ export function useCreateOrder() {
   
   return useMutation({
     mutationFn: (data: CreateOrderDTO) => createOrder(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['salesKanbanBoard'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+export function useUpdateOrderDetails() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateOrderDetailsDTO }) => updateOrderDetails(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['salesKanbanBoard'] });
