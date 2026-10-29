@@ -543,20 +543,21 @@ class FinanceService {
         const totalUnitCost = Number((totalDirectCost + allocatedFixedCosts).toFixed(2));
         // Helper para procesar métricas de cada canal de venta
         const processChannel = (key, name, config) => {
-            // Comisión de pasarela/canal eliminada — solo se usan comisiones de vendedor (Comisiones & Ganancias)
-            const commissionPercentage = 0;
+            const commissionPercentage = Number(config.commissionPercentage || 0);
             const marginPercentage = Number(config.marginPercentage || 0);
             /**
-             * FÓRMULA DE PRECIO SUGERIDO:
+             * FÓRMULA DE PRECIO SUGERIDO (Recargo directo sobre Costo + Impuestos/Comisiones explícitos):
              * Costo Base = totalUnitCost
-             * Margen deseado sobre costo = totalUnitCost * (1 + marginPercentage / 100)
-             * El precio sugerido debe cubrir comisión por canal e impuestos extraídos del precio final.
-             * Precio Sugerido = [totalUnitCost * (1 + marginPercentage / 100)] / [1 - ((taxPercentage + commissionPercentage) / 100)]
+             * Subtotal con Recargo sobre Costo = totalUnitCost * (1 + marginPercentage / 100)
+             * Si hay impuestos o comisiones (> 0%), se adicionan transparentemente.
              */
             const targetMarginAmount = totalUnitCost * (1 + marginPercentage / 100);
             const deductionsRatio = (taxPercentage + commissionPercentage) / 100;
             let suggestedPrice = 0;
-            if (deductionsRatio < 1) {
+            if (deductionsRatio <= 0) {
+                suggestedPrice = targetMarginAmount;
+            }
+            else if (deductionsRatio < 1) {
                 suggestedPrice = targetMarginAmount / (1 - deductionsRatio);
             }
             else {
@@ -680,6 +681,12 @@ class FinanceService {
                     calculated.channels.tiendaOnline.finalPrice
                 ];
                 const res = await this.db.query(query, values);
+                try {
+                    if (calculated.channels.mostrador.finalPrice > 0) {
+                        await this.db.query('UPDATE final_products SET price = $1, cost_price = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3', [calculated.channels.mostrador.finalPrice, calculated.rawMaterialCost, calculated.productId]);
+                    }
+                }
+                catch { }
                 if (res.rows[0])
                     return this.mapDbPricingStructure(res.rows[0]);
             }

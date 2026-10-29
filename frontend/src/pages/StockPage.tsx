@@ -2,7 +2,7 @@ import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'rea
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Wand2, Package, Tag, Box, Pencil, Trash2, Layers, History, SlidersHorizontal, ArrowUpRight, ArrowDownRight, RefreshCw, AlertCircle, Printer, Search, Filter, PauseCircle, PlayCircle } from 'lucide-react';
+import { Plus, Wand2, Package, Tag, Box, Pencil, Trash2, Layers, History, SlidersHorizontal, ArrowUpRight, ArrowDownRight, RefreshCw, AlertCircle, Printer, Search, Filter, PauseCircle, PlayCircle, Gift, ShoppingBag, ArrowRight } from 'lucide-react';
 import {
   useRawMaterials,
   useFinalProducts,
@@ -152,10 +152,41 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
 
   const [isBlendProduct, setIsBlendProduct] = useState(false);
   const [isResaleProduct, setIsResaleProduct] = useState(false);
+  const [isPackProduct, setIsPackProduct] = useState(false);
   const [blendIngredients, setBlendIngredients] = useState<Array<{ rawMaterialId: string; percentage: number }>>([
     { rawMaterialId: '', percentage: 50 },
     { rawMaterialId: '', percentage: 50 },
   ]);
+
+  // Estado para armador de Packs / Combos por unidades
+  const [packItems, setPackItems] = useState<Array<{
+    itemId: string;
+    itemType: 'RAW_MATERIAL' | 'FINAL_PRODUCT' | 'PACKAGING';
+    name: string;
+    code: string;
+    quantity: number;
+    unit: string;
+    unitCost: number;
+    salePrice?: number;
+    familyId?: string;
+    familyName?: string;
+  }>>([]);
+  const [packFamilyFilter, setPackFamilyFilter] = useState<string>('');
+  const [packSourceFilter, setPackSourceFilter] = useState<'ALL' | 'RAW_MATERIAL' | 'RESALE' | 'FINAL_PRODUCT' | 'PACKAGING'>('ALL');
+  const [packMarkupPct, setPackMarkupPct] = useState<number>(50);
+
+  // Estado para Modal "Pasar Materia Prima a Producto de Reventa" conservando Familia y Subfamilia
+  const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false);
+  const [promoteRawItem, setPromoteRawItem] = useState<any>(null);
+  const [promoteName, setPromoteName] = useState('');
+  const [promoteCode, setPromoteCode] = useState('');
+  const [promoteFamilyId, setPromoteFamilyId] = useState('');
+  const [promoteCostPrice, setPromoteCostPrice] = useState<number>(0);
+  const [promoteMarkupPct, setPromoteMarkupPct] = useState<number>(50);
+  const [promoteSalePrice, setPromoteSalePrice] = useState<number>(0);
+  const [promoteCurrentStock, setPromoteCurrentStock] = useState<number>(0);
+  const [promoteMinStock, setPromoteMinStock] = useState<number>(5);
+  const [promoteSuspendOriginalRaw, setPromoteSuspendOriginalRaw] = useState<boolean>(false);
 
   const [editingRawItem, setEditingRawItem] = useState<any>(null);
   const [editingPkgItem, setEditingPkgItem] = useState<any>(null);
@@ -244,7 +275,8 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   const finalFamilies = sortHierarchically(articleFamilies.filter((f: any) => {
     if (!f) return false;
     const sc = getScope(f);
-    return sc === 'FINAL_PRODUCT' || sc === 'FINAL' || sc === 'PRODUCTO FINAL' || sc === 'ALL';
+    // Incluir todas las familias salvo las exclusivas de empaque para que al promover materias primas se conserve siempre su familia y subfamilia
+    return sc !== 'PACKAGING' && sc !== 'PKG' && sc !== 'EMPAQUE' && sc !== 'EMP';
   }));
 
   const matchesFamilyOrSubfamily = (itemFamId: string | undefined, selectedFilterId: string) => {
@@ -287,9 +319,18 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
   // Filtros Tab 3: Productos Finales
   const [finalSearch, setFinalSearch] = useState('');
   const [finalFamilyFilter, setFinalFamilyFilter] = useState('');
-  const [finalTypeFilter, setFinalTypeFilter] = useState<'ALL' | 'ELABORATED' | 'RESALE'>('ALL');
+  const [finalTypeFilter, setFinalTypeFilter] = useState<'ALL' | 'ELABORATED' | 'RESALE' | 'PACK'>('ALL');
   const [finalStockFilter, setFinalStockFilter] = useState<'ALL' | 'LOW' | 'WITH_STOCK' | 'OUT_OF_STOCK'>('ALL');
   const [finalStatusFilter, setFinalStatusFilter] = useState<'ALL' | 'ACTIVE' | 'SUSPENDED'>('ALL');
+
+  const isProductPack = (item: any): boolean => {
+    if (!item) return false;
+    if (item.isPack) return true;
+    if (Array.isArray(item.ingredientsList) && item.ingredientsList.some((ing: any) => Boolean(ing?.isPackItem) || (ing?.quantity !== undefined && Number(ing?.quantity) > 0 && !ing?.percentage))) {
+      return true;
+    }
+    return false;
+  };
 
   // Listas filtradas
   const filteredRawMaterials = rawMaterialsList.filter(item => {
@@ -358,9 +399,11 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       const itemFam = item.familyId || (item as any).articleFamilyId;
       if (!matchesFamilyOrSubfamily(itemFam, finalFamilyFilter)) return false;
     }
-    const isResale = Boolean(item.isResale);
+    const isPack = isProductPack(item);
+    const isResale = Boolean(item.isResale) && !isPack;
+    if (finalTypeFilter === 'PACK' && !isPack) return false;
     if (finalTypeFilter === 'RESALE' && !isResale) return false;
-    if (finalTypeFilter === 'ELABORATED' && isResale) return false;
+    if (finalTypeFilter === 'ELABORATED' && (isResale || isPack)) return false;
     const isAct = item.isActive !== false;
     if (finalStatusFilter === 'ACTIVE' && !isAct) return false;
     if (finalStatusFilter === 'SUSPENDED' && isAct) return false;
@@ -691,12 +734,159 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
     setIsPkgModalOpen(true);
   };
 
+  // Catálogo unificado de ítems elegibles para integrar un Pack / Combo (con Familia/Subfamilia)
+  const allPackCandidateItems = [
+    ...finalProductsList.filter(fp => fp && !isProductPack(fp)).map(fp => ({
+      id: fp.id,
+      itemType: 'FINAL_PRODUCT' as const,
+      isResale: Boolean(fp.isResale),
+      name: fp.name,
+      code: fp.code || '',
+      unit: fp.unit || 'UND',
+      unitCost: Number(fp.costPrice) || (fp.rawMaterialId ? Number(rawMaterialsList.find(r => r.id === fp.rawMaterialId)?.costPerUnit || 0) : Math.round((Number(fp.price) || 0) * 0.5)),
+      salePrice: Number(fp.price) || 0,
+      currentStock: Number(fp.currentStock) || 0,
+      familyId: fp.familyId || (fp as any).articleFamilyId || '',
+      familyName: getFamilyDisplayLabel(fp),
+    })),
+    ...rawMaterialsList.filter(Boolean).map(rm => ({
+      id: rm.id,
+      itemType: 'RAW_MATERIAL' as const,
+      isResale: false,
+      name: rm.name,
+      code: rm.code || '',
+      unit: rm.unit || 'UND',
+      unitCost: Number(rm.costPerUnit) || 0,
+      salePrice: 0,
+      currentStock: Number(rm.currentStock) || 0,
+      familyId: rm.familyId || (rm as any).articleFamilyId || '',
+      familyName: getFamilyDisplayLabel(rm),
+    })),
+    ...packagingMaterialsList.filter(Boolean).map(pm => ({
+      id: pm.id,
+      itemType: 'PACKAGING' as const,
+      isResale: false,
+      name: pm.name,
+      code: pm.code || '',
+      unit: pm.unit || 'UND',
+      unitCost: Number(pm.costPerUnit) || 0,
+      salePrice: 0,
+      currentStock: Number(pm.currentStock) || 0,
+      familyId: pm.familyId || (pm as any).articleFamilyId || '',
+      familyName: getFamilyDisplayLabel(pm),
+    }))
+  ];
+
+  const filteredPackCandidates = allPackCandidateItems.filter(cand => {
+    if (packFamilyFilter && !matchesFamilyOrSubfamily(cand.familyId, packFamilyFilter)) return false;
+    if (packSourceFilter === 'RAW_MATERIAL' && cand.itemType !== 'RAW_MATERIAL') return false;
+    if (packSourceFilter === 'RESALE' && !(cand.itemType === 'FINAL_PRODUCT' && cand.isResale)) return false;
+    if (packSourceFilter === 'FINAL_PRODUCT' && cand.itemType !== 'FINAL_PRODUCT') return false;
+    if (packSourceFilter === 'PACKAGING' && cand.itemType !== 'PACKAGING') return false;
+    return true;
+  });
+
+  const totalPackCost = packItems.reduce((acc, curr) => acc + ((Number(curr.quantity) || 0) * (Number(curr.unitCost) || 0)), 0);
+  const totalPackIndividualSalePrices = packItems.reduce((acc, curr) => acc + ((Number(curr.quantity) || 0) * (Number(curr.salePrice) || 0)), 0);
+
+  const openPromoteRawToResale = (rawItem: any) => {
+    setPromoteRawItem(rawItem);
+    const defaultCost = Number(rawItem.costPerUnit) || 0;
+    const defaultMarkup = 50;
+    const suggestedSale = Math.round(defaultCost * (1 + defaultMarkup / 100));
+    setPromoteName(rawItem.name || '');
+    setPromoteCode(generateFinalCode(rawItem.name || ''));
+    setPromoteFamilyId(rawItem.familyId || rawItem.articleFamilyId || '');
+    setPromoteCostPrice(defaultCost);
+    setPromoteMarkupPct(defaultMarkup);
+    setPromoteSalePrice(suggestedSale);
+    setPromoteCurrentStock(Number(rawItem.currentStock) || 0);
+    setPromoteMinStock(Number(rawItem.minStock) || 5);
+    setPromoteSuspendOriginalRaw(false);
+    setIsPromoteModalOpen(true);
+  };
+
+  const handleConfirmPromoteToResale = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promoteRawItem) return;
+
+    const payload = {
+      rawMaterialId: promoteRawItem.id,
+      code: promoteCode.trim() ? promoteCode.trim().toUpperCase() : generateFinalCode(promoteName),
+      name: promoteName.trim() || promoteRawItem.name,
+      unitWeightGrams: 1,
+      unit: 'UND',
+      netContentLabel: '1 und',
+      currentStock: Number(promoteCurrentStock) || 0,
+      minStock: Number(promoteMinStock) || 5,
+      costPrice: Number(promoteCostPrice) || 0,
+      price: Number(promoteSalePrice) || 0,
+      supplierName: promoteRawItem.supplierName || undefined,
+      familyId: promoteFamilyId || undefined,
+      isBlend: false,
+      isResale: true,
+      isPack: false,
+      ingredientsList: [],
+      ingredients: `Producto de reventa (${getFamilyDisplayLabel({ familyId: promoteFamilyId })})`,
+      defaultExpirationDays: 180,
+      dietaryBadgeCodes: []
+    };
+
+    try {
+      await createFinal.mutateAsync(payload as any);
+      if (promoteSuspendOriginalRaw) {
+        await toggleRawStatus.mutateAsync({ id: promoteRawItem.id, isActive: false });
+      }
+      setIsPromoteModalOpen(false);
+      setPromoteRawItem(null);
+      setActiveTab('final');
+    } catch (err: any) {
+      alert(err.message || 'Error al pasar a Producto de Reventa.');
+    }
+  };
+
   const openEditFinal = (item: any) => {
     setEditingFinalItem(item);
-    const isResale = Boolean(item.isResale);
+    const isPack = isProductPack(item);
+    const isResale = !isPack && Boolean(item.isResale);
+    const isBlend = !isPack && !isResale && Boolean(item.isBlend);
+
+    setIsPackProduct(isPack);
     setIsResaleProduct(isResale);
-    setIsBlendProduct(!isResale && Boolean(item.isBlend));
-    if (Array.isArray(item.ingredientsList) && item.ingredientsList.length > 0) {
+    setIsBlendProduct(isBlend);
+
+    if (isPack && Array.isArray(item.ingredientsList) && item.ingredientsList.length > 0) {
+      const mappedPack = item.ingredientsList.map((ing: any) => {
+        const matchedCand = allPackCandidateItems.find(c => c.id === ing.rawMaterialId);
+        return {
+          itemId: ing.rawMaterialId || '',
+          itemType: ing.itemType || matchedCand?.itemType || 'RAW_MATERIAL',
+          name: ing.rawMaterialName || matchedCand?.name || '',
+          code: ing.rawMaterialCode || matchedCand?.code || '',
+          quantity: Number(ing.quantity) || 1,
+          unit: ing.unit || matchedCand?.unit || 'UND',
+          unitCost: Number(ing.unitCost) !== undefined && Number(ing.unitCost) > 0 ? Number(ing.unitCost) : (matchedCand?.unitCost || 0),
+          salePrice: matchedCand?.salePrice || 0,
+          familyId: ing.familyId || matchedCand?.familyId || '',
+          familyName: ing.familyName || matchedCand?.familyName || '',
+        };
+      });
+      setPackItems(mappedPack);
+      const packCostSum = mappedPack.reduce((s: number, i: any) => s + (i.quantity * i.unitCost), 0);
+      const curPrice = Number(item.price) || 0;
+      if (packCostSum > 0 && curPrice > 0) {
+        setPackMarkupPct(Number((((curPrice - packCostSum) / packCostSum) * 100).toFixed(1)));
+      } else {
+        setPackMarkupPct(50);
+      }
+    } else {
+      setPackItems([
+        { itemId: '', itemType: 'RAW_MATERIAL', name: '', code: '', quantity: 1, unit: 'UND', unitCost: 0 }
+      ]);
+      setPackMarkupPct(50);
+    }
+
+    if (!isPack && Array.isArray(item.ingredientsList) && item.ingredientsList.length > 0) {
       setBlendIngredients(item.ingredientsList.map((ing: any) => ({
         rawMaterialId: ing.rawMaterialId,
         percentage: ing.percentage || 0
@@ -787,7 +977,20 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
           : data.dietaryBadgeCodes)
       : [];
 
-    const formattedIngredientsList = (!isResaleProduct && isBlendProduct)
+    const formattedIngredientsList = isPackProduct
+      ? packItems.filter(p => p && p.itemId).map(p => ({
+          rawMaterialId: p.itemId,
+          rawMaterialName: p.name,
+          rawMaterialCode: p.code,
+          itemType: p.itemType,
+          quantity: Number(p.quantity) || 1,
+          unit: p.unit || 'UND',
+          unitCost: Number(p.unitCost) || 0,
+          familyId: p.familyId,
+          familyName: p.familyName,
+          isPackItem: true
+        }))
+      : (!isResaleProduct && isBlendProduct)
       ? blendIngredients.filter(ing => ing && ing.rawMaterialId).map(ing => {
           const rm = rawMaterialsList.find(r => r && r.id === ing.rawMaterialId);
           return {
@@ -799,27 +1002,33 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
         })
       : [];
 
-    const autoIngredientsText = (!isResaleProduct && isBlendProduct)
-      ? formattedIngredientsList.map(ing => `${ing.rawMaterialName} (${ing.percentage}%)`).join(', ')
+    const autoIngredientsText = isPackProduct
+      ? formattedIngredientsList.map((ing: any) => `${ing.quantity}x ${ing.rawMaterialName}`).join(' + ')
+      : (!isResaleProduct && isBlendProduct)
+      ? formattedIngredientsList.map((ing: any) => `${ing.rawMaterialName} (${ing.percentage}%)`).join(', ')
       : data.ingredients;
 
-    const resolvedUnit = normalizeUnitCode(data.unit, data.netContentLabel);
-    const weightVal = Number(data.unitWeightGrams) || 1;
+    const resolvedUnit = isPackProduct ? 'UND' : normalizeUnitCode(data.unit, data.netContentLabel);
+    const weightVal = isPackProduct ? 1 : (Number(data.unitWeightGrams) || 1);
     const syncedNetContentLabel = `${weightVal} ${formatUnitSuffix(resolvedUnit)}`;
+    const resolvedCostPrice = isPackProduct
+      ? totalPackCost
+      : (Number(data.costPrice) || 0);
 
     const payload = { 
       ...data,
-      rawMaterialId: isResaleProduct ? undefined : data.rawMaterialId,
+      rawMaterialId: (isResaleProduct || isPackProduct) ? (data.rawMaterialId || undefined) : data.rawMaterialId,
       code: finalCode,
       unitWeightGrams: weightVal,
       unit: resolvedUnit,
       netContentLabel: syncedNetContentLabel,
-      costPrice: Number(data.costPrice) || 0,
+      costPrice: resolvedCostPrice,
       supplierName: data.supplierName || undefined,
       dietaryBadgeCodes: badgeCodesArray, 
       barcode: data.barcode || finalCode,
-      isBlend: isResaleProduct ? false : isBlendProduct,
-      isResale: isResaleProduct,
+      isBlend: (isResaleProduct || isPackProduct) ? false : isBlendProduct,
+      isResale: isPackProduct ? false : isResaleProduct,
+      isPack: isPackProduct,
       ingredientsList: formattedIngredientsList,
       ingredients: autoIngredientsText || data.ingredients
     };
@@ -931,6 +1140,45 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               📋 Lista de Precios PDF
             </button>
             <button
+              className="btn btn-secondary flex items-center gap-1.5"
+              style={{ borderColor: '#D97706', color: '#B45309', backgroundColor: '#FFFBEB', fontWeight: 600 }}
+              onClick={() => {
+                setEditingFinalItem(null);
+                setIsResaleProduct(false);
+                setIsBlendProduct(false);
+                setIsPackProduct(true);
+                setPackFamilyFilter('');
+                setPackSourceFilter('ALL');
+                setPackMarkupPct(50);
+                setPackItems([
+                  { itemId: '', itemType: 'RAW_MATERIAL', name: '', code: '', quantity: 1, unit: 'UND', unitCost: 0 },
+                  { itemId: '', itemType: 'RAW_MATERIAL', name: '', code: '', quantity: 1, unit: 'UND', unitCost: 0 }
+                ]);
+                finalForm.reset({
+                  rawMaterialId: '',
+                  code: '',
+                  barcode: '',
+                  name: '',
+                  unitWeightGrams: 1,
+                  unit: 'UND',
+                  netContentLabel: '1 und',
+                  currentStock: 0,
+                  minStock: 5,
+                  costPrice: 0,
+                  price: 0,
+                  supplierName: '',
+                  ingredients: '',
+                  dietaryBadgeCodes: '',
+                  defaultExpirationDays: 180,
+                  familyId: '',
+                });
+                setIsFinalModalOpen(true);
+              }}
+              title="Armar un Pack o Combo combinando productos de reventa, materias primas o elaborados"
+            >
+              <Gift size={16} /> 🎁 Armar Pack / Combo
+            </button>
+            <button
               className="btn btn-secondary flex items-center gap-2"
               style={{ borderColor: '#8B5CF6', color: '#6D28D9', backgroundColor: '#F5F3FF', fontWeight: 600 }}
               onClick={() => handleOpenAdjustModal()}
@@ -987,9 +1235,13 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                     setEditingFinalItem(null);
                     setIsResaleProduct(false);
                     setIsBlendProduct(false);
+                    setIsPackProduct(false);
                     setBlendIngredients([
                       { rawMaterialId: rawMaterialsList.length > 0 ? rawMaterialsList[0]?.id || '' : '', percentage: 50 },
                       { rawMaterialId: rawMaterialsList.length > 1 ? rawMaterialsList[1]?.id || '' : '', percentage: 50 },
+                    ]);
+                    setPackItems([
+                      { itemId: '', itemType: 'RAW_MATERIAL', name: '', code: '', quantity: 1, unit: 'UND', unitCost: 0 }
                     ]);
                     finalForm.reset({
                       rawMaterialId: rawMaterialsList.length > 0 ? rawMaterialsList[0]?.id || '' : '',
@@ -1203,6 +1455,21 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                           </td>
                           <td className="no-print" style={{ textAlign: 'right' }}>
                             <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => openPromoteRawToResale(item)}
+                                title="Pasar a Producto Final de Reventa conservando su Familia y Subfamilia"
+                                className="text-xs font-semibold px-2 py-1 rounded border flex items-center gap-1 hover:bg-blue-50 transition"
+                                style={{
+                                  borderColor: '#3B82F6',
+                                  color: '#1D4ED8',
+                                  backgroundColor: '#EFF6FF',
+                                  height: '32px',
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                <ShoppingBag size={13} /> Pasar a Reventa
+                              </button>
                               <button 
                                 type="button"
                                 onClick={() => openEditRaw(item)}
@@ -1641,6 +1908,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                     <option value="ALL">Todos los tipos</option>
                     <option value="ELABORATED">🏭 Elaboración / Fraccionado</option>
                     <option value="RESALE">🛍️ Producto de Reventa</option>
+                    <option value="PACK">🎁 Pack / Combo</option>
                   </select>
                 </div>
 
@@ -1756,7 +2024,18 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                             {item.unitWeightGrams || 1} {formatUnitSuffix(normalizeUnitCode(item.unit, item.netContentLabel))}
                           </td>
                           <td>
-                            {item.isResale ? (
+                            {isProductPack(item) ? (
+                              <div className="flex flex-col gap-0.5">
+                                <span className="badge amber text-xs w-fit font-semibold">
+                                  🎁 Pack / Combo ({Array.isArray(item.ingredientsList) ? item.ingredientsList.length : 0} ítems)
+                                </span>
+                                {item.ingredients && (
+                                  <span className="text-[11px] text-text-muted truncate max-w-[220px]" title={item.ingredients}>
+                                    {item.ingredients}
+                                  </span>
+                                )}
+                              </div>
+                            ) : item.isResale ? (
                               <div className="flex flex-col gap-0.5">
                                 <span className="badge blue text-xs w-fit">🛍️ Reventa</span>
                                 {item.supplierName && (
@@ -2448,47 +2727,308 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       </Modal>
 
       {/* Modal Nuevo / Editar Producto Final */}
-      <Modal isOpen={isFinalModalOpen} onClose={() => { setIsFinalModalOpen(false); setEditingFinalItem(null); }} title={editingFinalItem ? "✏️ Editar Producto Final" : "📦 Nuevo Producto Final"} maxWidth="650px">
+      <Modal isOpen={isFinalModalOpen} onClose={() => { setIsFinalModalOpen(false); setEditingFinalItem(null); }} title={editingFinalItem ? "✏️ Editar Producto Final" : (isPackProduct ? "🎁 Armar Nuevo Pack / Combo de Venta" : "📦 Nuevo Producto Final")} maxWidth="740px">
         <form onSubmit={finalForm.handleSubmit(onFinalSubmit)} className="flex flex-col gap-4">
           
-          {/* Selector de Tipo de Producto (Monoproducto vs Blend/Mix vs Reventa) */}
+          {/* Selector de Tipo de Producto (Monoproducto vs Blend/Mix vs Reventa vs Pack/Combo) */}
           <div className="form-field">
             <label className="font-semibold text-text-dark mb-2 block">Tipo de Producto / Origen *</label>
-            <div className="grid grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               <button
                 type="button"
-                className={`btn ${(!isBlendProduct && !isResaleProduct) ? 'btn-primary' : 'btn-secondary'} flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold`}
+                className={`btn ${(!isBlendProduct && !isResaleProduct && !isPackProduct) ? 'btn-primary' : 'btn-secondary'} flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold`}
                 onClick={() => {
                   setIsResaleProduct(false);
                   setIsBlendProduct(false);
+                  setIsPackProduct(false);
                 }}
               >
-                <Package size={16} /> Monoproducto (1 Insumo)
+                <Package size={15} /> Monoproducto
               </button>
               <button
                 type="button"
-                className={`btn ${(isBlendProduct && !isResaleProduct) ? 'btn-primary' : 'btn-secondary'} flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold`}
+                className={`btn ${(isBlendProduct && !isResaleProduct && !isPackProduct) ? 'btn-primary' : 'btn-secondary'} flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold`}
                 onClick={() => {
                   setIsResaleProduct(false);
                   setIsBlendProduct(true);
+                  setIsPackProduct(false);
                 }}
               >
-                <Layers size={16} /> Blend / Mix (Fórmula)
+                <Layers size={15} /> Blend / Mix (%)
               </button>
               <button
                 type="button"
-                className={`btn ${isResaleProduct ? 'btn-primary' : 'btn-secondary'} flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold`}
+                className={`btn ${(isResaleProduct && !isPackProduct) ? 'btn-primary' : 'btn-secondary'} flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold`}
                 onClick={() => {
                   setIsResaleProduct(true);
                   setIsBlendProduct(false);
+                  setIsPackProduct(false);
                 }}
               >
-                <Tag size={16} /> Producto de Reventa
+                <Tag size={15} /> Reventa Directa
+              </button>
+              <button
+                type="button"
+                className={`btn ${isPackProduct ? 'btn-primary' : 'btn-secondary'} flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold`}
+                onClick={() => {
+                  setIsPackProduct(true);
+                  setIsResaleProduct(false);
+                  setIsBlendProduct(false);
+                  finalForm.setValue('unit', 'UND');
+                  finalForm.setValue('unitWeightGrams', 1);
+                  if (packItems.length === 0) {
+                    setPackItems([
+                      { itemId: '', itemType: 'RAW_MATERIAL', name: '', code: '', quantity: 1, unit: 'UND', unitCost: 0 }
+                    ]);
+                  }
+                }}
+              >
+                <Gift size={15} /> Pack / Combo
               </button>
             </div>
           </div>
 
-          {isResaleProduct ? (
+          {isPackProduct ? (
+            <div className="card p-4 bg-bg-linen rounded-md border border-card-border flex flex-col gap-3">
+              <div className="flex justify-between items-center flex-wrap gap-2">
+                <div>
+                  <span className="font-bold text-text-dark text-sm flex items-center gap-2">
+                    <Gift size={16} className="text-primary-sage" />
+                    Armador de Pack / Combo por Unidades
+                  </span>
+                  <p className="text-xs text-text-muted m-0 mt-0.5">
+                    Combina productos de reventa (cargados en Materia Prima o en Productos Finales), elaborados y empaques filtrando por su Familia y Subfamilia.
+                  </p>
+                </div>
+                <span className="badge amber text-xs font-bold">
+                  Costo Total Pack: {totalPackCost.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                </span>
+              </div>
+
+              {/* Filtros rápidos para encontrar los productos por Familia/Subfamilia u Origen */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 bg-white p-2.5 rounded border">
+                <div>
+                  <label className="text-[11px] font-semibold text-text-muted mb-1 block">
+                    🔍 Filtrar Selector por Familia / Subfamilia
+                  </label>
+                  <select
+                    value={packFamilyFilter}
+                    onChange={(e) => setPackFamilyFilter(e.target.value)}
+                    className="w-full text-xs py-1.5"
+                  >
+                    <option value="">Todas las Familias y Subfamilias ({allPackCandidateItems.length} ítems)</option>
+                    {sortHierarchically(articleFamilies).map((f: any) => (
+                      <option key={f.id} value={f.id}>
+                        {f.parentId ? `— ${f.name} (${f.parentName || 'Subfamilia'})` : `📁 ${f.name}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-text-muted mb-1 block">
+                    📦 Filtrar por Origen del Artículo
+                  </label>
+                  <select
+                    value={packSourceFilter}
+                    onChange={(e) => setPackSourceFilter(e.target.value as any)}
+                    className="w-full text-xs py-1.5"
+                  >
+                    <option value="ALL">Todos (Materias Primas + Reventa + Elaborados + Cajas)</option>
+                    <option value="RAW_MATERIAL">🌾 Cargados en Materias Primas</option>
+                    <option value="RESALE">🛍️ Productos Finales de Reventa</option>
+                    <option value="FINAL_PRODUCT">🏭 Todos los Productos Finales</option>
+                    <option value="PACKAGING">📦 Cajas / Bolsas / Empaques</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Lista de integrantes del Pack */}
+              <div className="flex flex-col gap-2">
+                {packItems.map((pItem, idx) => {
+                  const lineSubtotal = (Number(pItem.quantity) || 0) * (Number(pItem.unitCost) || 0);
+                  // Asegurar que el ítem actualmente seleccionado aparezca aunque se cambie el filtro de familia
+                  const optionsForRow = pItem.itemId && !filteredPackCandidates.some(c => c.id === pItem.itemId)
+                    ? [
+                        ...allPackCandidateItems.filter(c => c.id === pItem.itemId),
+                        ...filteredPackCandidates
+                      ]
+                    : filteredPackCandidates;
+
+                  return (
+                    <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded border">
+                      <div className="col-span-6">
+                        <label className="text-[10px] text-text-muted block mb-0.5">
+                          Integrante #{idx + 1} {pItem.familyName ? `• ${pItem.familyName}` : ''}
+                        </label>
+                        <select
+                          value={pItem.itemId}
+                          onChange={(e) => {
+                            const selId = e.target.value;
+                            const found = allPackCandidateItems.find(c => c.id === selId);
+                            const updated = [...packItems];
+                            if (found) {
+                              updated[idx] = {
+                                itemId: found.id,
+                                itemType: found.itemType,
+                                name: found.name,
+                                code: found.code,
+                                quantity: updated[idx].quantity || 1,
+                                unit: found.unit,
+                                unitCost: found.unitCost,
+                                salePrice: found.salePrice,
+                                familyId: found.familyId,
+                                familyName: found.familyName
+                              };
+                              // Si el Pack aún no tiene familia asignada, heredar la familia del primer producto elegido
+                              const currentFormFam = finalForm.getValues('familyId');
+                              if (!currentFormFam && found.familyId) {
+                                finalForm.setValue('familyId', found.familyId);
+                              }
+                            } else {
+                              updated[idx] = { ...updated[idx], itemId: '', name: '', code: '', unitCost: 0 };
+                            }
+                            setPackItems(updated);
+                            const newTotalCost = updated.reduce((s, item) => s + ((Number(item.quantity) || 0) * (Number(item.unitCost) || 0)), 0);
+                            finalForm.setValue('costPrice', newTotalCost);
+                            if (newTotalCost > 0) {
+                              finalForm.setValue('price', Math.round(newTotalCost * (1 + packMarkupPct / 100)));
+                            }
+                          }}
+                          className="w-full text-xs"
+                        >
+                          <option value="">Seleccionar producto o materia prima...</option>
+                          {optionsForRow.map(cand => {
+                            const tag = cand.itemType === 'RAW_MATERIAL'
+                              ? '[MP]'
+                              : cand.itemType === 'PACKAGING'
+                              ? '[Empaque]'
+                              : cand.isResale
+                              ? '[Reventa]'
+                              : '[Elaborado]';
+                            return (
+                              <option key={`${cand.itemType}-${cand.id}`} value={cand.id}>
+                                {tag} {cand.name} ({cand.familyName}) — Costo: ${cand.unitCost.toLocaleString('es-AR')}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+
+                      <div className="col-span-2">
+                        <label className="text-[10px] text-text-muted block mb-0.5">Cant. ({pItem.unit || 'UND'})</label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0.01"
+                          value={pItem.quantity}
+                          onChange={(e) => {
+                            const qty = parseFloat(e.target.value) || 0;
+                            const updated = [...packItems];
+                            updated[idx].quantity = qty;
+                            setPackItems(updated);
+                            const newTotalCost = updated.reduce((s, item) => s + ((Number(item.quantity) || 0) * (Number(item.unitCost) || 0)), 0);
+                            finalForm.setValue('costPrice', newTotalCost);
+                            if (newTotalCost > 0) {
+                              finalForm.setValue('price', Math.round(newTotalCost * (1 + packMarkupPct / 100)));
+                            }
+                          }}
+                          className="w-full text-center text-xs font-bold"
+                        />
+                      </div>
+
+                      <div className="col-span-2">
+                        <label className="text-[10px] text-text-muted block mb-0.5">Costo Unit. ($)</label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={pItem.unitCost}
+                          onChange={(e) => {
+                            const uCost = parseFloat(e.target.value) || 0;
+                            const updated = [...packItems];
+                            updated[idx].unitCost = uCost;
+                            setPackItems(updated);
+                            const newTotalCost = updated.reduce((s, item) => s + ((Number(item.quantity) || 0) * (Number(item.unitCost) || 0)), 0);
+                            finalForm.setValue('costPrice', newTotalCost);
+                            if (newTotalCost > 0) {
+                              finalForm.setValue('price', Math.round(newTotalCost * (1 + packMarkupPct / 100)));
+                            }
+                          }}
+                          className="w-full text-right text-xs"
+                        />
+                      </div>
+
+                      <div className="col-span-2 flex items-center justify-between gap-1 pt-3">
+                        <span className="text-xs font-bold text-primary-sage">
+                          ${lineSubtotal.toLocaleString('es-AR')}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary text-terracotta p-1.5"
+                          onClick={() => {
+                            if (packItems.length > 1) {
+                              const updated = packItems.filter((_, i) => i !== idx);
+                              setPackItems(updated);
+                              const newTotalCost = updated.reduce((s, item) => s + ((Number(item.quantity) || 0) * (Number(item.unitCost) || 0)), 0);
+                              finalForm.setValue('costPrice', newTotalCost);
+                              if (newTotalCost > 0) {
+                                finalForm.setValue('price', Math.round(newTotalCost * (1 + packMarkupPct / 100)));
+                              }
+                            }
+                          }}
+                          title="Quitar ítem del pack"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex justify-between items-center flex-wrap gap-2 mt-1">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary flex items-center gap-1.5"
+                  onClick={() => {
+                    setPackItems([
+                      ...packItems,
+                      { itemId: '', itemType: 'RAW_MATERIAL', name: '', code: '', quantity: 1, unit: 'UND', unitCost: 0 }
+                    ]);
+                  }}
+                >
+                  <Plus size={14} /> Agregar otro Producto / Insumo al Pack
+                </button>
+
+                {/* Mini calculadora de Recargo directo para el Pack */}
+                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded border text-xs">
+                  <span className="text-text-muted">Costo Pack: <strong>${totalPackCost.toLocaleString('es-AR')}</strong></span>
+                  <span>+ Recargo %:</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={packMarkupPct}
+                    onChange={(e) => {
+                      const pct = parseFloat(e.target.value) || 0;
+                      setPackMarkupPct(pct);
+                      finalForm.setValue('costPrice', totalPackCost);
+                      if (totalPackCost > 0) {
+                        finalForm.setValue('price', Math.round(totalPackCost * (1 + pct / 100)));
+                      }
+                    }}
+                    className="w-16 text-center font-bold py-0.5 px-1"
+                  />
+                  <span className="text-primary-sage font-bold">
+                    ➔ Sugerido: ${Math.round(totalPackCost * (1 + packMarkupPct / 100)).toLocaleString('es-AR')}
+                  </span>
+                  {totalPackIndividualSalePrices > 0 && (
+                    <span className="text-[11px] text-text-muted ml-1">
+                      (Suma sueltos: ${totalPackIndividualSalePrices.toLocaleString('es-AR')})
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : isResaleProduct ? (
             <div className="card p-4 bg-bg-linen rounded-md border border-card-border flex flex-col gap-3">
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-text-dark text-sm flex items-center gap-2">
@@ -2524,7 +3064,17 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
           ) : !isBlendProduct ? (
             <div className="form-field">
               <label>Materia Prima Base (Insumo Origen) *</label>
-              <select {...finalForm.register('rawMaterialId')}>
+              <select
+                {...finalForm.register('rawMaterialId')}
+                onChange={(e) => {
+                  const rmId = e.target.value;
+                  finalForm.setValue('rawMaterialId', rmId);
+                  const rm = rawMaterialsList.find(r => r && r.id === rmId);
+                  if (rm && rm.familyId && !finalForm.getValues('familyId')) {
+                    finalForm.setValue('familyId', rm.familyId);
+                  }
+                }}
+              >
                 <option value="">Seleccione materia prima base...</option>
                 {rawMaterialsList.map(rm => rm && (
                   <option key={rm.id} value={rm.id}>
@@ -2616,7 +3166,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               <label>Nombre Comercial *</label>
               <input 
                 {...finalForm.register('name')} 
-                placeholder="Ej: Almendras Nonpareil 500g / Aceite Coco 200ml" 
+                placeholder={isPackProduct ? "Ej: Pack Desayuno Energético / Combo Tinturas" : "Ej: Almendras Nonpareil 500g / Aceite Coco 200ml"} 
                 className={finalForm.formState.errors.name ? 'has-error' : ''} 
               />
               {finalForm.formState.errors.name && (
@@ -2625,12 +3175,12 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
             </div>
 
             <div className="form-field">
-              <label>Familia / Categoría</label>
+              <label>Familia › Subfamilia</label>
               <select {...finalForm.register('familyId')}>
-                <option value="">Seleccione una familia...</option>
+                <option value="">Seleccione una familia o subfamilia...</option>
                 {finalFamilies.map((fam: any) => fam && (
                   <option key={fam.id} value={fam.id}>
-                    {fam.parentName ? `${fam.parentName} > ${fam.name}` : fam.name} ({fam.code})
+                    {fam.parentName ? `${fam.parentName} › ${fam.name}` : fam.name} ({fam.code})
                   </option>
                 ))}
               </select>
@@ -2639,11 +3189,18 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
 
           <div className="grid grid-cols-3 gap-4">
             <div className="form-field">
-              <label>Precio de Venta ($) *</label>
+              <label>Precio de Venta Final ($) *</label>
               <input
                 type="number"
                 step="any"
                 {...finalForm.register('price', { valueAsNumber: true })}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value) || 0;
+                  finalForm.setValue('price', val);
+                  if (isPackProduct && totalPackCost > 0) {
+                    setPackMarkupPct(Number((((val - totalPackCost) / totalPackCost) * 100).toFixed(1)));
+                  }
+                }}
               />
             </div>
             <div className="form-field">
@@ -2703,10 +3260,172 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               Cancelar
             </button>
             <button type="submit" className="btn btn-primary" disabled={createFinal.isPending}>
-              {createFinal.isPending ? 'Guardando...' : 'Guardar Producto Final'}
+              {createFinal.isPending ? 'Guardando...' : (isPackProduct ? '💾 Guardar Pack / Combo' : 'Guardar Producto Final')}
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal Ágil: Pasar Materia Prima a Producto de Reventa conservando Familia y Subfamilia */}
+      <Modal
+        isOpen={isPromoteModalOpen}
+        onClose={() => { setIsPromoteModalOpen(false); setPromoteRawItem(null); }}
+        title="🛍️ Pasar a Producto de Reventa (Conservando Familia)"
+        maxWidth="580px"
+      >
+        {promoteRawItem && (
+          <form onSubmit={handleConfirmPromoteToResale} className="flex flex-col gap-4">
+            <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-lg text-xs text-text-dark flex flex-col gap-1">
+              <div className="font-bold text-blue-900 flex items-center justify-between">
+                <span>Origen en Materia Prima: {promoteRawItem.name} ({promoteRawItem.code})</span>
+                <span className="badge blue">{getFamilyDisplayLabel(promoteRawItem)}</span>
+              </div>
+              <p className="m-0 text-text-muted">
+                Se creará como <strong>Producto Final de Reventa</strong> manteniendo exactamente su <strong>Familia y Subfamilia</strong>, su costo de compra y proveedor, y podrás seguir usándolo tanto para venta individual como dentro de <strong>Packs / Combos</strong>.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="form-field">
+                <label className="text-xs font-semibold">Nombre Comercial de Venta *</label>
+                <input
+                  type="text"
+                  value={promoteName}
+                  onChange={(e) => setPromoteName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label className="text-xs font-semibold">Código SKU Producto Final *</label>
+                <input
+                  type="text"
+                  value={promoteCode}
+                  onChange={(e) => setPromoteCode(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="form-field">
+              <label className="text-xs font-semibold">Familia › Subfamilia Asignada (Se conserva automáticamente) *</label>
+              <select
+                value={promoteFamilyId}
+                onChange={(e) => setPromoteFamilyId(e.target.value)}
+              >
+                <option value="">Sin familia asignada</option>
+                {sortHierarchically(articleFamilies).map((fam: any) => fam && (
+                  <option key={fam.id} value={fam.id}>
+                    {fam.parentName ? `${fam.parentName} › ${fam.name}` : fam.name} ({fam.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Calculadora Bidireccional de Costo -> Recargo % -> Precio Final */}
+            <div className="p-3.5 bg-bg-linen rounded-lg border flex flex-col gap-3">
+              <div className="text-xs font-bold text-text-dark flex items-center justify-between">
+                <span>💲 Formación Directa del Precio de Venta (Sin Números Ocultos)</span>
+                <span className="text-primary-sage">
+                  Ganancia Limpia: ${(Math.max(0, promoteSalePrice - promoteCostPrice)).toLocaleString('es-AR')}/un.
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-3 items-end">
+                <div className="form-field">
+                  <label className="text-xs">1. Costo Compra ($)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={promoteCostPrice}
+                    onChange={(e) => {
+                      const c = parseFloat(e.target.value) || 0;
+                      setPromoteCostPrice(c);
+                      setPromoteSalePrice(Math.round(c * (1 + promoteMarkupPct / 100)));
+                    }}
+                    className="font-semibold"
+                  />
+                </div>
+                <div className="form-field">
+                  <label className="text-xs">2. + % Recargo s/Costo</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={promoteMarkupPct}
+                    onChange={(e) => {
+                      const pct = parseFloat(e.target.value) || 0;
+                      setPromoteMarkupPct(pct);
+                      setPromoteSalePrice(Math.round(promoteCostPrice * (1 + pct / 100)));
+                    }}
+                    className="font-bold text-primary-sage text-center"
+                  />
+                </div>
+                <div className="form-field">
+                  <label className="text-xs font-bold">3. = Precio Venta ($)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={promoteSalePrice}
+                    onChange={(e) => {
+                      const p = parseFloat(e.target.value) || 0;
+                      setPromoteSalePrice(p);
+                      if (promoteCostPrice > 0) {
+                        setPromoteMarkupPct(Number((((p - promoteCostPrice) / promoteCostPrice) * 100).toFixed(1)));
+                      }
+                    }}
+                    className="font-bold border-primary-sage"
+                  />
+                </div>
+              </div>
+              <div className="text-[11px] text-text-muted flex justify-between border-t pt-2">
+                <span>
+                  Cuenta exacta: <strong>${promoteCostPrice.toLocaleString('es-AR')}</strong> + <strong>{promoteMarkupPct}%</strong> (${Math.round(promoteCostPrice * (promoteMarkupPct / 100)).toLocaleString('es-AR')}) = <strong>${promoteSalePrice.toLocaleString('es-AR')}</strong>
+                </span>
+                <span>Proveedor: <strong>{promoteRawItem.supplierName || 'Sin asignar'}</strong></span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="form-field">
+                <label className="text-xs">Stock Disponible a Transferir (Unidades)</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={promoteCurrentStock}
+                  onChange={(e) => setPromoteCurrentStock(parseFloat(e.target.value) || 0)}
+                />
+              </div>
+              <div className="form-field">
+                <label className="text-xs">Stock Mínimo de Alerta</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={promoteMinStock}
+                  onChange={(e) => setPromoteMinStock(parseFloat(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2 text-xs text-text-dark cursor-pointer bg-amber-50/60 p-2.5 rounded border border-amber-200">
+              <input
+                type="checkbox"
+                checked={promoteSuspendOriginalRaw}
+                onChange={(e) => setPromoteSuspendOriginalRaw(e.target.checked)}
+              />
+              <span>
+                Pausar/Suspender de la pestaña <strong>Materias Primas</strong> luego de pasarlo a Reventa (dejar destildado si quieres verlo en ambas tablas).
+              </span>
+            </label>
+
+            <div className="form-actions flex justify-end gap-3 border-t pt-3">
+              <button type="button" className="btn btn-secondary" onClick={() => setIsPromoteModalOpen(false)}>
+                Cancelar
+              </button>
+              <button type="submit" className="btn btn-primary flex items-center gap-1.5" disabled={createFinal.isPending}>
+                <ShoppingBag size={15} />
+                {createFinal.isPending ? 'Creando...' : 'Confirmar y Publicar en Productos Finales'}
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
 
       {/* Modal Ajuste Manual de Stock */}

@@ -174,12 +174,15 @@ class FinalProductService {
                     const unitWeightGrams = parseFloat(row.unitWeightGrams || 0);
                     const resolvedUnit = inferUnitFromLabel(row.unit, row.netContentLabel);
                     const netContentLabel = formatNetContent(unitWeightGrams, resolvedUnit, row.netContentLabel);
+                    const parsedIngredients = parseJsonArray(row.ingredientsList);
+                    const isPack = Boolean(row.isPack) || (Array.isArray(parsedIngredients) && parsedIngredients.some((item) => Boolean(item?.isPackItem) || (item?.quantity !== undefined && Number(item?.quantity) > 0 && !item?.percentage)));
                     return {
                         ...row,
                         unit: resolvedUnit,
                         isActive: row.isActive === 1 || row.isActive === true || row.isActive === '1' || row.isActive === 'true',
-                        isBlend: row.isBlend === 1 || row.isBlend === true || row.isBlend === '1' || row.isBlend === 'true',
+                        isBlend: !isPack && (row.isBlend === 1 || row.isBlend === true || row.isBlend === '1' || row.isBlend === 'true'),
                         isResale: row.isResale === 1 || row.isResale === true || row.isResale === '1' || row.isResale === 'true',
+                        isPack,
                         unitWeightGrams,
                         netContentLabel,
                         currentStock: parseFloat(row.currentStock || 0),
@@ -187,7 +190,7 @@ class FinalProductService {
                         costPrice: parseFloat(row.costPrice || 0),
                         price: parseFloat(row.price || 0),
                         dietaryBadgeCodes: parseJsonArray(row.dietaryBadgeCodes),
-                        ingredientsList: parseJsonArray(row.ingredientsList)
+                        ingredientsList: parsedIngredients
                     };
                 });
             }
@@ -220,12 +223,15 @@ class FinalProductService {
                 const unitWeightGrams = parseFloat(row.unitWeightGrams || 0);
                 const resolvedUnit = inferUnitFromLabel(row.unit, row.netContentLabel);
                 const netContentLabel = formatNetContent(unitWeightGrams, resolvedUnit, row.netContentLabel);
+                const parsedIngredients = parseJsonArray(row.ingredientsList);
+                const isPack = Boolean(row.isPack) || (Array.isArray(parsedIngredients) && parsedIngredients.some((item) => Boolean(item?.isPackItem) || (item?.quantity !== undefined && Number(item?.quantity) > 0 && !item?.percentage)));
                 return {
                     ...row,
                     unit: resolvedUnit,
                     isActive: row.isActive === 1 || row.isActive === true || row.isActive === '1' || row.isActive === 'true',
-                    isBlend: row.isBlend === 1 || row.isBlend === true || row.isBlend === '1' || row.isBlend === 'true',
+                    isBlend: !isPack && (row.isBlend === 1 || row.isBlend === true || row.isBlend === '1' || row.isBlend === 'true'),
                     isResale: row.isResale === 1 || row.isResale === true || row.isResale === '1' || row.isResale === 'true',
+                    isPack,
                     unitWeightGrams,
                     netContentLabel,
                     currentStock: parseFloat(row.currentStock || 0),
@@ -233,7 +239,7 @@ class FinalProductService {
                     costPrice: parseFloat(row.costPrice || 0),
                     price: parseFloat(row.price || 0),
                     dietaryBadgeCodes: parseJsonArray(row.dietaryBadgeCodes),
-                    ingredientsList: parseJsonArray(row.ingredientsList)
+                    ingredientsList: parsedIngredients
                 };
             }
         }
@@ -244,6 +250,9 @@ class FinalProductService {
         const generatedBarcode = dto.barcode || '779' + Math.floor(1000000000 + Math.random() * 9000000000);
         const resolvedUnit = inferUnitFromLabel(dto.unit, dto.netContentLabel);
         const resolvedNetLabel = formatNetContent(dto.unitWeightGrams, resolvedUnit, dto.netContentLabel);
+        const normalizedIngredients = Array.isArray(dto.ingredientsList)
+            ? dto.ingredientsList.map(item => (dto.isPack ? { ...item, isPackItem: true } : item))
+            : [];
         try {
             const res = await this.db.query(`
         INSERT INTO final_products (
@@ -261,7 +270,7 @@ class FinalProductService {
                   ingredients_json AS "ingredientsList", is_active AS "isActive",
                   created_at AS "createdAt", updated_at AS "updatedAt";
       `, [
-                dto.isResale ? null : (dto.rawMaterialId || null),
+                dto.rawMaterialId || null,
                 dto.code,
                 generatedBarcode,
                 dto.name,
@@ -276,29 +285,32 @@ class FinalProductService {
                 JSON.stringify(dto.dietaryBadgeCodes || []),
                 dto.defaultExpirationDays ?? 180,
                 dto.familyId || null,
-                dto.isResale ? false : (dto.isBlend ?? false),
+                dto.isPack ? false : (dto.isResale ? false : (dto.isBlend ?? false)),
                 dto.isResale ?? false,
                 dto.supplierName || null,
-                JSON.stringify(dto.isResale ? [] : (dto.ingredientsList || []))
+                JSON.stringify(normalizedIngredients)
             ]);
             const row = res.rows[0];
+            const parsedIngredients = parseJsonArray(row.ingredientsList);
+            const isPack = Boolean(dto.isPack) || (Array.isArray(parsedIngredients) && parsedIngredients.some((item) => Boolean(item?.isPackItem) || (item?.quantity !== undefined && Number(item?.quantity) > 0 && !item?.percentage)));
             return {
                 ...row,
                 unit: inferUnitFromLabel(row.unit, row.netContentLabel),
                 isActive: row.isActive === 1 || row.isActive === true || row.isActive === '1' || row.isActive === 'true',
-                isBlend: row.isBlend === 1 || row.isBlend === true || row.isBlend === '1' || row.isBlend === 'true',
+                isBlend: !isPack && (row.isBlend === 1 || row.isBlend === true || row.isBlend === '1' || row.isBlend === 'true'),
                 isResale: row.isResale === 1 || row.isResale === true || row.isResale === '1' || row.isResale === 'true',
+                isPack,
                 unitWeightGrams: parseFloat(row.unitWeightGrams),
                 costPrice: parseFloat(row.costPrice || 0),
                 price: parseFloat(row.price),
                 dietaryBadgeCodes: Array.isArray(row.dietaryBadgeCodes) ? row.dietaryBadgeCodes : JSON.parse(row.dietaryBadgeCodes || '[]'),
-                ingredientsList: Array.isArray(row.ingredientsList) ? row.ingredientsList : JSON.parse(row.ingredientsList || '[]')
+                ingredientsList: parsedIngredients
             };
         }
         catch {
             const newProduct = {
                 id: 'fp-' + Date.now(),
-                rawMaterialId: dto.isResale ? undefined : dto.rawMaterialId,
+                rawMaterialId: dto.rawMaterialId,
                 code: dto.code,
                 barcode: generatedBarcode,
                 name: dto.name,
@@ -313,10 +325,11 @@ class FinalProductService {
                 dietaryBadgeCodes: dto.dietaryBadgeCodes || [],
                 defaultExpirationDays: dto.defaultExpirationDays ?? 180,
                 familyId: dto.familyId,
-                isBlend: dto.isResale ? false : (dto.isBlend ?? false),
+                isBlend: dto.isPack ? false : (dto.isResale ? false : (dto.isBlend ?? false)),
                 isResale: dto.isResale ?? false,
+                isPack: dto.isPack ?? false,
                 supplierName: dto.supplierName,
-                ingredientsList: dto.isResale ? [] : (dto.ingredientsList || []),
+                ingredientsList: normalizedIngredients,
                 isActive: true,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
@@ -363,7 +376,7 @@ class FinalProductService {
             let i = 1;
             if (dto.rawMaterialId !== undefined) {
                 updates.push(`raw_material_id = $${i++}`);
-                values.push(dto.isResale ? null : (dto.rawMaterialId || null));
+                values.push(dto.rawMaterialId || null);
             }
             if (dto.code !== undefined) {
                 updates.push(`code = $${i++}`);
@@ -425,7 +438,7 @@ class FinalProductService {
             }
             if (dto.isBlend !== undefined) {
                 updates.push(`is_blend = $${i++}`);
-                values.push(dto.isResale ? false : dto.isBlend);
+                values.push(dto.isPack ? false : (dto.isResale ? false : dto.isBlend));
             }
             if (dto.isResale !== undefined) {
                 updates.push(`is_resale = $${i++}`);
@@ -436,8 +449,11 @@ class FinalProductService {
                 values.push(dto.supplierName || null);
             }
             if (dto.ingredientsList !== undefined) {
+                const normalizedIngredients = Array.isArray(dto.ingredientsList)
+                    ? dto.ingredientsList.map(item => (dto.isPack ? { ...item, isPackItem: true } : item))
+                    : [];
                 updates.push(`ingredients_json = $${i++}::jsonb`);
-                values.push(JSON.stringify(dto.isResale ? [] : dto.ingredientsList));
+                values.push(JSON.stringify(normalizedIngredients));
             }
             if (dto.isActive !== undefined) {
                 updates.push(`is_active = $${i++}`);

@@ -34,6 +34,13 @@ export interface ProductIngredient {
   rawMaterialCode?: string;
   percentage?: number;
   gramsPerUnit?: number;
+  itemType?: 'RAW_MATERIAL' | 'FINAL_PRODUCT' | 'PACKAGING';
+  quantity?: number;
+  unit?: string;
+  unitCost?: number;
+  familyId?: string;
+  familyName?: string;
+  isPackItem?: boolean;
 }
 
 export interface FinalProduct {
@@ -56,6 +63,7 @@ export interface FinalProduct {
   familyName?: string;
   isBlend?: boolean;
   isResale?: boolean;
+  isPack?: boolean;
   supplierName?: string;
   ingredientsList?: ProductIngredient[];
   isActive?: boolean;
@@ -79,6 +87,7 @@ export interface CreateFinalProductDTO {
   familyId?: string;
   isBlend?: boolean;
   isResale?: boolean;
+  isPack?: boolean;
   supplierName?: string;
   ingredientsList?: ProductIngredient[];
 }
