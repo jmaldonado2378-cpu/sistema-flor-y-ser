@@ -103,6 +103,50 @@ export function addAuditLog(log: Omit<AuditLog, 'id' | 'timestamp'>) {
     ...log
   };
   saveCollection('audit_logs', [newEntry, ...logs]);
+
+  // Enviar también a la tabla audit_logs en MySQL para que todos los Administradores vean la misma auditoría
+  const token = localStorage.getItem('floryser_jwt_token');
+  if (token && !token.startsWith('jwt-local-')) {
+    fetch(`${API_BASE}/auth/audit-logs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(newEntry)
+    }).catch(() => {});
+  }
+}
+
+export async function syncAndFetchAuditLogs(): Promise<AuditLog[]> {
+  const localLogs = getAuditLogs();
+  const token = localStorage.getItem('floryser_jwt_token');
+  if (!token || token.startsWith('jwt-local-')) {
+    return localLogs;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/auth/audit-logs/sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ logs: localLogs })
+    });
+
+    if (response.ok) {
+      const json = await response.json();
+      if (Array.isArray(json.data) && json.data.length > 0) {
+        saveCollection('audit_logs', json.data);
+        return json.data;
+      }
+    }
+  } catch {
+    // Fallback a localLogs si no hay conexión momentánea
+  }
+
+  return localLogs;
 }
 
 // Helpers genéricos de persitencia local para modo Fallback estático

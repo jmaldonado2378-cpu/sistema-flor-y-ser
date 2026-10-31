@@ -44,27 +44,42 @@ CREATE TABLE IF NOT EXISTS `system_users` (
   `name` VARCHAR(120) NOT NULL,
   `email` VARCHAR(150) NOT NULL UNIQUE,
   `password_hash` VARCHAR(255) NOT NULL,
+  `visible_password` VARCHAR(150) NULL,
   `role` ENUM('ADMIN', 'SELLER') NOT NULL DEFAULT 'SELLER',
+  `is_protected` TINYINT(1) NOT NULL DEFAULT 0,
   `allowed_modules_json` TEXT NULL,
   `avatar_initials` VARCHAR(10) NULL,
+  `avatar_url` LONGTEXT NULL,
   `active` TINYINT(1) NOT NULL DEFAULT 1,
+  `last_login_at` DATETIME NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Insertar Usuarios del Sistema
--- Admin: jmaldonado2378@gmail.com / admin123
--- Seller: memimaldonado05@gmail.com / LaJefa3012
-INSERT INTO `system_users` (`id`, `name`, `email`, `password_hash`, `role`, `allowed_modules_json`, `avatar_initials`, `active`) VALUES
-('usr-admin-1', 'Juan Pablo (Administrador)', 'jmaldonado2378@gmail.com', '$2b$10$bdWDJOTRlDF339VyM0fOgu7XSQMeKy2o2NOooR1BViXop1j0FzAyi', 'ADMIN', '["dashboard","customers","stock","article_families","merchandise_receipt","fractioning","new_sale","kanban_orders","kanban_tasks","suppliers","checking_accounts","finance","settings","marketing","users"]', 'JP', 1),
-('usr-seller-1', 'Emilia Maldonado Hernandez', 'memimaldonado05@gmail.com', '$2b$10$EpkZkjN6zUxemeOwnKeO9enJx.aLGPKSrVz9aPh4WsZCzxJ1hPCqW', 'SELLER', '["dashboard","customers","stock","new_sale","kanban_orders","fractioning"]', 'EH', 1)
+-- 1b. Registro de Auditoría Centralizado
+CREATE TABLE IF NOT EXISTS `audit_logs` (
+  `id` VARCHAR(64) NOT NULL PRIMARY KEY,
+  `timestamp` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `user_id` VARCHAR(64) NULL,
+  `user_name` VARCHAR(150) NOT NULL,
+  `user_email` VARCHAR(150) NOT NULL,
+  `user_role` VARCHAR(50) NOT NULL DEFAULT 'SELLER',
+  `action` VARCHAR(100) NOT NULL,
+  `module` VARCHAR(100) NOT NULL,
+  `details` TEXT NOT NULL,
+  INDEX `idx_audit_ts` (`timestamp`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Insertar Usuarios Administradores Principales del Sistema
+-- Admin 1: jmaldonado2378@gmail.com / admin123
+-- Admin 2: memimaldonado05@gmail.com / LaJefa3012
+INSERT INTO `system_users` (`id`, `name`, `email`, `password_hash`, `visible_password`, `role`, `is_protected`, `allowed_modules_json`, `avatar_initials`, `active`) VALUES
+('usr-admin-1', 'Juan Pablo (Administrador)', 'jmaldonado2378@gmail.com', '$2b$10$bdWDJOTRlDF339VyM0fOgu7XSQMeKy2o2NOooR1BViXop1j0FzAyi', 'admin123', 'ADMIN', 1, '["dashboard","customers","stock","article_families","merchandise_receipt","fractioning","new_sale","kanban_orders","kanban_tasks","suppliers","checking_accounts","finance","settings","marketing","users"]', 'JP', 1),
+('usr-seller-1', 'María Emilia Maldonado', 'memimaldonado05@gmail.com', '$2b$10$EpkZkjN6zUxemeOwnKeO9enJx.aLGPKSrVz9aPh4WsZCzxJ1hPCqW', 'LaJefa3012', 'ADMIN', 1, '["dashboard","customers","stock","article_families","merchandise_receipt","fractioning","new_sale","kanban_orders","kanban_tasks","suppliers","checking_accounts","finance","settings","marketing","users"]', 'ME', 1)
 ON DUPLICATE KEY UPDATE 
-  `name` = VALUES(`name`),
-  `email` = VALUES(`email`),
-  `password_hash` = VALUES(`password_hash`),
-  `role` = VALUES(`role`),
+  `role` = 'ADMIN',
+  `is_protected` = 1,
   `allowed_modules_json` = VALUES(`allowed_modules_json`),
-  `avatar_initials` = VALUES(`avatar_initials`),
   `active` = 1;
 
 -- 2. Perfiles Dietéticos y Alérgenos (Catálogo Dinámico)

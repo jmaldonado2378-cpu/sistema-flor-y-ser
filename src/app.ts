@@ -246,11 +246,14 @@ app.get('/api/v1/health', (req: Request, res: Response) => {
 // RUTAS PROTEGIDAS (requieren JWT válido)
 // =============================================
 
-// Gestión de Usuarios (solo ADMIN)
-app.get('/api/v1/auth/users', requireAuth, requireRole('ADMIN'), authController.getUsers);
+// Gestión de Usuarios y Auditoría Centralizada
+app.get('/api/v1/auth/users', requireAuth, authController.getUsers);
 app.post('/api/v1/auth/users', requireAuth, requireRole('ADMIN'), authController.createUser);
 app.put('/api/v1/auth/users/:id', requireAuth, requireRole('ADMIN'), authController.updateUser);
 app.delete('/api/v1/auth/users/:id', requireAuth, requireRole('ADMIN'), authController.deleteUser);
+app.get('/api/v1/auth/audit-logs', requireAuth, authController.getAuditLogs);
+app.post('/api/v1/auth/audit-logs', requireAuth, authController.createAuditLog);
+app.post('/api/v1/auth/audit-logs/sync', requireAuth, authController.syncAuditLogs);
 
 // Rutas API REST v1 - CRM & Clientes
 app.get('/api/v1/customers', requireAuth, customerController.getAll);

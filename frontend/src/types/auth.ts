@@ -23,10 +23,12 @@ export interface User {
   email: string;
   password?: string;
   role: UserRole;
+  isProtected?: boolean;
   allowedModules: ModuleKey[];
   avatarInitials: string;
   avatarUrl?: string;
   active: boolean;
+  lastLoginAt?: string | null;
   createdAt: string;
 }
 

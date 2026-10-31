@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, ModuleKey, AuthState } from '../types/auth';
-import { addAuditLog } from '../api/client';
+import { addAuditLog, syncAndFetchAuditLogs } from '../api/client';
 
 export interface UserMutationResult {
   success: boolean;
@@ -23,6 +23,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const API_BASE = '/api/v1';
 
+const ALL_MODULES: ModuleKey[] = [
+  'dashboard', 'customers', 'stock', 'article_families',
+  'merchandise_receipt', 'fractioning', 'new_sale', 'kanban_orders', 'kanban_tasks',
+  'suppliers', 'checking_accounts', 'finance', 'settings', 'marketing', 'users'
+];
+
 const DEFAULT_INITIAL_USERS: User[] = [
   {
     id: 'usr-admin-1',
@@ -30,23 +36,21 @@ const DEFAULT_INITIAL_USERS: User[] = [
     email: 'jmaldonado2378@gmail.com',
     password: 'admin123',
     role: 'ADMIN',
-    allowedModules: [
-      'dashboard', 'customers', 'stock', 'article_families',
-      'merchandise_receipt', 'fractioning', 'new_sale', 'kanban_orders', 'kanban_tasks',
-      'suppliers', 'checking_accounts', 'finance', 'settings', 'marketing', 'users'
-    ],
+    isProtected: true,
+    allowedModules: ALL_MODULES,
     avatarInitials: 'JP',
     active: true,
     createdAt: new Date().toISOString()
   },
   {
     id: 'usr-seller-1',
-    name: 'Emilia Maldonado Hernandez',
+    name: 'María Emilia Maldonado',
     email: 'memimaldonado05@gmail.com',
     password: 'LaJefa3012',
-    role: 'SELLER',
-    allowedModules: ['dashboard', 'customers', 'stock', 'new_sale', 'kanban_orders', 'fractioning'],
-    avatarInitials: 'EH',
+    role: 'ADMIN',
+    isProtected: true,
+    allowedModules: ALL_MODULES,
+    avatarInitials: 'ME',
     active: true,
     createdAt: new Date().toISOString()
   }
@@ -94,16 +98,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const result = await response.json();
         const apiUsers: User[] = result.data || result;
         if (Array.isArray(apiUsers) && apiUsers.length > 0) {
-          // Fusionar preservando contraseñas conocidas localmente para comodidad del admin
           setUsers(prev => {
-            const passMap = new Map<string, string>();
+            const localByEmail = new Map<string, User>();
             prev.forEach(u => {
-              if (u.password) passMap.set(u.email.toLowerCase(), u.password);
+              if (u.email) localByEmail.set(u.email.toLowerCase(), u);
             });
-            const merged = apiUsers.map(u => ({
-              ...u,
-              password: passMap.get(u.email.toLowerCase()) || u.password
-            }));
+
+            const merged = apiUsers.map(apiUser => {
+              const emailKey = apiUser.email.toLowerCase();
+              const localU = localByEmail.get(emailKey);
+              // Si MySQL ya trae la contraseña sincronizada (visible_password), es la fuente oficial de verdad
+              const validLocalPass = localU?.password && !(emailKey !== 'memimaldonado05@gmail.com' && localU.password === 'LaJefa3012')
+                ? localU.password
+                : undefined;
+
+              const finalPassword = apiUser.password || validLocalPass;
+
+              // Si este navegador tenía la clave real de un vendedor y MySQL aún no la tenía, subirla automáticamente
+              if (!apiUser.password && validLocalPass) {
+                fetch(`${API_BASE}/auth/users/${apiUser.id}`, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${currentToken}`
+                  },
+                  body: JSON.stringify({ password: validLocalPass })
+                }).catch(() => {});
+              }
+
+              return {
+                ...apiUser,
+                password: finalPassword,
+                avatarUrl: apiUser.avatarUrl || localU?.avatarUrl
+              };
+            });
+
             localStorage.setItem('floryser_users_v2', JSON.stringify(merged));
             return merged;
           });
@@ -119,9 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const savedToken = localStorage.getItem('floryser_jwt_token');
     const savedUser = localStorage.getItem('floryser_current_user_v2');
 
-    // Si el token guardado es el demo local obsoleto, limpiarlo para forzar sesión real JWT
     if (savedToken && savedToken.startsWith('jwt-local-')) {
-      console.warn('🧹 Token demo obsoleto detectado. Purgando para solicitar autenticación real en la nube...');
       localStorage.removeItem('floryser_jwt_token');
       localStorage.removeItem('floryser_current_user_v2');
       setCurrentUser(null);
@@ -135,6 +162,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setCurrentUser(user);
         setToken(savedToken);
         fetchUsers(savedToken);
+        syncAndFetchAuditLogs();
       } catch (e) {
         localStorage.removeItem('floryser_jwt_token');
         localStorage.removeItem('floryser_current_user_v2');
@@ -153,7 +181,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cleanPass = passwordInput.trim();
 
     try {
-      // Autenticación real contra el backend API de Hostinger
       const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -167,35 +194,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           name: data.user.name,
           email: data.user.email,
           role: data.user.role,
+          isProtected: data.user.isProtected,
           allowedModules: data.user.allowedModules || [],
           avatarInitials: data.user.avatarInitials || data.user.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase(),
+          avatarUrl: data.user.avatarUrl,
           active: data.user.active,
+          lastLoginAt: data.user.lastLoginAt || new Date().toISOString(),
           createdAt: data.user.createdAt || new Date().toISOString(),
         };
 
         setCurrentUser(user);
         setToken(data.token);
 
-        // Persistir sesión oficial con JWT
         localStorage.setItem('floryser_jwt_token', data.token);
         localStorage.setItem('floryser_current_user_v2', JSON.stringify(user));
 
-        addAuditLog({
-          userName: user.name,
-          userEmail: user.email,
-          userRole: user.role,
-          action: 'INICIO_SESION',
-          module: 'Sistema',
-          details: `Inicio de sesión exitoso de ${user.name}`
-        });
-
-        // Cargar inmediatamente la lista de usuarios actualizada desde la base de datos
         fetchUsers(data.token);
+        syncAndFetchAuditLogs();
 
         return true;
       }
 
-      // Si las credenciales fueron rechazadas por el servidor
       return false;
     } catch (err) {
       console.error('Error de conexión en login:', err);
@@ -226,9 +245,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return currentUser.allowedModules.includes(module);
   };
 
-  /**
-   * Crea un usuario guardándolo directamente en MySQL de Hostinger
-   */
   const createUser = async (userData: Omit<User, 'id' | 'createdAt'>): Promise<UserMutationResult> => {
     if (!token || token.startsWith('jwt-local-')) {
       return {
@@ -248,31 +264,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (response.ok) {
-        const data = await response.json();
-        const newUser: User = {
-          ...userData,
-          id: data.data?.id || `usr-${Date.now()}`,
-          createdAt: data.data?.createdAt || new Date().toISOString(),
-        };
-
-        setUsers(prev => {
-          const filtered = prev.filter(u => u.email.toLowerCase() !== newUser.email.toLowerCase());
-          const updated = [...filtered, newUser];
-          localStorage.setItem('floryser_users_v2', JSON.stringify(updated));
-          return updated;
-        });
-
-        if (currentUser) {
-          addAuditLog({
-            userName: currentUser.name,
-            userEmail: currentUser.email,
-            userRole: currentUser.role,
-            action: 'CREAR_USUARIO',
-            module: 'Usuarios & Permisos',
-            details: `Nuevo usuario creado en MySQL: ${userData.name} (${userData.email}) con rol ${userData.role}`
-          });
-        }
-
+        await fetchUsers(token);
+        await syncAndFetchAuditLogs();
         return { success: true };
       } else {
         const errJson = await response.json().catch(() => ({}));
@@ -289,9 +282,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  /**
-   * Actualiza un usuario en la base de datos de Hostinger
-   */
   const updateUser = async (userId: string, updates: Partial<User>): Promise<UserMutationResult> => {
     if (!token || token.startsWith('jwt-local-')) {
       return {
@@ -311,27 +301,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (response.ok) {
+        const json = await response.json().catch(() => ({}));
+        const updatedServerUser: User | undefined = json.data;
+
         setUsers(prev => {
-          const updated = prev.map(u => u.id === userId ? { ...u, ...updates } : u);
+          const updated = prev.map(u => {
+            if (u.id === userId) {
+              return {
+                ...u,
+                ...updates,
+                ...(updatedServerUser || {}),
+                password: updates.password || updatedServerUser?.password || u.password
+              };
+            }
+            return u;
+          });
           localStorage.setItem('floryser_users_v2', JSON.stringify(updated));
           return updated;
         });
 
         if (currentUser && currentUser.id === userId) {
-          setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
+          const updatedMe = { ...currentUser, ...updates, ...(updatedServerUser || {}) };
+          setCurrentUser(updatedMe);
+          localStorage.setItem('floryser_current_user_v2', JSON.stringify(updatedMe));
         }
 
-        if (currentUser) {
-          addAuditLog({
-            userName: currentUser.name,
-            userEmail: currentUser.email,
-            userRole: currentUser.role,
-            action: 'ACTUALIZAR_USUARIO',
-            module: 'Usuarios & Permisos',
-            details: `Actualización de usuario ID #${userId} guardada en MySQL`
-          });
-        }
-
+        await syncAndFetchAuditLogs();
         return { success: true };
       } else {
         const errJson = await response.json().catch(() => ({}));
@@ -348,9 +343,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  /**
-   * Elimina / desactiva un usuario en la base de datos
-   */
   const deleteUser = async (userId: string): Promise<UserMutationResult> => {
     if (!token || token.startsWith('jwt-local-')) {
       return {
@@ -360,7 +352,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      const targetUser = users.find(u => u.id === userId);
       const response = await fetch(`${API_BASE}/auth/users/${userId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
@@ -373,21 +364,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return updated;
         });
 
-        if (currentUser) {
-          addAuditLog({
-            userName: currentUser.name,
-            userEmail: currentUser.email,
-            userRole: currentUser.role,
-            action: 'ELIMINAR_USUARIO',
-            module: 'Usuarios & Permisos',
-            details: `Eliminación de usuario ${targetUser?.name || userId} en MySQL`
-          });
-        }
-
-        if (currentUser && currentUser.id === userId) {
-          logout();
-        }
-
+        await syncAndFetchAuditLogs();
         return { success: true };
       } else {
         const errJson = await response.json().catch(() => ({}));
@@ -405,7 +382,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   /**
-   * Sincroniza usuarios creados localmente que aún no estén en MySQL de Hostinger
+   * Sincroniza usuarios y contraseñas locales con MySQL y unifica la Auditoría
    */
   const syncPendingUsers = async (): Promise<{ synced: number; failed: number }> => {
     if (!token || token.startsWith('jwt-local-')) {
@@ -420,13 +397,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const json = await resp.json();
       const dbUsers: User[] = json.data || [];
-      const dbEmails = new Set(dbUsers.map(u => u.email.toLowerCase()));
+      const dbByEmail = new Map<string, User>();
+      dbUsers.forEach(u => dbByEmail.set(u.email.toLowerCase(), u));
 
       let synced = 0;
       let failed = 0;
 
       for (const localUser of users) {
-        if (!dbEmails.has(localUser.email.toLowerCase())) {
+        const emailLower = localUser.email.toLowerCase();
+        const existingDb = dbByEmail.get(emailLower);
+
+        if (!existingDb) {
           const createRes = await fetch(`${API_BASE}/auth/users`, {
             method: 'POST',
             headers: {
@@ -439,19 +420,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               password: localUser.password || 'vendedor123',
               role: localUser.role,
               allowedModules: localUser.allowedModules,
-              avatarInitials: localUser.avatarInitials
+              avatarInitials: localUser.avatarInitials,
+              avatarUrl: localUser.avatarUrl,
+              active: localUser.active
             })
           });
 
-          if (createRes.ok) {
-            synced++;
-          } else {
-            failed++;
-          }
+          if (createRes.ok) synced++;
+          else failed++;
+        } else if (
+          localUser.password &&
+          !(emailLower !== 'memimaldonado05@gmail.com' && localUser.password === 'LaJefa3012') &&
+          existingDb.password !== localUser.password
+        ) {
+          // Sincronizar la clave real local hacia MySQL si difería
+          const updateRes = await fetch(`${API_BASE}/auth/users/${existingDb.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              password: localUser.password,
+              avatarUrl: localUser.avatarUrl || existingDb.avatarUrl
+            })
+          });
+          if (updateRes.ok) synced++;
         }
       }
 
       await fetchUsers(token);
+      await syncAndFetchAuditLogs();
       return { synced, failed };
     } catch {
       return { synced: 0, failed: 0 };
