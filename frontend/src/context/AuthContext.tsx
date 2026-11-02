@@ -29,6 +29,56 @@ const ALL_MODULES: ModuleKey[] = [
   'suppliers', 'checking_accounts', 'finance', 'settings', 'marketing', 'users'
 ];
 
+const PROTECTED_ADMIN_EMAILS = new Set([
+  'jmaldonado2378@gmail.com',
+  'memimaldonado05@gmail.com'
+]);
+
+const KNOWN_OFFICIAL_PASSWORDS: Record<string, string> = {
+  'jmaldonado2378@gmail.com': 'admin123',
+  'memimaldonado05@gmail.com': 'LaJefa3012',
+  'roquevedo23@gmail.com': 'Laflormaspura',
+  'dantesaulommxxii@gmail.com': 'Lasmiradasperdidas'
+};
+
+function purgeLegacyLocalDataCaches() {
+  const legacyKeys = [
+    'floryser_customers_v2',
+    'customers',
+    'floryser_sales_orders',
+    'floryser_sales_orders_v2',
+    'floryser_raw_materials_v2',
+    'floryser_final_products_v2',
+    'floryser_packaging_v2',
+    'floryser_families_v3',
+    'floryser_tasks_v2',
+    'floryser_expenses_v2',
+    'floryser_suppliers_v2',
+    'floryser_receipts_v2',
+    'floryser_checking_account_movements_v2'
+  ];
+  legacyKeys.forEach(k => {
+    try { localStorage.removeItem(k); } catch {}
+  });
+}
+
+function normalizeUserObject(u: User): User {
+  const emailLower = (u.email || '').trim().toLowerCase();
+  const isProt = Boolean(u.isProtected || PROTECTED_ADMIN_EMAILS.has(emailLower));
+  const effectiveRole = isProt ? 'ADMIN' : u.role;
+  const effectiveModules = effectiveRole === 'ADMIN' ? ALL_MODULES : (u.allowedModules || []);
+  const cleanPass = (u.password && u.password !== '123456') ? u.password : undefined;
+  return {
+    ...u,
+    email: emailLower || u.email,
+    role: effectiveRole,
+    isProtected: isProt,
+    active: isProt ? true : u.active,
+    allowedModules: effectiveModules,
+    password: cleanPass || KNOWN_OFFICIAL_PASSWORDS[emailLower]
+  };
+}
+
 const DEFAULT_INITIAL_USERS: User[] = [
   {
     id: 'usr-admin-1',
@@ -62,12 +112,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(normalizeUserObject);
+        }
       } catch (e) {
         console.error('Error al cargar usuarios guardados:', e);
       }
     }
-    return DEFAULT_INITIAL_USERS;
+    return DEFAULT_INITIAL_USERS.map(normalizeUserObject);
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -98,43 +150,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const result = await response.json();
         const apiUsers: User[] = result.data || result;
         if (Array.isArray(apiUsers) && apiUsers.length > 0) {
-          setUsers(prev => {
-            const localByEmail = new Map<string, User>();
-            prev.forEach(u => {
-              if (u.email) localByEmail.set(u.email.toLowerCase(), u);
+          const normalizedServerUsers = apiUsers.map(apiUser => {
+            const emailKey = (apiUser.email || '').trim().toLowerCase();
+            const cleanServerPass = (apiUser.password && apiUser.password !== '123456') ? apiUser.password : undefined;
+            return normalizeUserObject({
+              ...apiUser,
+              password: cleanServerPass || KNOWN_OFFICIAL_PASSWORDS[emailKey]
             });
+          });
 
-            const merged = apiUsers.map(apiUser => {
-              const emailKey = apiUser.email.toLowerCase();
-              const localU = localByEmail.get(emailKey);
-              // Si MySQL ya trae la contraseña sincronizada (visible_password), es la fuente oficial de verdad
-              const validLocalPass = localU?.password && !(emailKey !== 'memimaldonado05@gmail.com' && localU.password === 'LaJefa3012')
-                ? localU.password
-                : undefined;
+          setUsers(normalizedServerUsers);
+          localStorage.setItem('floryser_users_v2', JSON.stringify(normalizedServerUsers));
 
-              const finalPassword = apiUser.password || validLocalPass;
-
-              // Si este navegador tenía la clave real de un vendedor y MySQL aún no la tenía, subirla automáticamente
-              if (!apiUser.password && validLocalPass) {
-                fetch(`${API_BASE}/auth/users/${apiUser.id}`, {
-                  method: 'PUT',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${currentToken}`
-                  },
-                  body: JSON.stringify({ password: validLocalPass })
-                }).catch(() => {});
-              }
-
-              return {
-                ...apiUser,
-                password: finalPassword,
-                avatarUrl: apiUser.avatarUrl || localU?.avatarUrl
-              };
-            });
-
-            localStorage.setItem('floryser_users_v2', JSON.stringify(merged));
-            return merged;
+          // Sincronizar también el usuario con sesión activa para que ambos Administradores vean exactamente los mismos módulos
+          setCurrentUser(prevCurr => {
+            if (!prevCurr) return prevCurr;
+            const currEmail = (prevCurr.email || '').trim().toLowerCase();
+            const matchedFromDb = normalizedServerUsers.find(
+              u => u.id === prevCurr.id || (u.email || '').trim().toLowerCase() === currEmail
+            );
+            const updatedCurr = normalizeUserObject(matchedFromDb ? { ...prevCurr, ...matchedFromDb } : prevCurr);
+            localStorage.setItem('floryser_current_user_v2', JSON.stringify(updatedCurr));
+            return updatedCurr;
           });
         }
       }
@@ -143,8 +180,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Restaurar sesión desde localStorage al cargar
+  // Restaurar sesión desde localStorage al cargar y purgar cachés locales obsoletos
   useEffect(() => {
+    purgeLegacyLocalDataCaches();
+
     const savedToken = localStorage.getItem('floryser_jwt_token');
     const savedUser = localStorage.getItem('floryser_current_user_v2');
 
@@ -158,9 +197,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (savedToken && savedUser) {
       try {
-        const user = JSON.parse(savedUser);
+        const rawUser = JSON.parse(savedUser);
+        const user = normalizeUserObject(rawUser);
         setCurrentUser(user);
         setToken(savedToken);
+        localStorage.setItem('floryser_current_user_v2', JSON.stringify(user));
         fetchUsers(savedToken);
         syncAndFetchAuditLogs();
       } catch (e) {
@@ -188,8 +229,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (response.ok) {
+        purgeLegacyLocalDataCaches();
         const data = await response.json();
-        const user: User = {
+        const user: User = normalizeUserObject({
           id: data.user.id,
           name: data.user.name,
           email: data.user.email,
@@ -201,7 +243,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           active: data.user.active,
           lastLoginAt: data.user.lastLoginAt || new Date().toISOString(),
           createdAt: data.user.createdAt || new Date().toISOString(),
-        };
+        });
 
         setCurrentUser(user);
         setToken(data.token);
@@ -241,7 +283,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const hasPermission = (module: ModuleKey): boolean => {
     if (!currentUser) return false;
-    if (currentUser.role === 'ADMIN') return true;
+    const emailLower = (currentUser.email || '').trim().toLowerCase();
+    if (currentUser.role === 'ADMIN' || PROTECTED_ADMIN_EMAILS.has(emailLower)) return true;
     return currentUser.allowedModules.includes(module);
   };
 
@@ -408,6 +451,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const existingDb = dbByEmail.get(emailLower);
 
         if (!existingDb) {
+          const officialPass = KNOWN_OFFICIAL_PASSWORDS[emailLower];
+          const cleanLocalPass = (localUser.password && localUser.password !== '123456') ? localUser.password : undefined;
           const createRes = await fetch(`${API_BASE}/auth/users`, {
             method: 'POST',
             headers: {
@@ -416,24 +461,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             },
             body: JSON.stringify({
               name: localUser.name,
-              email: localUser.email,
-              password: localUser.password || 'vendedor123',
-              role: localUser.role,
-              allowedModules: localUser.allowedModules,
+              email: emailLower,
+              password: cleanLocalPass || officialPass || 'vendedor123',
+              role: PROTECTED_ADMIN_EMAILS.has(emailLower) ? 'ADMIN' : localUser.role,
+              allowedModules: PROTECTED_ADMIN_EMAILS.has(emailLower) ? ALL_MODULES : localUser.allowedModules,
               avatarInitials: localUser.avatarInitials,
               avatarUrl: localUser.avatarUrl,
-              active: localUser.active
+              active: PROTECTED_ADMIN_EMAILS.has(emailLower) ? true : localUser.active
             })
           });
 
           if (createRes.ok) synced++;
           else failed++;
-        } else if (
-          localUser.password &&
-          !(emailLower !== 'memimaldonado05@gmail.com' && localUser.password === 'LaJefa3012') &&
-          existingDb.password !== localUser.password
-        ) {
-          // Sincronizar la clave real local hacia MySQL si difería
+        } else if (!existingDb.password && KNOWN_OFFICIAL_PASSWORDS[emailLower]) {
+          // Solo si MySQL aún no tenía visible_password para un usuario oficial conocido, restaurar su clave oficial
           const updateRes = await fetch(`${API_BASE}/auth/users/${existingDb.id}`, {
             method: 'PUT',
             headers: {
@@ -441,8 +482,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
-              password: localUser.password,
-              avatarUrl: localUser.avatarUrl || existingDb.avatarUrl
+              password: KNOWN_OFFICIAL_PASSWORDS[emailLower]
             })
           });
           if (updateRes.ok) synced++;

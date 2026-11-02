@@ -856,28 +856,24 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
     const response = await fetch(url, config);
     const contentType = response.headers.get('content-type') || '';
 
-    // Si el token expiró o es inválido, limpiar sesión
+    // Si el token expiró o es inválido, limpiar sesión y volver a pantalla de Login (sin caer en datos locales viejos)
     if (response.status === 401) {
       localStorage.removeItem('floryser_jwt_token');
       localStorage.removeItem('floryser_current_user_v2');
-      // Intentar fallback local antes de forzar logout
-      const fallback = getLocalDataFallback<T>(endpoint, method, bodyData);
-      if (fallback !== null) return fallback;
       window.location.reload();
       throw new ApiError(401, 'Sesión expirada. Inicie sesión nuevamente.');
     }
-    
+
     if (!response.ok || !contentType.includes('application/json')) {
-      const fallback = getLocalDataFallback<T>(endpoint, method, bodyData);
-      if (fallback !== null) {
-        return fallback;
-      }
       const body = await response.json().catch(() => ({}));
       throw new ApiError(response.status, body.error || body.message || `Error ${response.status}`, body.details);
     }
-    
+
     return await response.json() as T;
   } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
     const fallback = getLocalDataFallback<T>(endpoint, method, bodyData);
     if (fallback !== null) {
       return fallback;

@@ -270,6 +270,8 @@ app.post('/api/v1/sales/orders', requireAuth, saleController.create);
 app.get('/api/v1/sales/orders', requireAuth, saleController.getAll);
 app.get('/api/v1/sales/orders/:id', requireAuth, saleController.getById);
 app.patch('/api/v1/sales/orders/:id/status', requireAuth, saleController.updateStatus);
+app.put('/api/v1/sales/orders/:id', requireAuth, saleController.updateFull);
+app.delete('/api/v1/sales/orders/:id', requireAuth, saleController.deleteOrder);
 
 app.post('/api/v1/sales/payments', requireAuth, paymentController.register);
 app.get('/api/v1/sales/payments/:id', requireAuth, paymentController.getById);

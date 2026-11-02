@@ -1,5 +1,5 @@
 export { useCustomers, useCustomerProfile, useCreateCustomer, useUpdateCustomer, useDeleteCustomer } from './useCustomers';
-export { useSales, useOrderById, useCreateOrder, useUpdateOrderDetails } from './useSales';
+export { useSales, useOrderById, useCreateOrder, useUpdateOrderDetails, useUpdateOrderFull, useDeleteOrder } from './useSales';
 export { useSuppliers, useCreateSupplier } from './useSuppliers';
 export { useRawMaterials, useFinalProducts, useCreateRawMaterial, useCreateFinalProduct, useUpdateRawMaterialStock, useUpdateFinalProductStock } from './useInventory';
 export { useFractioningHistory, usePreviewFractioning, useExecuteFractioning } from './useFractioning';

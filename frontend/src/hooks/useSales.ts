@@ -1,5 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getOrders, createOrder, getOrderById, updateOrderDetails, OrderFilterDTO, CreateOrderDTO, UpdateOrderDetailsDTO } from '../api/sales';
+import {
+  getOrders,
+  createOrder,
+  getOrderById,
+  updateOrderDetails,
+  updateOrderFull,
+  deleteOrder,
+  OrderFilterDTO,
+  CreateOrderDTO,
+  UpdateOrderDetailsDTO,
+  UpdateOrderFullDTO
+} from '../api/sales';
 
 export function useSales(filters?: OrderFilterDTO) {
   return useQuery({
@@ -38,6 +49,40 @@ export function useUpdateOrderDetails() {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['salesKanbanBoard'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['finalProducts'] });
+      queryClient.invalidateQueries({ queryKey: ['stockMovements'] });
+    },
+  });
+}
+
+export function useUpdateOrderFull() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateOrderFullDTO }) => updateOrderFull(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['salesKanbanBoard'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['finalProducts'] });
+      queryClient.invalidateQueries({ queryKey: ['stockMovements'] });
+      queryClient.invalidateQueries({ queryKey: ['checkingAccounts'] });
+    },
+  });
+}
+
+export function useDeleteOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => deleteOrder(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['salesKanbanBoard'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['finalProducts'] });
+      queryClient.invalidateQueries({ queryKey: ['stockMovements'] });
+      queryClient.invalidateQueries({ queryKey: ['checkingAccounts'] });
     },
   });
 }

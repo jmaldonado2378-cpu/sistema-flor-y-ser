@@ -64,9 +64,19 @@ class SaleService {
         try {
             await this.db.query(`ALTER TABLE orders ADD COLUMN payment_method VARCHAR(50) NULL DEFAULT 'EFECTIVO'`);
         }
-        catch {
-            // Columna ya existe
+        catch { }
+        try {
+            await this.db.query(`ALTER TABLE orders ADD COLUMN is_verified TINYINT(1) NOT NULL DEFAULT 0`);
         }
+        catch { }
+        try {
+            await this.db.query(`ALTER TABLE orders ADD COLUMN verified_by VARCHAR(150) NULL`);
+        }
+        catch { }
+        try {
+            await this.db.query(`ALTER TABLE orders ADD COLUMN verified_at DATETIME NULL`);
+        }
+        catch { }
         this.schemaEnsured = true;
     }
     extractPaymentMethodFromRow(row) {
@@ -123,6 +133,9 @@ class SaleService {
             commissionSettlementId: row.commission_settlement_id || undefined,
             deliveryAddress: row.delivery_address || undefined,
             notes: row.notes || undefined,
+            isVerified: Boolean(row.is_verified),
+            verifiedBy: row.verified_by || undefined,
+            verifiedAt: row.verified_at ? (row.verified_at instanceof Date ? row.verified_at.toISOString() : row.verified_at) : undefined,
             items,
             createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
             updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : (row.updated_at || row.created_at)
@@ -428,7 +441,7 @@ class SaleService {
     // Cambio de estado, medio de pago, canal y vendedora (Kanban / Edición de Venta)
     // ------------------------------------------------------------------
     async updateOrderStatus(id, dto) {
-        if (!dto.status && !dto.paymentStatus && !dto.paymentMethod && dto.sellerId === undefined && dto.sellerName === undefined && !dto.channel && dto.notes === undefined) {
+        if (!dto.status && !dto.paymentStatus && !dto.paymentMethod && dto.sellerId === undefined && dto.sellerName === undefined && !dto.channel && dto.notes === undefined && dto.isVerified === undefined) {
             throw new PersistenceError('Debe indicar al menos un campo a actualizar.', 400);
         }
         await this.ensureOrdersSchema();
@@ -508,6 +521,13 @@ class SaleService {
                 sets.push(`notes = $${idx++}`);
                 values.push(dto.notes || null);
             }
+            if (dto.isVerified !== undefined) {
+                sets.push(`is_verified = $${idx++}`);
+                values.push(dto.isVerified ? 1 : 0);
+                sets.push(`verified_by = $${idx++}`);
+                values.push(dto.isVerified ? (dto.verifiedBy || 'Administrador') : null);
+                sets.push(`verified_at = ${dto.isVerified ? 'CURRENT_TIMESTAMP' : 'NULL'}`);
+            }
             // Recalcular comisión si cambió la vendedora o el canal
             if (dto.sellerId !== undefined || dto.channel !== undefined) {
                 const targetSellerId = dto.sellerId !== undefined ? dto.sellerId : order.sellerId;
@@ -555,10 +575,305 @@ class SaleService {
                 order.sellerName = dto.sellerName;
             if (dto.notes !== undefined)
                 order.notes = dto.notes;
+            if (dto.isVerified !== undefined) {
+                order.isVerified = dto.isVerified;
+                order.verifiedBy = dto.isVerified ? (dto.verifiedBy || 'Administrador') : undefined;
+                order.verifiedAt = dto.isVerified ? new Date().toISOString() : undefined;
+            }
             order.updatedAt = new Date().toISOString();
             return order;
         }
         throw new PersistenceError(`Pedido con ID ${id} no encontrado.`, 404);
+    }
+    // ------------------------------------------------------------------
+    // Edición Completa de Venta (Ítems, Cantidades, Precios, Cliente, Pago, Verificación)
+    // ------------------------------------------------------------------
+    async updateOrderFull(id, dto, actorName) {
+        await this.ensureOrdersSchema();
+        const oldOrder = await this.getOrderById(id);
+        const newCustomerId = dto.customerId || oldOrder.customerId;
+        const rawChannel = String(dto.channel || oldOrder.channel || 'LOCAL').toUpperCase();
+        const channel = (VALID_CHANNELS.includes(rawChannel) ? rawChannel : 'LOCAL');
+        const newSellerId = dto.sellerId !== undefined ? (dto.sellerId || null) : (oldOrder.sellerId || null);
+        const newSellerName = dto.sellerName !== undefined ? (dto.sellerName || null) : (oldOrder.sellerName || null);
+        const newStatus = (dto.status || oldOrder.status || 'RECEIVED');
+        const normPay = (dto.paymentMethod || oldOrder.paymentMethod || 'EFECTIVO').trim().toUpperCase();
+        const isCredit = /cuenta\s*corriente|fiado|credit/i.test(normPay);
+        const hasNewItems = Array.isArray(dto.items) && dto.items.length > 0;
+        const effectiveItems = hasNewItems
+            ? dto.items
+                .map((i) => ({
+                productName: String(i.productName || 'Producto').slice(0, 255),
+                productId: i.productId || null,
+                isBulkFractioned: Boolean(i.isBulkFractioned),
+                quantity: Number(i.quantity) || 0,
+                unitPrice: Number(i.unitPrice) || 0
+            }))
+                .filter(i => i.quantity > 0)
+            : (oldOrder.items || []).map(i => ({
+                productName: i.productName,
+                productId: i.productId || null,
+                isBulkFractioned: Boolean(i.isBulkFractioned),
+                quantity: Number(i.quantity) || 0,
+                unitPrice: Number(i.unitPrice) || 0
+            }));
+        if (effectiveItems.length === 0) {
+            throw new PersistenceError('La venta debe mantener al menos un producto con cantidad mayor a 0.', 400);
+        }
+        const subtotal = effectiveItems.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
+        const discountAmount = dto.discountAmount !== undefined ? (Number(dto.discountAmount) || 0) : (oldOrder.discountAmount || 0);
+        const deliveryFee = dto.deliveryFee !== undefined ? (Number(dto.deliveryFee) || 0) : (oldOrder.deliveryFee || 0);
+        const totalAmount = Math.max(0, subtotal - discountAmount + deliveryFee);
+        const pointsEarned = Math.floor(totalAmount / 100);
+        const paymentStatus = dto.paymentStatus || (isCredit ? 'UNPAID' : 'PAID');
+        const paidAmount = paymentStatus === 'PAID' ? totalAmount : 0;
+        const balanceDue = Math.max(0, totalAmount - paidAmount);
+        let client = null;
+        try {
+            client = await this.db.connect();
+            await client.query('BEGIN');
+            // 1. Si se enviaron ítems nuevos o cambió el estado de cancelación, sincronizar stock
+            if (hasNewItems || (oldOrder.status !== newStatus && (oldOrder.status === 'CANCELLED' || newStatus === 'CANCELLED'))) {
+                // Devolver stock anterior si la orden no estaba cancelada
+                if (oldOrder.status !== 'CANCELLED' && oldOrder.items && oldOrder.items.length > 0) {
+                    for (const oldItem of oldOrder.items) {
+                        if (oldItem.productId) {
+                            await client.query(`UPDATE final_products SET current_stock = current_stock + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [oldItem.quantity, oldItem.productId]);
+                            try {
+                                await client.query(`UPDATE products SET current_stock = current_stock + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [oldItem.quantity, oldItem.productId]);
+                            }
+                            catch { }
+                        }
+                    }
+                }
+                // Reemplazar filas en order_items si vinieron ítems
+                if (hasNewItems) {
+                    await client.query('DELETE FROM order_items WHERE order_id = $1', [id]);
+                    for (const item of effectiveItems) {
+                        await client.query(`INSERT INTO order_items (order_id, product_name, product_id, is_bulk_fractioned, quantity, unit_price, subtotal)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)`, [id, item.productName, item.productId, item.isBulkFractioned, item.quantity, item.unitPrice, item.quantity * item.unitPrice]);
+                    }
+                }
+                // Descontar nuevo stock si la orden no queda cancelada
+                if (newStatus !== 'CANCELLED') {
+                    for (const item of effectiveItems) {
+                        if (item.productId) {
+                            const stockCheck = await client.query('SELECT current_stock FROM final_products WHERE id = $1', [item.productId]);
+                            const prevStock = stockCheck.rows.length > 0 ? parseFloat(stockCheck.rows[0].current_stock || '0') : 0;
+                            const resStock = Math.max(0, prevStock - item.quantity);
+                            await client.query(`UPDATE final_products SET current_stock = GREATEST(0, current_stock - $1), updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [item.quantity, item.productId]);
+                            try {
+                                await client.query(`UPDATE products SET current_stock = GREATEST(0, current_stock - $1), updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [item.quantity, item.productId]);
+                            }
+                            catch { }
+                            if (hasNewItems) {
+                                await client.query(`
+                  INSERT INTO stock_movements (
+                    id, item_type, item_id, item_name, movement_type, quantity,
+                    previous_stock, resulting_stock, unit_of_measure, unit_cost,
+                    reference_type, reference_id, reference_number, reason, user_name, notes, created_at
+                  ) VALUES ($1, 'FINAL_PRODUCT', $2, $3, 'MANUAL_ADJUSTMENT', $4, $5, $6, 'UN', $7, 'ORDER', $8, $9, 'Corrección de ítems en venta', $10, $11, CURRENT_TIMESTAMP)
+                `, [
+                                    (0, uuid_1.v4)(),
+                                    item.productId,
+                                    item.productName,
+                                    -item.quantity,
+                                    prevStock,
+                                    resStock,
+                                    item.unitPrice,
+                                    id,
+                                    oldOrder.orderNumber,
+                                    actorName || newSellerName || 'Administrador',
+                                    `Corrección de pedido N° ${oldOrder.orderNumber}`
+                                ]);
+                            }
+                        }
+                    }
+                }
+            }
+            // 2. Recalcular comisión
+            let commissionPct = 3.0;
+            if (newSellerId) {
+                try {
+                    const commRes = await client.query('SELECT commission_percentage FROM seller_channel_commissions WHERE user_id = $1 AND channel = $2', [newSellerId, channel]);
+                    if (commRes.rows.length > 0) {
+                        commissionPct = parseFloat(commRes.rows[0].commission_percentage) || 0;
+                    }
+                }
+                catch { }
+            }
+            else {
+                commissionPct = 0;
+            }
+            const commissionAmount = newStatus === 'CANCELLED' ? 0 : Math.round(totalAmount * commissionPct) / 100;
+            // 3. Sincronizar Cuenta Corriente (customer_account_movements y customers.current_balance)
+            try {
+                const oldMovRes = await client.query(`SELECT id, customer_id, amount FROM customer_account_movements WHERE reference_id = $1 AND type = 'DEBIT'`, [id]);
+                for (const mov of oldMovRes.rows) {
+                    await client.query(`UPDATE customers SET current_balance = GREATEST(0, current_balance - $1), updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [parseFloat(mov.amount || '0'), mov.customer_id]);
+                    await client.query('DELETE FROM customer_account_movements WHERE id = $1', [mov.id]);
+                }
+                if (isCredit && newStatus !== 'CANCELLED' && this.checkingAccountService) {
+                    await this.checkingAccountService.addMovement(newCustomerId, 'DEBIT', totalAmount, 'ORDER', `Compra a Cta Cte Pedido ${oldOrder.orderNumber} (Actualizado)`, id, client);
+                }
+            }
+            catch (ccErr) {
+                console.warn('⚠️ Aviso sincronizando Cuenta Corriente al editar venta:', ccErr.message);
+            }
+            // 4. Actualizar fila en orders
+            const nextVerified = dto.isVerified !== undefined ? Boolean(dto.isVerified) : Boolean(oldOrder.isVerified);
+            const nextVerifiedBy = dto.isVerified !== undefined
+                ? (dto.isVerified ? (dto.verifiedBy || actorName || 'Administrador') : null)
+                : (oldOrder.verifiedBy || null);
+            await client.query(`UPDATE orders SET
+          customer_id = $1,
+          seller_id = $2,
+          seller_name = $3,
+          channel = $4,
+          status = $5,
+          payment_status = $6,
+          payment_method = $7,
+          subtotal = $8,
+          discount_amount = $9,
+          delivery_fee = $10,
+          total_amount = $11,
+          paid_amount = $12,
+          balance_due = $13,
+          points_earned = $14,
+          commission_amount = $15,
+          notes = $16,
+          is_verified = $17,
+          verified_by = $18,
+          verified_at = ${nextVerified ? 'COALESCE(verified_at, CURRENT_TIMESTAMP)' : 'NULL'},
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = $19`, [
+                newCustomerId,
+                newSellerId,
+                newSellerName,
+                channel,
+                newStatus,
+                paymentStatus,
+                normPay,
+                subtotal,
+                discountAmount,
+                deliveryFee,
+                totalAmount,
+                paidAmount,
+                balanceDue,
+                pointsEarned,
+                commissionAmount,
+                dto.notes !== undefined ? (dto.notes || null) : (oldOrder.notes || null),
+                nextVerified ? 1 : 0,
+                nextVerifiedBy,
+                id
+            ]);
+            await client.query('COMMIT');
+            return await this.getOrderById(id);
+        }
+        catch (error) {
+            if (client) {
+                try {
+                    await client.query('ROLLBACK');
+                }
+                catch { }
+            }
+            if (error instanceof PersistenceError)
+                throw error;
+            this.handleDbError(error, 'actualizar la venta completa');
+            throw error;
+        }
+        finally {
+            if (client) {
+                try {
+                    client.release();
+                }
+                catch { }
+            }
+        }
+    }
+    // ------------------------------------------------------------------
+    // Anular y Eliminar Venta (Revierte Stock y Cuenta Corriente)
+    // ------------------------------------------------------------------
+    async deleteOrder(id, actorName) {
+        await this.ensureOrdersSchema();
+        const oldOrder = await this.getOrderById(id);
+        let client = null;
+        try {
+            client = await this.db.connect();
+            await client.query('BEGIN');
+            // 1. Devolver stock si la venta no estaba cancelada previamente
+            if (oldOrder.status !== 'CANCELLED' && oldOrder.items && oldOrder.items.length > 0) {
+                for (const item of oldOrder.items) {
+                    if (item.productId) {
+                        const stockCheck = await client.query('SELECT current_stock FROM final_products WHERE id = $1', [item.productId]);
+                        const prevStock = stockCheck.rows.length > 0 ? parseFloat(stockCheck.rows[0].current_stock || '0') : 0;
+                        const resStock = prevStock + item.quantity;
+                        await client.query(`UPDATE final_products SET current_stock = current_stock + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [item.quantity, item.productId]);
+                        try {
+                            await client.query(`UPDATE products SET current_stock = current_stock + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [item.quantity, item.productId]);
+                        }
+                        catch { }
+                        await client.query(`
+              INSERT INTO stock_movements (
+                id, item_type, item_id, item_name, movement_type, quantity,
+                previous_stock, resulting_stock, unit_of_measure, unit_cost,
+                reference_type, reference_id, reference_number, reason, user_name, notes, created_at
+              ) VALUES ($1, 'FINAL_PRODUCT', $2, $3, 'SALE_CANCEL', $4, $5, $6, 'UN', $7, 'ORDER', $8, $9, 'Eliminación de venta y reincorporación de stock', $10, $11, CURRENT_TIMESTAMP)
+            `, [
+                            (0, uuid_1.v4)(),
+                            item.productId,
+                            item.productName,
+                            item.quantity,
+                            prevStock,
+                            resStock,
+                            item.unitPrice,
+                            oldOrder.id,
+                            oldOrder.orderNumber,
+                            actorName || 'Administrador',
+                            `Venta N° ${oldOrder.orderNumber} eliminada`
+                        ]);
+                    }
+                }
+            }
+            // 2. Revertir cargos en Cuenta Corriente si existían
+            try {
+                const oldMovRes = await client.query(`SELECT id, customer_id, amount FROM customer_account_movements WHERE reference_id = $1 AND type = 'DEBIT'`, [id]);
+                for (const mov of oldMovRes.rows) {
+                    await client.query(`UPDATE customers SET current_balance = GREATEST(0, current_balance - $1), updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [parseFloat(mov.amount || '0'), mov.customer_id]);
+                    await client.query('DELETE FROM customer_account_movements WHERE id = $1', [mov.id]);
+                }
+            }
+            catch { }
+            // 3. Eliminar ítems y orden
+            await client.query('DELETE FROM order_items WHERE order_id = $1', [id]);
+            await client.query('DELETE FROM orders WHERE id = $1', [id]);
+            await client.query('COMMIT');
+            this.inMemoryOrders = this.inMemoryOrders.filter(o => o.id !== id);
+            return {
+                deleted: true,
+                message: `Venta ${oldOrder.orderNumber} eliminada y stock revertido correctamente.`
+            };
+        }
+        catch (error) {
+            if (client) {
+                try {
+                    await client.query('ROLLBACK');
+                }
+                catch { }
+            }
+            if (error instanceof PersistenceError)
+                throw error;
+            this.handleDbError(error, 'eliminar la venta');
+            throw error;
+        }
+        finally {
+            if (client) {
+                try {
+                    client.release();
+                }
+                catch { }
+            }
+        }
     }
 }
 exports.SaleService = SaleService;

@@ -5,7 +5,8 @@ import { AuthProvider } from './context/AuthContext';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
+      staleTime: 10000,
       retry: 1,
     },
   },

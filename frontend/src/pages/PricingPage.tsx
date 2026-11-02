@@ -432,11 +432,22 @@ export const PricingPage: React.FC<PricingPageProps> = () => {
       currentMostradorPrice > 0 &&
       Math.abs(currentMostradorPrice - Math.round(calculatedRawCost * (1 + savedMargin / 100))) <= 5;
 
-    const defaultPkgs = (isResale || isPack) ? [] : pkgs.filter(pkg => pkg.category === 'DOYPACK' || pkg.category === 'LABEL');
+    const assignedPkgIds = [matchedFp?.primaryPackagingId, matchedFp?.secondaryPackagingId].filter(Boolean) as string[];
+    const assignedPkgs = assignedPkgIds.length > 0
+      ? pkgs.filter(pkg => assignedPkgIds.includes(pkg.id))
+      : [];
+
+    const defaultPkgs = assignedPkgs.length > 0
+      ? assignedPkgs
+      : ((isResale || isPack) ? [] : pkgs.filter(pkg => pkg.category === 'DOYPACK' || pkg.category === 'LABEL'));
     const initialPkgIds = defaultPkgs.map(item => item.id);
-    const calculatedPkgCost = p?.packagingLabelCost !== undefined
+    const assignedOrDefaultPkgCost = assignedPkgs.length > 0
+      ? assignedPkgs.reduce((sum, item) => sum + (Number(item.costPerUnit) || 0), 0)
+      : (Number(matchedFp?.packagingCost) || ((isResale || isPack) ? 0 : defaultPkgs.reduce((sum, item) => sum + (Number(item.costPerUnit) || 0), 0)));
+
+    const calculatedPkgCost = p?.packagingLabelCost !== undefined && Number(p.packagingLabelCost) > 0
       ? (isDirectPriceWithoutExtras ? 0 : Number(p.packagingLabelCost))
-      : ((isResale || isPack) ? 0 : defaultPkgs.reduce((sum, item) => sum + (Number(item.costPerUnit) || 0), 0));
+      : assignedOrDefaultPkgCost;
 
     const existingLaborCost = (p?.laborCost !== undefined && !isDirectPriceWithoutExtras && !(isResale && Number(p.laborCost) === 150))
       ? Number(p.laborCost)

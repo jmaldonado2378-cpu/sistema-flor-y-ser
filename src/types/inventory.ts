@@ -80,6 +80,14 @@ export interface FinalProduct {
   isResale?: boolean;
   isPack?: boolean;
   supplierName?: string;
+  primaryPackagingId?: string | null;
+  primaryPackagingName?: string;
+  primaryPackagingCost?: number;
+  secondaryPackagingId?: string | null;
+  secondaryPackagingName?: string;
+  secondaryPackagingCost?: number;
+  packagingNotes?: string;
+  packagingCost?: number;
   ingredientsList?: ProductIngredient[];
   isActive: boolean;
   createdAt?: string;
@@ -106,6 +114,9 @@ export interface CreateFinalProductDTO {
   isResale?: boolean;
   isPack?: boolean;
   supplierName?: string;
+  primaryPackagingId?: string | null;
+  secondaryPackagingId?: string | null;
+  packagingNotes?: string;
   ingredientsList?: ProductIngredient[];
 }
 
@@ -129,6 +140,9 @@ export interface UpdateFinalProductDTO {
   isResale?: boolean;
   isPack?: boolean;
   supplierName?: string;
+  primaryPackagingId?: string | null;
+  secondaryPackagingId?: string | null;
+  packagingNotes?: string;
   ingredientsList?: ProductIngredient[];
   isActive?: boolean;
 }

@@ -77,6 +77,9 @@ const finalProductSchema = z.object({
   dietaryBadgeCodes: z.string().optional(),
   defaultExpirationDays: z.number().min(0, 'Debe ser >= 0'),
   familyId: z.string().optional(),
+  primaryPackagingId: z.string().optional(),
+  secondaryPackagingId: z.string().optional(),
+  packagingNotes: z.string().optional(),
 });
 
 const normalizeUnitCode = (unit?: string, label?: string): string => {
@@ -632,6 +635,9 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       dietaryBadgeCodes: '',
       defaultExpirationDays: 180,
       familyId: '',
+      primaryPackagingId: '',
+      secondaryPackagingId: '',
+      packagingNotes: '',
     },
   });
 
@@ -913,6 +919,9 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       dietaryBadgeCodes: Array.isArray(item.dietaryBadgeCodes) ? item.dietaryBadgeCodes.join(', ') : '',
       defaultExpirationDays: item.defaultExpirationDays || 180,
       familyId: item.familyId || item.articleFamilyId || '',
+      primaryPackagingId: item.primaryPackagingId || '',
+      secondaryPackagingId: item.secondaryPackagingId || '',
+      packagingNotes: item.packagingNotes || '',
     });
     setIsFinalModalOpen(true);
   };
@@ -1027,7 +1036,10 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
       isResale: isPackProduct ? false : isResaleProduct,
       isPack: isPackProduct,
       ingredientsList: formattedIngredientsList,
-      ingredients: autoIngredientsText || data.ingredients
+      ingredients: autoIngredientsText || data.ingredients,
+      primaryPackagingId: data.primaryPackagingId || null,
+      secondaryPackagingId: data.secondaryPackagingId || null,
+      packagingNotes: data.packagingNotes || null,
     };
 
     if (editingFinalItem) {
@@ -1168,6 +1180,9 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                   dietaryBadgeCodes: '',
                   defaultExpirationDays: 180,
                   familyId: '',
+                  primaryPackagingId: '',
+                  secondaryPackagingId: '',
+                  packagingNotes: '',
                 });
                 setIsFinalModalOpen(true);
               }}
@@ -1257,6 +1272,9 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       dietaryBadgeCodes: '',
                       defaultExpirationDays: 180,
                       familyId: '',
+                      primaryPackagingId: '',
+                      secondaryPackagingId: '',
+                      packagingNotes: '',
                     });
                     setIsFinalModalOpen(true);
                   }
@@ -1992,6 +2010,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                       <th>Stock</th>
                       <th>Precio Venta</th>
                       <th>Peso / Contenido</th>
+                      <th>Envase / Embalaje</th>
                       <th>Materia Prima Base</th>
                       <th>Estado</th>
                       <th className="no-print" style={{ textAlign: 'right' }}>Acciones</th>
@@ -2001,6 +2020,11 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                     {filteredFinalProducts.map((item) => {
                       if (!item) return null;
                       const baseRm = rawMaterialsList.find(rm => rm && rm.id === item.rawMaterialId);
+                      const primaryPkg = packagingMaterialsList.find(pm => pm && pm.id === item.primaryPackagingId);
+                      const secondaryPkg = packagingMaterialsList.find(pm => pm && pm.id === item.secondaryPackagingId);
+                      const primaryName = item.primaryPackagingName || primaryPkg?.name;
+                      const secondaryName = item.secondaryPackagingName || secondaryPkg?.name;
+                      const totalPkgCostItem = (Number(item.primaryPackagingCost ?? primaryPkg?.costPerUnit) || 0) + (Number(item.secondaryPackagingCost ?? secondaryPkg?.costPerUnit) || 0);
                       const currentStock = item.currentStock || 0;
                       const minStock = item.minStock || 0;
                       const familyName = getFamilyDisplayLabel(item);
@@ -2019,6 +2043,34 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                           <td className="font-semibold text-text-dark">{(item.price || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
                           <td>
                             {item.unitWeightGrams || 1} {formatUnitSuffix(normalizeUnitCode(item.unit, item.netContentLabel))}
+                          </td>
+                          <td>
+                            {(primaryName || secondaryName || item.packagingNotes) ? (
+                              <div className="flex flex-col gap-0.5 text-xs">
+                                {primaryName && (
+                                  <span className="font-medium text-text-dark flex items-center gap-1">
+                                    📦 {primaryName}
+                                  </span>
+                                )}
+                                {secondaryName && (
+                                  <span className="text-[11px] text-text-muted">
+                                    🏷️ + {secondaryName}
+                                  </span>
+                                )}
+                                {item.packagingNotes && (
+                                  <span className="text-[11px] text-text-muted italic" title={item.packagingNotes}>
+                                    {item.packagingNotes}
+                                  </span>
+                                )}
+                                {totalPkgCostItem > 0 && (
+                                  <span className="text-[10px] font-semibold text-primary-sage">
+                                    Costo envase: {totalPkgCostItem.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-text-muted italic">Sin envase asignado</span>
+                            )}
                           </td>
                           <td>
                             {isProductPack(item) ? (
@@ -3193,6 +3245,66 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                 <option value="KG">Kilogramos (kg)</option>
                 <option value="LTS">Litros (lts)</option>
               </select>
+            </div>
+          </div>
+
+          {/* Sección Simple: Envase y Embalaje del Producto */}
+          <div className="card p-3.5 bg-bg-linen rounded-md border border-card-border flex flex-col gap-3">
+            <div className="flex justify-between items-center flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Box size={16} className="text-primary-sage" />
+                <span className="font-semibold text-text-dark text-sm">
+                  📦 Envase y Embalaje del Producto (Definición Simple)
+                </span>
+              </div>
+              {(() => {
+                const wPrimId = finalForm.watch('primaryPackagingId');
+                const wSecId = finalForm.watch('secondaryPackagingId');
+                const pCost = Number(packagingMaterialsList.find(p => p && p.id === wPrimId)?.costPerUnit) || 0;
+                const sCost = Number(packagingMaterialsList.find(p => p && p.id === wSecId)?.costPerUnit) || 0;
+                const totPkg = pCost + sCost;
+                return (
+                  <span className={`badge ${totPkg > 0 ? 'green' : 'gray'} text-xs font-bold`}>
+                    Costo Envase + Embalaje: {totPkg.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                  </span>
+                );
+              })()}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="form-field">
+                <label className="text-xs font-semibold text-text-dark">1. Envase Primario (Bolsa / Frasco / Pote)</label>
+                <select {...finalForm.register('primaryPackagingId')} className="text-xs">
+                  <option value="">-- Sin envase primario / A granel --</option>
+                  {packagingMaterialsList.filter(pm => pm && pm.isActive !== false).map(pm => (
+                    <option key={pm.id} value={pm.id}>
+                      {pm.name} ({getCategoryBadgeLabel(pm.category)}) — {(Number(pm.costPerUnit) || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-field">
+                <label className="text-xs font-semibold text-text-dark">2. Etiqueta / Embalaje Secundario (Opcional)</label>
+                <select {...finalForm.register('secondaryPackagingId')} className="text-xs">
+                  <option value="">-- Sin etiqueta / embalaje adicional --</option>
+                  {packagingMaterialsList.filter(pm => pm && pm.isActive !== false).map(pm => (
+                    <option key={pm.id} value={pm.id}>
+                      {pm.name} ({getCategoryBadgeLabel(pm.category)}) — {(Number(pm.costPerUnit) || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="form-field">
+              <label className="text-xs text-text-muted">Detalle / Presentación de Embalaje (Opcional)</label>
+              <input
+                type="text"
+                {...finalForm.register('packagingNotes')}
+                placeholder="Ej: Bolsa Doypack Kraft 250g termosellada con etiqueta autoadhesiva frontal"
+                className="text-xs"
+              />
             </div>
           </div>
 

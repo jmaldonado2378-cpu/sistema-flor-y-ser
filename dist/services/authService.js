@@ -81,7 +81,6 @@ class AuthService {
     async ensureUsersAndAuditSchema() {
         if (this.schemaEnsured)
             return;
-        this.schemaEnsured = true;
         try {
             await this.db.query("ALTER TABLE `system_users` ADD COLUMN `visible_password` VARCHAR(150) NULL AFTER `password_hash`");
         }
@@ -119,14 +118,38 @@ class AuthService {
         }
         // Sincronizar datos iniciales en system_users para evitar conflictos entre dispositivos
         try {
-            // 1. Asegurar que Juan Pablo y María Emilia figuren como ADMIN protegidos
+            // 1. Asegurar que Juan Pablo y María Emilia figuren SIEMPRE como ADMIN protegidos y activos con los 15 módulos
             await this.db.query(`UPDATE system_users 
          SET role = 'ADMIN', is_protected = 1, active = 1, allowed_modules_json = ?
-         WHERE LOWER(email) IN ('jmaldonado2378@gmail.com', 'memimaldonado05@gmail.com')`, [JSON.stringify(ALL_ADMIN_MODULES)]);
-            // 2. Poblar visible_password en usuarios existentes si aún estaba NULL
+         WHERE LOWER(TRIM(email)) IN ('jmaldonado2378@gmail.com', 'memimaldonado05@gmail.com')`, [JSON.stringify(ALL_ADMIN_MODULES)]);
+            // 2. Poblar y reparar visible_password y password_hash si estaban vacíos o contaminados por el valor viejo '123456'
             for (const [emailKey, knownPass] of Object.entries(DEFAULT_PASSWORDS)) {
-                await this.db.query(`UPDATE system_users SET visible_password = ? WHERE LOWER(email) = ? AND (visible_password IS NULL OR visible_password = '')`, [knownPass, emailKey.toLowerCase()]);
+                const cleanKey = emailKey.trim().toLowerCase();
+                const checkRes = await this.db.query(`SELECT id, visible_password FROM system_users WHERE LOWER(TRIM(email)) = ?`, [cleanKey]);
+                if (checkRes.rows && checkRes.rows.length > 0) {
+                    const row = checkRes.rows[0];
+                    const currentVis = (row.visible_password || '').trim();
+                    const isCorruptedPass = !currentVis ||
+                        currentVis === '123456' ||
+                        (cleanKey !== 'memimaldonado05@gmail.com' && currentVis === 'LaJefa3012');
+                    if (isCorruptedPass) {
+                        const repairedHash = await bcrypt_1.default.hash(knownPass, 10);
+                        await this.db.query(`UPDATE system_users SET visible_password = ?, password_hash = ?, email = ? WHERE id = ?`, [knownPass, repairedHash, cleanKey, row.id]);
+                    }
+                }
             }
+            // 3. Asegurar que los 2 administradores principales existan en system_users aunque la tabla haya sido creada vacía
+            for (const defAdmin of DEFAULT_USERS) {
+                const adminEmail = defAdmin.email.trim().toLowerCase();
+                const existsRes = await this.db.query(`SELECT id FROM system_users WHERE LOWER(TRIM(email)) = ?`, [adminEmail]);
+                if (!existsRes.rows || existsRes.rows.length === 0) {
+                    const adminPass = DEFAULT_PASSWORDS[adminEmail] || 'admin123';
+                    const adminHash = await bcrypt_1.default.hash(adminPass, 10);
+                    await this.db.query(`INSERT INTO system_users (id, name, email, password_hash, visible_password, role, is_protected, allowed_modules_json, avatar_initials, active)
+             VALUES (?, ?, ?, ?, ?, 'ADMIN', 1, ?, ?, 1)`, [defAdmin.id, defAdmin.name, adminEmail, adminHash, adminPass, JSON.stringify(ALL_ADMIN_MODULES), defAdmin.avatar_initials]);
+                }
+            }
+            this.schemaEnsured = true;
         }
         catch (e) {
             console.warn('⚠️ Nota al normalizar usuarios en MySQL:', e.message);
@@ -141,28 +164,34 @@ class AuthService {
         const cleanEmail = email.trim().toLowerCase();
         const cleanPass = password.trim();
         try {
-            const result = await this.db.query('SELECT id, name, email, password_hash, visible_password, role, is_protected, allowed_modules_json, avatar_initials, avatar_url, active, last_login_at, created_at FROM system_users WHERE LOWER(email) = ?', [cleanEmail]);
+            const result = await this.db.query('SELECT id, name, email, password_hash, visible_password, role, is_protected, allowed_modules_json, avatar_initials, avatar_url, active, last_login_at, created_at FROM system_users WHERE LOWER(TRIM(email)) = ?', [cleanEmail]);
             if (result.rows.length > 0) {
                 const dbUser = result.rows[0];
-                let passwordMatch = await bcrypt_1.default.compare(cleanPass, dbUser.password_hash);
+                let passwordMatch = false;
+                try {
+                    passwordMatch = await bcrypt_1.default.compare(cleanPass, dbUser.password_hash);
+                }
+                catch { }
                 // Si coincide con visible_password guardada en BD pero el hash quedó desfasado
-                if (!passwordMatch && dbUser.visible_password && cleanPass === dbUser.visible_password) {
+                if (!passwordMatch && dbUser.visible_password && cleanPass === dbUser.visible_password.trim()) {
                     const newHash = await bcrypt_1.default.hash(cleanPass, 10);
                     await this.db.query('UPDATE system_users SET password_hash = ? WHERE id = ?', [newHash, dbUser.id]);
                     passwordMatch = true;
                 }
-                // Si no tenía visible_password y coincide con la clave inicial conocida
+                // Si coincide con la clave oficial conocida (auto-repara cualquier desincronización previa entre dispositivos)
                 const expectedDefaultPass = DEFAULT_PASSWORDS[cleanEmail];
-                if (!passwordMatch && !dbUser.visible_password && expectedDefaultPass && cleanPass === expectedDefaultPass) {
+                if (!passwordMatch &&
+                    expectedDefaultPass &&
+                    (cleanPass === expectedDefaultPass || cleanPass.toLowerCase() === expectedDefaultPass.toLowerCase())) {
                     const realHash = await bcrypt_1.default.hash(expectedDefaultPass, 10);
                     await this.db.query('UPDATE system_users SET password_hash = ?, visible_password = ? WHERE id = ?', [realHash, expectedDefaultPass, dbUser.id]);
                     dbUser.password_hash = realHash;
                     dbUser.visible_password = expectedDefaultPass;
                     passwordMatch = true;
                 }
-                // Asegurar que las cuentas de Juan Pablo y María Emilia siempre estén activas
-                if (PROTECTED_ADMIN_EMAILS.has(cleanEmail) && !dbUser.active) {
-                    await this.db.query('UPDATE system_users SET active = 1, role = \'ADMIN\', is_protected = 1 WHERE id = ?', [dbUser.id]);
+                // Asegurar que las cuentas de Juan Pablo y María Emilia siempre estén activas y con rol ADMIN
+                if (PROTECTED_ADMIN_EMAILS.has(cleanEmail) && (!dbUser.active || dbUser.role !== 'ADMIN')) {
+                    await this.db.query('UPDATE system_users SET active = 1, role = \'ADMIN\', is_protected = 1, allowed_modules_json = ? WHERE id = ?', [JSON.stringify(ALL_ADMIN_MODULES), dbUser.id]);
                     dbUser.active = 1;
                     dbUser.role = 'ADMIN';
                 }
@@ -337,22 +366,25 @@ class AuthService {
         try {
             const result = await this.db.query('SELECT id, name, email, visible_password, role, is_protected, allowed_modules_json, avatar_initials, avatar_url, active, last_login_at, created_at FROM system_users ORDER BY is_protected DESC, role ASC, created_at ASC');
             return result.rows.map((u) => {
-                const emailLower = String(u.email || '').toLowerCase();
+                const emailLower = String(u.email || '').trim().toLowerCase();
                 const isProt = Boolean(u.is_protected || PROTECTED_ADMIN_EMAILS.has(emailLower));
+                const effectiveRole = isProt ? 'ADMIN' : u.role;
                 const parsedModules = typeof u.allowed_modules_json === 'string'
                     ? JSON.parse(u.allowed_modules_json)
                     : u.allowed_modules_json || [];
+                const rawVisPass = (u.visible_password || '').trim();
+                const cleanVisPass = (rawVisPass && rawVisPass !== '123456') ? rawVisPass : undefined;
                 return {
                     id: u.id,
                     name: u.name,
-                    email: u.email,
-                    password: includePasswords ? (u.visible_password || DEFAULT_PASSWORDS[emailLower] || undefined) : undefined,
-                    role: u.role,
+                    email: emailLower || u.email,
+                    password: includePasswords ? (cleanVisPass || DEFAULT_PASSWORDS[emailLower] || undefined) : undefined,
+                    role: effectiveRole,
                     isProtected: isProt,
-                    allowedModules: u.role === 'ADMIN' ? ALL_ADMIN_MODULES : parsedModules,
+                    allowedModules: effectiveRole === 'ADMIN' ? ALL_ADMIN_MODULES : parsedModules,
                     avatarInitials: u.avatar_initials || u.name.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase(),
                     avatarUrl: u.avatar_url || undefined,
-                    active: Boolean(u.active == 1 || u.active === true || u.active === '1'),
+                    active: isProt ? true : Boolean(u.active == 1 || u.active === true || u.active === '1'),
                     lastLoginAt: u.last_login_at?.toISOString?.() || u.last_login_at || null,
                     createdAt: u.created_at?.toISOString?.() || u.created_at
                 };

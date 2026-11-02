@@ -72,6 +72,25 @@ export interface UpdateOrderStatusDTO {
   sellerName?: string;
   channel?: AcquisitionChannel;
   notes?: string;
+  isVerified?: boolean;
+  verifiedBy?: string;
+}
+
+export interface UpdateOrderFullDTO {
+  customerId?: string;
+  customerName?: string;
+  channel?: AcquisitionChannel;
+  status?: OrderStatus;
+  paymentStatus?: PaymentStatus;
+  paymentMethod?: string;
+  sellerId?: string;
+  sellerName?: string;
+  discountAmount?: number;
+  deliveryFee?: number;
+  notes?: string;
+  items?: CreateOrderItemDTO[];
+  isVerified?: boolean;
+  verifiedBy?: string;
 }
 
 export interface OrderFilterDTO {
@@ -110,6 +129,9 @@ export interface Order {
   commissionSettlementId?: string;
   deliveryAddress?: string;
   notes?: string;
+  isVerified?: boolean;
+  verifiedBy?: string;
+  verifiedAt?: string;
   items: OrderItem[];
   payments?: Payment[];
   createdAt: string;

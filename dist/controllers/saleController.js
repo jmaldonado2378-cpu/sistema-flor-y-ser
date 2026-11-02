@@ -93,12 +93,15 @@ class SaleController {
     };
     /**
      * PATCH /api/v1/sales/orders/:id/status
-     * Actualiza el estado operativo o de pago de un pedido.
+     * Actualiza el estado operativo, de pago o de verificación de un pedido.
      */
     updateStatus = async (req, res) => {
         try {
             const { id } = req.params;
-            const updatedOrder = await this.saleService.updateOrderStatus(id, req.body);
+            const updatedOrder = await this.saleService.updateOrderStatus(id, {
+                ...req.body,
+                verifiedBy: req.body.verifiedBy || req.user?.name || req.user?.email
+            });
             res.json({
                 status: 'SUCCESS',
                 message: 'Estado de pedido actualizado correctamente.',
@@ -107,6 +110,44 @@ class SaleController {
         }
         catch (error) {
             sendError(res, error, 'Error al actualizar el estado del pedido.');
+        }
+    };
+    /**
+     * PUT /api/v1/sales/orders/:id
+     * Actualización integral de una venta (ítems, cantidades, precios, cliente, vendedora, medio de pago, verificación).
+     */
+    updateFull = async (req, res) => {
+        try {
+            const { id } = req.params;
+            const actorName = req.user?.name || req.user?.email || 'Administrador';
+            const updatedOrder = await this.saleService.updateOrderFull(id, req.body, actorName);
+            res.json({
+                status: 'SUCCESS',
+                message: 'Venta corregida y sincronizada correctamente con Stock y Cuenta Corriente.',
+                data: updatedOrder
+            });
+        }
+        catch (error) {
+            sendError(res, error, 'Error al actualizar la venta.');
+        }
+    };
+    /**
+     * DELETE /api/v1/sales/orders/:id
+     * Anula y elimina una venta revirtiendo el stock y los cargos en cuenta corriente.
+     */
+    deleteOrder = async (req, res) => {
+        try {
+            const { id } = req.params;
+            const actorName = req.user?.name || req.user?.email || 'Administrador';
+            const result = await this.saleService.deleteOrder(id, actorName);
+            res.json({
+                status: 'SUCCESS',
+                message: result.message,
+                data: result
+            });
+        }
+        catch (error) {
+            sendError(res, error, 'Error al eliminar la venta.');
         }
     };
 }

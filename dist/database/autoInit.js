@@ -77,6 +77,34 @@ async function autoInitDatabase(db) {
             }
             catch (e) { }
             try {
+                await db.query("ALTER TABLE `final_products` ADD COLUMN `primary_packaging_id` VARCHAR(64) NULL AFTER `supplier_name`");
+            }
+            catch (e) { }
+            try {
+                await db.query("ALTER TABLE `final_products` ADD COLUMN `secondary_packaging_id` VARCHAR(64) NULL AFTER `primary_packaging_id`");
+            }
+            catch (e) { }
+            try {
+                await db.query("ALTER TABLE `final_products` ADD COLUMN `packaging_notes` VARCHAR(255) NULL AFTER `secondary_packaging_id`");
+            }
+            catch (e) { }
+            try {
+                await db.query("ALTER TABLE `orders` ADD COLUMN `payment_method` VARCHAR(50) NULL DEFAULT 'EFECTIVO' AFTER `payment_status`");
+            }
+            catch (e) { }
+            try {
+                await db.query("ALTER TABLE `orders` ADD COLUMN `is_verified` TINYINT(1) NOT NULL DEFAULT 0 AFTER `notes`");
+            }
+            catch (e) { }
+            try {
+                await db.query("ALTER TABLE `orders` ADD COLUMN `verified_by` VARCHAR(150) NULL AFTER `is_verified`");
+            }
+            catch (e) { }
+            try {
+                await db.query("ALTER TABLE `orders` ADD COLUMN `verified_at` DATETIME NULL AFTER `verified_by`");
+            }
+            catch (e) { }
+            try {
                 // Garantizar que exista la tabla operational_tasks si no estuviese creada
                 await db.query(`
           CREATE TABLE IF NOT EXISTS operational_tasks (

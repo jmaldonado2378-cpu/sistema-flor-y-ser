@@ -136,10 +136,26 @@ const formatNetContent = (amount: number, unit: string, existingLabel?: string):
 
 export class FinalProductService {
   private inMemoryProducts: FinalProduct[] = [...initialFinalProducts];
+  private schemaEnsured = false;
 
   constructor(private db: any) {}
 
+  private async ensurePackagingColumns(): Promise<void> {
+    if (this.schemaEnsured) return;
+    try {
+      await this.db.query("ALTER TABLE `final_products` ADD COLUMN `primary_packaging_id` VARCHAR(64) NULL AFTER `supplier_name`");
+    } catch {}
+    try {
+      await this.db.query("ALTER TABLE `final_products` ADD COLUMN `secondary_packaging_id` VARCHAR(64) NULL AFTER `primary_packaging_id`");
+    } catch {}
+    try {
+      await this.db.query("ALTER TABLE `final_products` ADD COLUMN `packaging_notes` VARCHAR(255) NULL AFTER `secondary_packaging_id`");
+    } catch {}
+    this.schemaEnsured = true;
+  }
+
   async getAll(includeInactive: boolean = true): Promise<FinalProduct[]> {
+    await this.ensurePackagingColumns();
     try {
       const whereClause = includeInactive ? '' : 'WHERE fp.is_active = 1';
       const res = await this.db.query(`
@@ -151,11 +167,18 @@ export class FinalProductService {
                fp.default_expiration_days AS "defaultExpirationDays",
                fp.family_id AS "familyId", f.name AS "familyName",
                fp.is_blend AS "isBlend", fp.is_resale AS "isResale", fp.supplier_name AS "supplierName",
+               fp.primary_packaging_id AS "primaryPackagingId",
+               pm1.name AS "primaryPackagingName", pm1.cost_per_unit AS "primaryPackagingCost",
+               fp.secondary_packaging_id AS "secondaryPackagingId",
+               pm2.name AS "secondaryPackagingName", pm2.cost_per_unit AS "secondaryPackagingCost",
+               fp.packaging_notes AS "packagingNotes",
                fp.ingredients_json AS "ingredientsList",
                fp.is_active AS "isActive", fp.created_at AS "createdAt", fp.updated_at AS "updatedAt"
         FROM final_products fp
         LEFT JOIN raw_materials rm ON fp.raw_material_id = rm.id
         LEFT JOIN article_families f ON fp.family_id = f.id
+        LEFT JOIN packaging_materials pm1 ON fp.primary_packaging_id = pm1.id
+        LEFT JOIN packaging_materials pm2 ON fp.secondary_packaging_id = pm2.id
         ${whereClause}
         ORDER BY fp.name ASC;
       `);
@@ -166,6 +189,8 @@ export class FinalProductService {
           const netContentLabel = formatNetContent(unitWeightGrams, resolvedUnit, row.netContentLabel);
           const parsedIngredients = parseJsonArray(row.ingredientsList);
           const isPack = Boolean(row.isPack) || (Array.isArray(parsedIngredients) && parsedIngredients.some((item: any) => Boolean(item?.isPackItem) || (item?.quantity !== undefined && Number(item?.quantity) > 0 && !item?.percentage)));
+          const pCost = parseFloat(row.primaryPackagingCost || 0);
+          const sCost = parseFloat(row.secondaryPackagingCost || 0);
           return {
             ...row,
             unit: resolvedUnit,
@@ -179,6 +204,14 @@ export class FinalProductService {
             minStock: parseFloat(row.minStock || 0),
             costPrice: parseFloat(row.costPrice || 0),
             price: parseFloat(row.price || 0),
+            primaryPackagingId: row.primaryPackagingId || undefined,
+            primaryPackagingName: row.primaryPackagingName || undefined,
+            primaryPackagingCost: pCost,
+            secondaryPackagingId: row.secondaryPackagingId || undefined,
+            secondaryPackagingName: row.secondaryPackagingName || undefined,
+            secondaryPackagingCost: sCost,
+            packagingNotes: row.packagingNotes || undefined,
+            packagingCost: pCost + sCost,
             dietaryBadgeCodes: parseJsonArray(row.dietaryBadgeCodes),
             ingredientsList: parsedIngredients
           };
@@ -191,6 +224,7 @@ export class FinalProductService {
   }
 
   async getById(id: string): Promise<FinalProduct | null> {
+    await this.ensurePackagingColumns();
     try {
       const res = await this.db.query(`
         SELECT fp.id, fp.raw_material_id AS "rawMaterialId", rm.name AS "rawMaterialName",
@@ -201,11 +235,18 @@ export class FinalProductService {
                fp.default_expiration_days AS "defaultExpirationDays",
                fp.family_id AS "familyId", f.name AS "familyName",
                fp.is_blend AS "isBlend", fp.is_resale AS "isResale", fp.supplier_name AS "supplierName",
+               fp.primary_packaging_id AS "primaryPackagingId",
+               pm1.name AS "primaryPackagingName", pm1.cost_per_unit AS "primaryPackagingCost",
+               fp.secondary_packaging_id AS "secondaryPackagingId",
+               pm2.name AS "secondaryPackagingName", pm2.cost_per_unit AS "secondaryPackagingCost",
+               fp.packaging_notes AS "packagingNotes",
                fp.ingredients_json AS "ingredientsList",
                fp.is_active AS "isActive", fp.created_at AS "createdAt", fp.updated_at AS "updatedAt"
         FROM final_products fp
         LEFT JOIN raw_materials rm ON fp.raw_material_id = rm.id
         LEFT JOIN article_families f ON fp.family_id = f.id
+        LEFT JOIN packaging_materials pm1 ON fp.primary_packaging_id = pm1.id
+        LEFT JOIN packaging_materials pm2 ON fp.secondary_packaging_id = pm2.id
         WHERE fp.id = $1;
       `, [id]);
       if (res.rows.length > 0) {
@@ -215,6 +256,8 @@ export class FinalProductService {
         const netContentLabel = formatNetContent(unitWeightGrams, resolvedUnit, row.netContentLabel);
         const parsedIngredients = parseJsonArray(row.ingredientsList);
         const isPack = Boolean(row.isPack) || (Array.isArray(parsedIngredients) && parsedIngredients.some((item: any) => Boolean(item?.isPackItem) || (item?.quantity !== undefined && Number(item?.quantity) > 0 && !item?.percentage)));
+        const pCost = parseFloat(row.primaryPackagingCost || 0);
+        const sCost = parseFloat(row.secondaryPackagingCost || 0);
         return {
           ...row,
           unit: resolvedUnit,
@@ -228,6 +271,14 @@ export class FinalProductService {
           minStock: parseFloat(row.minStock || 0),
           costPrice: parseFloat(row.costPrice || 0),
           price: parseFloat(row.price || 0),
+          primaryPackagingId: row.primaryPackagingId || undefined,
+          primaryPackagingName: row.primaryPackagingName || undefined,
+          primaryPackagingCost: pCost,
+          secondaryPackagingId: row.secondaryPackagingId || undefined,
+          secondaryPackagingName: row.secondaryPackagingName || undefined,
+          secondaryPackagingCost: sCost,
+          packagingNotes: row.packagingNotes || undefined,
+          packagingCost: pCost + sCost,
           dietaryBadgeCodes: parseJsonArray(row.dietaryBadgeCodes),
           ingredientsList: parsedIngredients
         };
@@ -237,6 +288,7 @@ export class FinalProductService {
   }
 
   async create(dto: CreateFinalProductDTO): Promise<FinalProduct> {
+    await this.ensurePackagingColumns();
     const generatedBarcode = dto.barcode || '779' + Math.floor(1000000000 + Math.random() * 9000000000);
     const resolvedUnit = inferUnitFromLabel(dto.unit, dto.netContentLabel);
     const resolvedNetLabel = formatNetContent(dto.unitWeightGrams, resolvedUnit, dto.netContentLabel);
@@ -248,17 +300,11 @@ export class FinalProductService {
         INSERT INTO final_products (
           raw_material_id, code, barcode, name, unit_weight_grams, unit, net_content_label,
           current_stock, min_stock, cost_price, price, ingredients, dietary_badge_codes,
-          default_expiration_days, family_id, is_blend, is_resale, supplier_name, ingredients_json
+          default_expiration_days, family_id, is_blend, is_resale, supplier_name,
+          primary_packaging_id, secondary_packaging_id, packaging_notes, ingredients_json
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17, $18, $19::jsonb)
-        RETURNING id, raw_material_id AS "rawMaterialId", code, barcode, name, unit_weight_grams AS "unitWeightGrams",
-                  unit, net_content_label AS "netContentLabel", current_stock AS "currentStock",
-                  min_stock AS "minStock", cost_price AS "costPrice", price, ingredients,
-                  dietary_badge_codes AS "dietaryBadgeCodes",
-                  default_expiration_days AS "defaultExpirationDays", family_id AS "familyId",
-                  is_blend AS "isBlend", is_resale AS "isResale", supplier_name AS "supplierName",
-                  ingredients_json AS "ingredientsList", is_active AS "isActive",
-                  created_at AS "createdAt", updated_at AS "updatedAt";
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17, $18, $19, $20, $21, $22::jsonb)
+        RETURNING id;
       `, [
         dto.rawMaterialId || null,
         dto.code,
@@ -278,24 +324,17 @@ export class FinalProductService {
         dto.isPack ? false : (dto.isResale ? false : (dto.isBlend ?? false)),
         dto.isResale ?? false,
         dto.supplierName || null,
+        dto.primaryPackagingId || null,
+        dto.secondaryPackagingId || null,
+        dto.packagingNotes || null,
         JSON.stringify(normalizedIngredients)
       ]);
-      const row = res.rows[0];
-      const parsedIngredients = parseJsonArray(row.ingredientsList);
-      const isPack = Boolean(dto.isPack) || (Array.isArray(parsedIngredients) && parsedIngredients.some((item: any) => Boolean(item?.isPackItem) || (item?.quantity !== undefined && Number(item?.quantity) > 0 && !item?.percentage)));
-      return {
-        ...row,
-        unit: inferUnitFromLabel(row.unit, row.netContentLabel),
-        isActive: row.isActive === 1 || row.isActive === true || row.isActive === '1' || row.isActive === 'true',
-        isBlend: !isPack && (row.isBlend === 1 || row.isBlend === true || row.isBlend === '1' || row.isBlend === 'true'),
-        isResale: row.isResale === 1 || row.isResale === true || row.isResale === '1' || row.isResale === 'true',
-        isPack,
-        unitWeightGrams: parseFloat(row.unitWeightGrams),
-        costPrice: parseFloat(row.costPrice || 0),
-        price: parseFloat(row.price),
-        dietaryBadgeCodes: Array.isArray(row.dietaryBadgeCodes) ? row.dietaryBadgeCodes : JSON.parse(row.dietaryBadgeCodes || '[]'),
-        ingredientsList: parsedIngredients
-      };
+      const insertedId = res.rows[0]?.id;
+      if (insertedId) {
+        const created = await this.getById(insertedId);
+        if (created) return created;
+      }
+      throw new Error('Fallback create');
     } catch {
       const newProduct: FinalProduct = {
         id: 'fp-' + Date.now(),
@@ -318,6 +357,9 @@ export class FinalProductService {
         isResale: dto.isResale ?? false,
         isPack: dto.isPack ?? false,
         supplierName: dto.supplierName,
+        primaryPackagingId: dto.primaryPackagingId || undefined,
+        secondaryPackagingId: dto.secondaryPackagingId || undefined,
+        packagingNotes: dto.packagingNotes || undefined,
         ingredientsList: normalizedIngredients,
         isActive: true,
         createdAt: new Date().toISOString(),
@@ -361,6 +403,7 @@ export class FinalProductService {
   }
 
   async update(id: string, dto: UpdateFinalProductDTO): Promise<FinalProduct | null> {
+    await this.ensurePackagingColumns();
     try {
       const updates: string[] = [];
       const values: any[] = [];
@@ -392,6 +435,9 @@ export class FinalProductService {
       if (dto.isBlend !== undefined) { updates.push(`is_blend = $${i++}`); values.push(dto.isPack ? false : (dto.isResale ? false : dto.isBlend)); }
       if (dto.isResale !== undefined) { updates.push(`is_resale = $${i++}`); values.push(dto.isResale); }
       if (dto.supplierName !== undefined) { updates.push(`supplier_name = $${i++}`); values.push(dto.supplierName || null); }
+      if (dto.primaryPackagingId !== undefined) { updates.push(`primary_packaging_id = $${i++}`); values.push(dto.primaryPackagingId || null); }
+      if (dto.secondaryPackagingId !== undefined) { updates.push(`secondary_packaging_id = $${i++}`); values.push(dto.secondaryPackagingId || null); }
+      if (dto.packagingNotes !== undefined) { updates.push(`packaging_notes = $${i++}`); values.push(dto.packagingNotes || null); }
       if (dto.ingredientsList !== undefined) {
         const normalizedIngredients = Array.isArray(dto.ingredientsList)
           ? dto.ingredientsList.map(item => (dto.isPack ? { ...item, isPackItem: true } : item))

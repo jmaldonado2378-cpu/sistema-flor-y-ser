@@ -28,6 +28,25 @@ export interface UpdateOrderDetailsDTO {
   sellerName?: string;
   channel?: string;
   notes?: string;
+  isVerified?: boolean;
+  verifiedBy?: string;
+}
+
+export interface UpdateOrderFullDTO {
+  customerId?: string;
+  customerName?: string;
+  channel?: string;
+  sellerId?: string;
+  sellerName?: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
+  status?: string;
+  discountAmount?: number;
+  deliveryFee?: number;
+  notes?: string;
+  isVerified?: boolean;
+  verifiedBy?: string;
+  items?: OrderItem[];
 }
 
 export interface Order {
@@ -38,12 +57,18 @@ export interface Order {
   sellerId?: string;
   sellerName?: string;
   channel?: string;
+  subtotal?: number;
+  discountAmount?: number;
+  deliveryFee?: number;
   totalAmount: number;
   status: string;
   paymentStatus?: string;
   paymentMethod: string;
   commissionAmount?: number;
   notes?: string;
+  isVerified?: boolean;
+  verifiedBy?: string;
+  verifiedAt?: string;
   createdAt: string;
   items: OrderItem[];
 }
@@ -100,6 +125,21 @@ export async function updateOrderDetails(id: string, data: UpdateOrderDetailsDTO
   const res = await apiRequest<any>(`/sales/orders/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify(data),
+  });
+  return res.data || res;
+}
+
+export async function updateOrderFull(id: string, data: UpdateOrderFullDTO): Promise<Order> {
+  const res = await apiRequest<any>(`/sales/orders/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  return res.data || res;
+}
+
+export async function deleteOrder(id: string): Promise<{ deleted: boolean; message: string }> {
+  const res = await apiRequest<any>(`/sales/orders/${id}`, {
+    method: 'DELETE',
   });
   return res.data || res;
 }
