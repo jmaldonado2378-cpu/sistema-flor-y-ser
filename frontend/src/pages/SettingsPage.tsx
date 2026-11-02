@@ -5,9 +5,10 @@ import {
   useUpdateBusinessInfo, 
   useUpdatePrintSettings, 
   useUpdateCommissions,
+  useUpdatePricingParameters,
   useUpdateHelpSettings 
 } from '../hooks/useSettings';
-import { Settings, Save, Store, Printer, Percent, CheckCircle2, AlertCircle, Upload, Image as ImageIcon, Trash2, HelpCircle } from 'lucide-react';
+import { Settings, Save, Store, Printer, Percent, CheckCircle2, AlertCircle, Upload, Image as ImageIcon, Trash2, HelpCircle, Calculator } from 'lucide-react';
 
 interface SettingsPageProps {
   onTabChange?: (tab: string) => void;
@@ -38,6 +39,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
   const updateBusiness = useUpdateBusinessInfo();
   const updatePrint = useUpdatePrintSettings();
   const updateComm = useUpdateCommissions();
+  const updatePricingParams = useUpdatePricingParameters();
   const updateHelp = useUpdateHelpSettings();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -45,6 +47,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
   const [businessMsg, setBusinessMsg] = useState<string | null>(null);
   const [printMsg, setPrintMsg] = useState<string | null>(null);
   const [commMsg, setCommMsg] = useState<string | null>(null);
+  const [pricingMsg, setPricingMsg] = useState<string | null>(null);
   const [helpMsg, setHelpMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [logoLoadError, setLogoLoadError] = useState(false);
@@ -73,6 +76,23 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
       tiendaOnline: 5.0,
       mercadoPago: 4.5,
       tarjetas: 3.5
+    }
+  });
+
+  const pricingParamsForm = useForm({
+    defaultValues: {
+      fixedCostPercentage: 8.0,
+      laborHourlyRate: 4000,
+      defaultBatchHours: 2,
+      defaultBatchUnits: 40,
+      laborCostPercentage: 10.0,
+      applyLaborToResale: false,
+      taxPercentage: 0.0,
+      roundingMultiple: 100,
+      roundingMode: 'UP' as 'UP' | 'NEAREST',
+      defaultMostradorMarginPct: 50,
+      defaultWhatsappMarginPct: 45,
+      defaultOnlineMarginPct: 40
     }
   });
 
@@ -110,6 +130,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
           tiendaOnline: settings.channelCommissions.tiendaOnline ?? 5.0,
           mercadoPago: settings.channelCommissions.mercadoPago ?? 4.5,
           tarjetas: settings.channelCommissions.tarjetas ?? 3.5
+        });
+      }
+      if (settings.pricingParameters) {
+        pricingParamsForm.reset({
+          fixedCostPercentage: settings.pricingParameters.fixedCostPercentage ?? 8.0,
+          laborHourlyRate: settings.pricingParameters.laborHourlyRate ?? 4000,
+          defaultBatchHours: settings.pricingParameters.defaultBatchHours ?? 2,
+          defaultBatchUnits: settings.pricingParameters.defaultBatchUnits ?? 40,
+          laborCostPercentage: settings.pricingParameters.laborCostPercentage ?? 10.0,
+          applyLaborToResale: Boolean(settings.pricingParameters.applyLaborToResale),
+          taxPercentage: settings.pricingParameters.taxPercentage ?? 0.0,
+          roundingMultiple: settings.pricingParameters.roundingMultiple ?? 100,
+          roundingMode: settings.pricingParameters.roundingMode || 'UP',
+          defaultMostradorMarginPct: settings.pricingParameters.defaultMostradorMarginPct ?? 50,
+          defaultWhatsappMarginPct: settings.pricingParameters.defaultWhatsappMarginPct ?? 45,
+          defaultOnlineMarginPct: settings.pricingParameters.defaultOnlineMarginPct ?? 40
         });
       }
       if (settings.helpSettings) {
@@ -227,6 +263,34 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
       },
       onError: (err: any) => {
         setErrorMsg(err.message || 'Error al guardar comisiones por canal.');
+      }
+    });
+  };
+
+  const onPricingParamsSubmit = (data: any) => {
+    setPricingMsg(null);
+    setErrorMsg(null);
+    const payload = {
+      fixedCostPercentage: Number(data.fixedCostPercentage) || 0,
+      laborHourlyRate: Number(data.laborHourlyRate) || 0,
+      defaultBatchHours: Number(data.defaultBatchHours) || 1,
+      defaultBatchUnits: Math.max(1, Number(data.defaultBatchUnits) || 1),
+      laborCostPercentage: Number(data.laborCostPercentage) || 0,
+      applyLaborToResale: Boolean(data.applyLaborToResale),
+      taxPercentage: Number(data.taxPercentage) || 0,
+      roundingMultiple: Number(data.roundingMultiple) || 100,
+      roundingMode: (data.roundingMode === 'NEAREST' ? 'NEAREST' : 'UP') as 'UP' | 'NEAREST',
+      defaultMostradorMarginPct: Number(data.defaultMostradorMarginPct) || 50,
+      defaultWhatsappMarginPct: Number(data.defaultWhatsappMarginPct) || 45,
+      defaultOnlineMarginPct: Number(data.defaultOnlineMarginPct) || 40
+    };
+    updatePricingParams.mutate(payload, {
+      onSuccess: () => {
+        setPricingMsg('✅ Parámetros globales de Costo Fijo (%), Mano de Obra por Lote, Impuestos (%) y Redondeo guardados correctamente.');
+        refetch();
+      },
+      onError: (err: any) => {
+        setErrorMsg(err.message || 'Error al guardar parámetros de precios y costos.');
       }
     });
   };
@@ -476,6 +540,180 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
                 <label className="text-xs font-medium text-text-dark mb-1 block">Tarjetas Débito / Crédito (%)</label>
                 <input type="number" step="0.1" className="input" {...commForm.register('tarjetas')} />
               </div>
+            </div>
+          </form>
+        </div>
+
+        {/* Seccion 3B: Parámetros Globales de Estructura de Precios y Costos */}
+        <div className="card p-5 border-l-4" style={{ borderLeftColor: '#2E5339' }}>
+          <form onSubmit={pricingParamsForm.handleSubmit(onPricingParamsSubmit)}>
+            <div className="card-header flex justify-between items-center mb-3 flex-wrap gap-2">
+              <div>
+                <h2 className="text-lg font-semibold text-text-dark flex items-center gap-2">
+                  <Calculator size={20} className="text-primary-sage" />
+                  Parámetros Globales de Costos, Mano de Obra (Por Lote), Impuestos y Redondeo
+                </h2>
+                <p className="text-xs text-text-muted mt-0.5">
+                  Estos valores rigen el cálculo automático en la tabla de Precios &amp; Costos sobre el <strong>Costo Producto (Compra + Envase/Embalaje)</strong>.
+                </p>
+              </div>
+              <button type="submit" className="btn btn-sm btn-primary flex items-center gap-2" disabled={updatePricingParams.isPending}>
+                <Save size={16} /> {updatePricingParams.isPending ? 'Guardando...' : 'Guardar Parámetros de Costos'}
+              </button>
+            </div>
+
+            {pricingMsg && (
+              <div className="p-2.5 bg-green-50 text-green-800 text-xs rounded mb-4 flex items-center gap-2">
+                <CheckCircle2 size={16} /> {pricingMsg}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              {/* 1. Costo Fijo Global (%) */}
+              <div className="p-3 bg-bg-linen rounded-lg border flex flex-col gap-2">
+                <div className="font-bold text-xs text-text-dark uppercase tracking-wide">
+                  🏢 1. Costo Fijo Global (%)
+                </div>
+                <p className="text-[11px] text-text-muted m-0">
+                  Porcentaje único aplicado sobre el <strong>Costo Producto</strong> (Compra + Envase).
+                </p>
+                <div className="form-field mt-1">
+                  <label className="text-xs font-semibold text-text-dark mb-1 block">% Costo Fijo sobre Costo Producto</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    className="input font-bold text-primary-sage"
+                    {...pricingParamsForm.register('fixedCostPercentage', { valueAsNumber: true })}
+                  />
+                </div>
+              </div>
+
+              {/* 2. Impuestos sobre Venta (%) */}
+              <div className="p-3 bg-bg-linen rounded-lg border flex flex-col gap-2">
+                <div className="font-bold text-xs text-text-dark uppercase tracking-wide">
+                  🏛️ 2. Impuestos sobre Venta (%)
+                </div>
+                <p className="text-[11px] text-text-muted m-0">
+                  Porcentaje impositivo fijado desde este panel para todos los canales de venta.
+                </p>
+                <div className="form-field mt-1">
+                  <label className="text-xs font-semibold text-text-dark mb-1 block">% Impuestos sobre Venta</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    className="input font-bold text-amber-700"
+                    {...pricingParamsForm.register('taxPercentage', { valueAsNumber: true })}
+                  />
+                </div>
+              </div>
+
+              {/* 3. Redondeo por Múltiplo */}
+              <div className="p-3 bg-bg-linen rounded-lg border flex flex-col gap-2">
+                <div className="font-bold text-xs text-text-dark uppercase tracking-wide">
+                  🎯 3. Redondeo del Precio Final
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <div className="form-field">
+                    <label className="text-xs font-semibold text-text-dark mb-1 block">Múltiplo ($)</label>
+                    <select className="input text-xs font-bold" {...pricingParamsForm.register('roundingMultiple', { valueAsNumber: true })}>
+                      <option value={1}>Sin redondeo ($1)</option>
+                      <option value={10}>Múltiplo de $10</option>
+                      <option value={50}>Múltiplo de $50</option>
+                      <option value={100}>Múltiplo de $100</option>
+                      <option value={500}>Múltiplo de $500</option>
+                      <option value={1000}>Múltiplo de $1.000</option>
+                    </select>
+                  </div>
+                  <div className="form-field">
+                    <label className="text-xs font-semibold text-text-dark mb-1 block">Dirección</label>
+                    <select className="input text-xs font-semibold" {...pricingParamsForm.register('roundingMode')}>
+                      <option value="UP">🔼 Siempre hacia arriba</option>
+                      <option value="NEAREST">⚖️ Al más cercano</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Mano de Obra Opción C: Horas por Lote Procesado e Incidencia (%) sobre Costo Producto */}
+            <div className="p-4 bg-bg-linen rounded-lg border flex flex-col gap-3">
+              <div className="flex justify-between items-center flex-wrap gap-2">
+                <div>
+                  <span className="font-bold text-xs text-text-dark uppercase tracking-wide">
+                    👩‍🍳 4. Mano de Obra (Opción C: Horas por Lote Procesado e Incidencia % s/ Costo Producto)
+                  </span>
+                  <p className="text-[11px] text-text-muted m-0 mt-0.5">
+                    Define el valor hora, las horas por lote y unidades del lote para calcular el costo operativo y el % de incidencia sobre el Costo Producto.
+                  </p>
+                </div>
+                {(() => {
+                  const hrRate = Number(pricingParamsForm.watch('laborHourlyRate')) || 0;
+                  const bHours = Number(pricingParamsForm.watch('defaultBatchHours')) || 0;
+                  const bUnits = Math.max(1, Number(pricingParamsForm.watch('defaultBatchUnits')) || 1);
+                  const batchTotal = hrRate * bHours;
+                  const unitLabor = Math.round(batchTotal / bUnits);
+                  return (
+                    <span className="badge green text-xs font-bold">
+                      Costo Lote: ${batchTotal.toLocaleString('es-AR')} ➔ ${unitLabor.toLocaleString('es-AR')} / unidad
+                    </span>
+                  );
+                })()}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="form-field">
+                  <label className="text-xs font-semibold text-text-dark mb-1 block">Valor Hora Mano de Obra ($/h)</label>
+                  <input
+                    type="number"
+                    step="50"
+                    min="0"
+                    className="input text-xs font-semibold"
+                    {...pricingParamsForm.register('laborHourlyRate', { valueAsNumber: true })}
+                  />
+                </div>
+                <div className="form-field">
+                  <label className="text-xs font-semibold text-text-dark mb-1 block">Hs Promedio por Lote Procesado</label>
+                  <input
+                    type="number"
+                    step="0.25"
+                    min="0.1"
+                    className="input text-xs font-semibold"
+                    {...pricingParamsForm.register('defaultBatchHours', { valueAsNumber: true })}
+                  />
+                </div>
+                <div className="form-field">
+                  <label className="text-xs font-semibold text-text-dark mb-1 block">Unidades Obtenidas por Lote</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    className="input text-xs font-semibold"
+                    {...pricingParamsForm.register('defaultBatchUnits', { valueAsNumber: true })}
+                  />
+                </div>
+                <div className="form-field">
+                  <label className="text-xs font-bold text-primary-sage mb-1 block">% Incidencia Mano de Obra (s/ Costo Prod.)</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    className="input text-xs font-bold text-primary-sage"
+                    {...pricingParamsForm.register('laborCostPercentage', { valueAsNumber: true })}
+                  />
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 text-xs text-text-dark cursor-pointer pt-1">
+                <input
+                  type="checkbox"
+                  {...pricingParamsForm.register('applyLaborToResale')}
+                />
+                <span>
+                  Aplicar también Mano de Obra a <strong>Productos de Reventa Directa</strong> (si se deja destildado, Reventa lleva <strong>0%</strong> de Mano de Obra automáticamente).
+                </span>
+              </label>
             </div>
           </form>
         </div>

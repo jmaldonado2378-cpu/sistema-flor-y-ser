@@ -11,4 +11,4 @@ export { useFinancialOverview, useRegisterExpense, useUpdateExpense, useDeleteEx
 export { usePricingStructures, usePricingStructure, usePricingOverview, useSavePricingStructure, useCalculatePreview, useAllocateFixedCosts } from './usePricing';
 export { useKanbanBoard, useCreateTask, useUpdateTask, useUpdateTaskStatus, useDeleteTask } from './useTasks';
 export { usePrintProductLabel, usePrintShippingLabel } from './useLabels';
-export { useSettings, useUpdateSettings, useUpdateBusinessInfo, useUpdatePrintSettings, useUpdateCommissions } from './useSettings';
+export { useSettings, useUpdateSettings, useUpdateBusinessInfo, useUpdatePrintSettings, useUpdateCommissions, useUpdatePricingParameters } from './useSettings';

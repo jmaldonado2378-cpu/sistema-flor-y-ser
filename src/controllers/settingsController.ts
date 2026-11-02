@@ -126,4 +126,46 @@ export class SettingsController {
       });
     }
   };
+
+  /**
+   * Endpoint PATCH /api/v1/settings/pricing-parameters
+   * Actualización de los parámetros globales de precios, costos fijos (%), mano de obra (por lote), impuestos (%) y redondeo.
+   */
+  updatePricingParameters = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const updated = await this.settingsService.updatePricingParameters(req.body);
+      res.status(200).json({
+        success: true,
+        data: updated,
+        message: 'Parámetros globales de precios y costos actualizados correctamente.'
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: 'Error al actualizar los parámetros de precios y costos.',
+        details: error.message
+      });
+    }
+  };
+
+  /**
+   * Endpoint PATCH /api/v1/settings/help
+   * Actualización de datos del Centro de Ayuda.
+   */
+  updateHelpSettings = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const updated = await this.settingsService.updateHelpSettings(req.body);
+      res.status(200).json({
+        success: true,
+        data: updated,
+        message: 'Datos de ayuda actualizados correctamente.'
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: 'Error al actualizar los datos de ayuda.',
+        details: error.message
+      });
+    }
+  };
 }

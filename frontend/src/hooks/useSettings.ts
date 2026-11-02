@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSettings, updateSettings, updateBusinessInfo, updatePrintSettings, updateCommissions, updateHelpSettings } from '../api/settings';
+import { getSettings, updateSettings, updateBusinessInfo, updatePrintSettings, updateCommissions, updatePricingParameters, updateHelpSettings } from '../api/settings';
 
 export const useSettings = () => useQuery({ queryKey: ['settings'], queryFn: getSettings });
 
@@ -32,6 +32,17 @@ export const useUpdateCommissions = () => {
   return useMutation({
     mutationFn: updateCommissions,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] }),
+  });
+};
+
+export const useUpdatePricingParameters = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updatePricingParameters,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      queryClient.invalidateQueries({ queryKey: ['pricingStructures'] });
+    },
   });
 };
 

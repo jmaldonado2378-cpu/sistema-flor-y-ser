@@ -350,6 +350,8 @@ app.put('/api/v1/settings', requireAuth, requireRole('ADMIN'), settingsControlle
 app.patch('/api/v1/settings/business-info', requireAuth, requireRole('ADMIN'), settingsController.updateBusinessInfo);
 app.patch('/api/v1/settings/print', requireAuth, requireRole('ADMIN'), settingsController.updatePrintSettings);
 app.patch('/api/v1/settings/commissions', requireAuth, requireRole('ADMIN'), settingsController.updateChannelCommissions);
+app.patch('/api/v1/settings/pricing-parameters', requireAuth, requireRole('ADMIN'), settingsController.updatePricingParameters);
+app.patch('/api/v1/settings/help', requireAuth, requireRole('ADMIN'), settingsController.updateHelpSettings);
 
 // WhatsApp Marketing (Plantillas & Campañas)
 app.get('/api/v1/marketing/templates', requireAuth, marketingController.getTemplates);

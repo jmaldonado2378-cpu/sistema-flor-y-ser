@@ -1,17 +1,31 @@
 import {
   SystemSettings,
-  BusinessInfo,
-  PrintSettings,
-  ChannelCommissions,
+  PricingParameters,
   UpdateSystemSettingsDTO,
   UpdateBusinessInfoDTO,
   UpdatePrintSettingsDTO,
-  UpdateChannelCommissionsDTO
+  UpdateChannelCommissionsDTO,
+  UpdatePricingParametersDTO
 } from '../types/settings';
+
+const DEFAULT_PRICING_PARAMETERS: PricingParameters = {
+  fixedCostPercentage: 8.0,
+  laborHourlyRate: 4000,
+  defaultBatchHours: 2,
+  defaultBatchUnits: 40,
+  laborCostPercentage: 10.0,
+  applyLaborToResale: false,
+  taxPercentage: 0.0,
+  roundingMultiple: 100,
+  roundingMode: 'UP',
+  defaultMostradorMarginPct: 50,
+  defaultWhatsappMarginPct: 45,
+  defaultOnlineMarginPct: 40
+};
 
 /**
  * Servicio encargado del manejo de la Configuración General del Sistema,
- * datos comerciales, comisiones por canal e impresoras por defecto.
+ * datos comerciales, comisiones por canal, parámetros de costos/precios e impresoras.
  */
 export class SettingsService {
   private currentSettings: SystemSettings = {
@@ -33,10 +47,30 @@ export class SettingsService {
       mercadoPago: 4.5,
       tarjetas: 3.5
     },
+    pricingParameters: { ...DEFAULT_PRICING_PARAMETERS },
+    helpSettings: {
+      supportEmail: 'soporte@floryser.com.ar',
+      supportPhone: '+54 9 11 5543-9821',
+      posGuide: 'Registre ventas en mostrador, aplique descuentos y gestione el ticket.',
+      rawGuide: 'Asigne la familia correspondiente a cada insumo o granel.',
+      permGuide: 'Configure el acceso a Kanban de Tareas por cada usuario vendedor.'
+    },
     updatedAt: new Date().toISOString()
   };
 
   constructor(private db: any) {}
+
+  private parseSettingValue(rawVal: any): any {
+    if (!rawVal) return null;
+    if (typeof rawVal === 'string') {
+      try {
+        return JSON.parse(rawVal);
+      } catch {
+        return null;
+      }
+    }
+    return rawVal;
+  }
 
   /**
    * Obtiene la configuración actual del sistema.
@@ -52,7 +86,7 @@ export class SettingsService {
 
       if (res.rows.length > 0) {
         const settingsMap = res.rows.reduce((acc: any, row: any) => {
-          acc[row.key_name] = row.setting_value;
+          acc[row.key_name] = this.parseSettingValue(row.setting_value);
           return acc;
         }, {});
 
@@ -74,9 +108,26 @@ export class SettingsService {
             ...settingsMap.channelCommissions
           };
         }
+        if (settingsMap.pricingParameters) {
+          this.currentSettings.pricingParameters = {
+            ...DEFAULT_PRICING_PARAMETERS,
+            ...this.currentSettings.pricingParameters,
+            ...settingsMap.pricingParameters
+          };
+        }
+        if (settingsMap.helpSettings) {
+          this.currentSettings.helpSettings = {
+            ...this.currentSettings.helpSettings,
+            ...settingsMap.helpSettings
+          };
+        }
       }
     } catch {
       // Fallback a almacenamiento en memoria si no existe la tabla o no hay conexión BD
+    }
+
+    if (!this.currentSettings.pricingParameters) {
+      this.currentSettings.pricingParameters = { ...DEFAULT_PRICING_PARAMETERS };
     }
 
     return this.currentSettings;
@@ -86,6 +137,8 @@ export class SettingsService {
    * Actualiza la configuración global del sistema de forma parcial o total.
    */
   async updateSettings(dto: UpdateSystemSettingsDTO): Promise<SystemSettings> {
+    await this.getSettings();
+
     if (dto.businessInfo) {
       this.currentSettings.businessInfo = {
         ...this.currentSettings.businessInfo,
@@ -107,76 +160,107 @@ export class SettingsService {
       };
     }
 
+    if (dto.pricingParameters) {
+      this.currentSettings.pricingParameters = {
+        ...DEFAULT_PRICING_PARAMETERS,
+        ...this.currentSettings.pricingParameters,
+        ...dto.pricingParameters
+      };
+    }
+
+    if (dto.helpSettings) {
+      this.currentSettings.helpSettings = {
+        ...this.currentSettings.helpSettings,
+        ...dto.helpSettings
+      };
+    }
+
     this.currentSettings.updatedAt = new Date().toISOString();
-
     await this.persistSettingsToDb();
-
     return this.currentSettings;
   }
 
-  /**
-   * Actualiza únicamente la información comercial y fiscal.
-   */
   async updateBusinessInfo(dto: UpdateBusinessInfoDTO): Promise<SystemSettings> {
+    await this.getSettings();
     this.currentSettings.businessInfo = {
       ...this.currentSettings.businessInfo,
       ...dto
     };
     this.currentSettings.updatedAt = new Date().toISOString();
-
     await this.persistSettingsToDb();
     return this.currentSettings;
   }
 
-  /**
-   * Actualiza la configuración de impresión de etiquetas.
-   */
   async updatePrintSettings(dto: UpdatePrintSettingsDTO): Promise<SystemSettings> {
+    await this.getSettings();
     this.currentSettings.printSettings = {
       ...this.currentSettings.printSettings,
       ...dto
     };
     this.currentSettings.updatedAt = new Date().toISOString();
-
     await this.persistSettingsToDb();
     return this.currentSettings;
   }
 
-  /**
-   * Actualiza la estructura de comisiones por canal y medio de pago.
-   */
   async updateChannelCommissions(dto: UpdateChannelCommissionsDTO): Promise<SystemSettings> {
+    await this.getSettings();
     this.currentSettings.channelCommissions = {
       ...this.currentSettings.channelCommissions,
       ...dto
     };
     this.currentSettings.updatedAt = new Date().toISOString();
+    await this.persistSettingsToDb();
+    return this.currentSettings;
+  }
 
+  async updatePricingParameters(dto: UpdatePricingParametersDTO): Promise<SystemSettings> {
+    await this.getSettings();
+    this.currentSettings.pricingParameters = {
+      ...DEFAULT_PRICING_PARAMETERS,
+      ...this.currentSettings.pricingParameters,
+      ...dto
+    };
+    this.currentSettings.updatedAt = new Date().toISOString();
+    await this.persistSettingsToDb();
+    return this.currentSettings;
+  }
+
+  async updateHelpSettings(dto: Record<string, any>): Promise<SystemSettings> {
+    await this.getSettings();
+    this.currentSettings.helpSettings = {
+      ...this.currentSettings.helpSettings,
+      ...dto
+    };
+    this.currentSettings.updatedAt = new Date().toISOString();
     await this.persistSettingsToDb();
     return this.currentSettings;
   }
 
   /**
-   * Persiste la configuración en la base de datos PostgreSQL si está disponible.
+   * Persiste la configuración en la base de datos MySQL si está disponible.
    */
   private async persistSettingsToDb(): Promise<void> {
     try {
       const upsertQuery = `
-        INSERT INTO system_settings (key_name, setting_value, updated_at)
+        INSERT INTO system_settings (key_name, setting_value, is_active, updated_at)
         VALUES 
-          ('businessInfo', $1, CURRENT_TIMESTAMP),
-          ('printSettings', $2, CURRENT_TIMESTAMP),
-          ('channelCommissions', $3, CURRENT_TIMESTAMP)
-        ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = CURRENT_TIMESTAMP;
+          ('businessInfo', $1, TRUE, CURRENT_TIMESTAMP),
+          ('printSettings', $2, TRUE, CURRENT_TIMESTAMP),
+          ('channelCommissions', $3, TRUE, CURRENT_TIMESTAMP),
+          ('pricingParameters', $4, TRUE, CURRENT_TIMESTAMP),
+          ('helpSettings', $5, TRUE, CURRENT_TIMESTAMP)
+        ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), is_active = TRUE, updated_at = CURRENT_TIMESTAMP;
       `;
 
       await this.db.query(upsertQuery, [
         JSON.stringify(this.currentSettings.businessInfo),
         JSON.stringify(this.currentSettings.printSettings),
-        JSON.stringify(this.currentSettings.channelCommissions)
+        JSON.stringify(this.currentSettings.channelCommissions),
+        JSON.stringify(this.currentSettings.pricingParameters || DEFAULT_PRICING_PARAMETERS),
+        JSON.stringify(this.currentSettings.helpSettings || {})
       ]);
     } catch {
-      // Si la base de datos no está creada o activa, los datos se mantienen en memoria
+      // Si la base de datos no está disponible, se mantiene en memoria
     }
   }
 }

@@ -37,6 +37,14 @@ export const updateCommissions = async (data: any) => {
   return res.data || res;
 };
 
+export const updatePricingParameters = async (data: any) => {
+  const res = await apiRequest<any>('/settings/pricing-parameters', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+  return res.data || res;
+};
+
 export const updateHelpSettings = async (data: any) => {
   const res = await apiRequest<any>('/settings/help', {
     method: 'PATCH',
