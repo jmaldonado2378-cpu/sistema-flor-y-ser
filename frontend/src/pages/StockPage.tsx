@@ -34,6 +34,7 @@ import { StockItemType, StockMovementType, StockMovement } from '../api/stockMov
 import { Modal } from '../components/ui/Modal';
 import { BulkImportModal } from '../components/common/BulkImportModal';
 import { PriceListGeneratorModal } from '../components/pricing/PriceListGeneratorModal';
+import { FilterBar, HeaderActions, RowActions, NameCell } from '../components/stock/StockListUI';
 
 const rawMaterialSchema = z.object({
   code: z.string().optional(),
@@ -1093,6 +1094,77 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
     }
   };
 
+  const openNewPack = () => {
+    setEditingFinalItem(null);
+    setIsResaleProduct(false);
+    setIsBlendProduct(false);
+    setIsPackProduct(true);
+    setPackFamilyFilter('');
+    setPackSourceFilter('ALL');
+    setPackMarkupPct(50);
+    setPackItems([
+      { itemId: '', itemType: 'RAW_MATERIAL', name: '', code: '', quantity: 1, unit: 'UND', unitCost: 0 },
+      { itemId: '', itemType: 'RAW_MATERIAL', name: '', code: '', quantity: 1, unit: 'UND', unitCost: 0 }
+    ]);
+    finalForm.reset({
+      rawMaterialId: '', code: '', barcode: '', name: '', unitWeightGrams: 1, unit: 'UND', netContentLabel: '1 und',
+      currentStock: 0, minStock: 5, costPrice: 0, price: 0, supplierName: '', ingredients: '', dietaryBadgeCodes: '',
+      defaultExpirationDays: 180, familyId: '', primaryPackagingId: '', secondaryPackagingId: '', packagingNotes: '',
+    });
+    setIsFinalModalOpen(true);
+  };
+
+  const openNewItemForActiveTab = () => {
+    if (activeTab === 'raw') {
+      setEditingRawItem(null);
+      rawForm.reset({
+        code: '', name: '', unit: 'KG', currentStock: 0, minStock: 5, costPerUnit: 0,
+        supplierName: allSupplierNames[0] || '', storageLocation: 'Depósito A', familyId: '',
+      });
+      setIsCustomSupplier(false);
+      setIsRawModalOpen(true);
+    } else if (activeTab === 'pkg') {
+      setEditingPkgItem(null);
+      pkgForm.reset({
+        code: '', name: '', category: 'DOYPACK', unit: 'UN', currentStock: 0, minStock: 50, costPerUnit: 0,
+        supplierName: allSupplierNames[0] || '', storageLocation: 'Depósito C', familyId: '',
+      });
+      setIsCustomSupplier(false);
+      setIsPkgModalOpen(true);
+    } else {
+      setEditingFinalItem(null);
+      setIsResaleProduct(false);
+      setIsBlendProduct(false);
+      setIsPackProduct(false);
+      setBlendIngredients([
+        { rawMaterialId: rawMaterialsList.length > 0 ? rawMaterialsList[0]?.id || '' : '', percentage: 50 },
+        { rawMaterialId: rawMaterialsList.length > 1 ? rawMaterialsList[1]?.id || '' : '', percentage: 50 },
+      ]);
+      setPackItems([{ itemId: '', itemType: 'RAW_MATERIAL', name: '', code: '', quantity: 1, unit: 'UND', unitCost: 0 }]);
+      finalForm.reset({
+        rawMaterialId: rawMaterialsList.length > 0 ? rawMaterialsList[0]?.id || '' : '',
+        code: '', barcode: '', name: '', unitWeightGrams: 500, unit: 'GRS', netContentLabel: '500 grs',
+        currentStock: 0, minStock: 10, costPrice: 0, price: 0, supplierName: allSupplierNames[0] || '',
+        ingredients: '', dietaryBadgeCodes: '', defaultExpirationDays: 180, familyId: '',
+        primaryPackagingId: '', secondaryPackagingId: '', packagingNotes: '',
+      });
+      setIsFinalModalOpen(true);
+    }
+  };
+
+  const familyOptions = (list: any[]) =>
+    list.map((f: any) => ({ value: f.id, label: f.parentId ? `— ${f.name} (${f.parentName || 'Sub'})` : f.name }));
+  const stockOptions = [
+    { value: 'LOW', label: '⚠️ Stock bajo / crítico' },
+    { value: 'WITH_STOCK', label: '✅ Con stock' },
+    { value: 'OUT_OF_STOCK', label: '❌ Sin stock' },
+  ];
+  const statusOptions = [
+    { value: 'ACTIVE', label: '✅ Solo activos' },
+    { value: 'SUSPENDED', label: '⏸️ Solo suspendidos' },
+  ];
+  const supplierOptions = allSupplierNames.map((n: any) => ({ value: n, label: n }));
+
   return (
     <div className="page-container">
       <div className="page-header flex justify-between items-center mb-6">
@@ -1139,156 +1211,22 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               ? 'Listado de Productos Finales'
               : 'Kardex Centralizado & Trazabilidad de Stock'}
           </h2>
-          <div className="flex gap-2">
-            <button
-              className="btn btn-secondary flex items-center gap-1.5"
-              style={{ borderColor: '#2E5339', color: '#2E5339', backgroundColor: '#E9EFEA', fontWeight: 600 }}
-              onClick={() => setIsPriceListModalOpen(true)}
-              title="Generar catálogo y lista de precios editable con logo profesional"
-            >
-              📋 Lista de Precios PDF
-            </button>
-            <button
-              className="btn btn-secondary flex items-center gap-1.5"
-              style={{ borderColor: '#D97706', color: '#B45309', backgroundColor: '#FFFBEB', fontWeight: 600 }}
-              onClick={() => {
-                setEditingFinalItem(null);
-                setIsResaleProduct(false);
-                setIsBlendProduct(false);
-                setIsPackProduct(true);
-                setPackFamilyFilter('');
-                setPackSourceFilter('ALL');
-                setPackMarkupPct(50);
-                setPackItems([
-                  { itemId: '', itemType: 'RAW_MATERIAL', name: '', code: '', quantity: 1, unit: 'UND', unitCost: 0 },
-                  { itemId: '', itemType: 'RAW_MATERIAL', name: '', code: '', quantity: 1, unit: 'UND', unitCost: 0 }
-                ]);
-                finalForm.reset({
-                  rawMaterialId: '',
-                  code: '',
-                  barcode: '',
-                  name: '',
-                  unitWeightGrams: 1,
-                  unit: 'UND',
-                  netContentLabel: '1 und',
-                  currentStock: 0,
-                  minStock: 5,
-                  costPrice: 0,
-                  price: 0,
-                  supplierName: '',
-                  ingredients: '',
-                  dietaryBadgeCodes: '',
-                  defaultExpirationDays: 180,
-                  familyId: '',
-                  primaryPackagingId: '',
-                  secondaryPackagingId: '',
-                  packagingNotes: '',
-                });
-                setIsFinalModalOpen(true);
-              }}
-              title="Armar un Pack o Combo combinando productos de reventa, materias primas o elaborados"
-            >
-              <Gift size={16} /> 🎁 Armar Pack / Combo
-            </button>
-            <button
-              className="btn btn-secondary flex items-center gap-2"
-              style={{ borderColor: '#8B5CF6', color: '#6D28D9', backgroundColor: '#F5F3FF', fontWeight: 600 }}
-              onClick={() => handleOpenAdjustModal()}
-            >
-              ⚖️ Ajustar Stock Manual
-            </button>
-            {(activeTab === 'raw' || activeTab === 'final') && (
-              <button
-                className="btn btn-secondary flex items-center gap-2"
-                onClick={() => {
-                  setBulkImportType(activeTab === 'raw' ? 'raw_materials' : 'final_products');
-                  setIsBulkImportOpen(true);
-                }}
-              >
-                📊 Carga Masiva Google Sheets / Excel
-              </button>
-            )}
-            {activeTab !== 'movements' && (
-              <button
-                className="btn btn-primary flex items-center gap-2"
-                onClick={() => {
-                  if (activeTab === 'raw') {
-                    setEditingRawItem(null);
-                    rawForm.reset({
-                      code: '',
-                      name: '',
-                      unit: 'KG',
-                      currentStock: 0,
-                      minStock: 5,
-                      costPerUnit: 0,
-                      supplierName: allSupplierNames[0] || '',
-                      storageLocation: 'Depósito A',
-                      familyId: '',
-                    });
-                    setIsCustomSupplier(false);
-                    setIsRawModalOpen(true);
-                  } else if (activeTab === 'pkg') {
-                    setEditingPkgItem(null);
-                    pkgForm.reset({
-                      code: '',
-                      name: '',
-                      category: 'DOYPACK',
-                      unit: 'UN',
-                      currentStock: 0,
-                      minStock: 50,
-                      costPerUnit: 0,
-                      supplierName: allSupplierNames[0] || '',
-                      storageLocation: 'Depósito C',
-                      familyId: '',
-                    });
-                    setIsCustomSupplier(false);
-                    setIsPkgModalOpen(true);
-                  } else {
-                    setEditingFinalItem(null);
-                    setIsResaleProduct(false);
-                    setIsBlendProduct(false);
-                    setIsPackProduct(false);
-                    setBlendIngredients([
-                      { rawMaterialId: rawMaterialsList.length > 0 ? rawMaterialsList[0]?.id || '' : '', percentage: 50 },
-                      { rawMaterialId: rawMaterialsList.length > 1 ? rawMaterialsList[1]?.id || '' : '', percentage: 50 },
-                    ]);
-                    setPackItems([
-                      { itemId: '', itemType: 'RAW_MATERIAL', name: '', code: '', quantity: 1, unit: 'UND', unitCost: 0 }
-                    ]);
-                    finalForm.reset({
-                      rawMaterialId: rawMaterialsList.length > 0 ? rawMaterialsList[0]?.id || '' : '',
-                      code: '',
-                      barcode: '',
-                      name: '',
-                      unitWeightGrams: 500,
-                      unit: 'GRS',
-                      netContentLabel: '500 grs',
-                      currentStock: 0,
-                      minStock: 10,
-                      costPrice: 0,
-                      price: 0,
-                      supplierName: allSupplierNames[0] || '',
-                      ingredients: '',
-                      dietaryBadgeCodes: '',
-                      defaultExpirationDays: 180,
-                      familyId: '',
-                      primaryPackagingId: '',
-                      secondaryPackagingId: '',
-                      packagingNotes: '',
-                    });
-                    setIsFinalModalOpen(true);
-                  }
-                }}
-              >
-                <Plus size={16} />
-                {activeTab === 'raw' 
-                  ? 'Nueva Materia Prima' 
-                  : activeTab === 'pkg' 
-                  ? 'Nuevo Material de Empaque / Etiqueta' 
-                  : 'Nuevo Producto Final'}
-              </button>
-            )}
-          </div>
+          <HeaderActions
+            primaryLabel={
+              activeTab === 'raw' ? 'Nueva materia prima'
+              : activeTab === 'pkg' ? 'Nuevo empaque'
+              : activeTab === 'final' ? 'Nuevo producto'
+              : undefined
+            }
+            onPrimary={activeTab === 'movements' ? undefined : openNewItemForActiveTab}
+            items={[
+              { label: '📋 Lista de precios (PDF)', onClick: () => setIsPriceListModalOpen(true) },
+              { label: '🎁 Armar pack / combo', onClick: openNewPack },
+              { label: '⚖️ Ajustar stock manual', onClick: () => handleOpenAdjustModal() },
+              { label: '📊 Carga masiva (Sheets / Excel)', hidden: !(activeTab === 'raw' || activeTab === 'final'), onClick: () => { setBulkImportType(activeTab === 'raw' ? 'raw_materials' : 'final_products'); setIsBulkImportOpen(true); } },
+              { label: '🖨️ Imprimir / PDF', onClick: handlePrint },
+            ]}
+          />
         </div>
 
         {/* Tab 1: Materias Primas */}
@@ -1308,119 +1246,18 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               </div>
             </div>
 
-            {/* Filter Bar (no-print) */}
-            <div className="no-print bg-bg-linen p-3 rounded mb-4 border flex flex-wrap gap-3 items-center justify-between">
-              <div className="flex flex-wrap gap-3 items-center flex-1">
-                <div style={{ minWidth: '220px' }} className="flex-1">
-                  <label className="text-xs text-text-muted mb-1 block">Buscar Materia Prima</label>
-                  <input 
-                    type="text" 
-                    placeholder="Buscar por nombre o código..." 
-                    value={rawSearch}
-                    onChange={(e) => setRawSearch(e.target.value)}
-                    className="w-full text-sm"
-                  />
-                </div>
-
-                <div style={{ minWidth: '170px' }}>
-                  <label className="text-xs text-text-muted mb-1 block">Familia</label>
-                  <select 
-                    value={rawFamilyFilter} 
-                    onChange={(e) => setRawFamilyFilter(e.target.value)}
-                    className="w-full text-sm"
-                  >
-                    <option value="">Todas las familias</option>
-                    {rawFamilies.map((f: any) => (
-                      <option key={f.id} value={f.id}>
-                        {f.parentId ? `— ${f.name} (${f.parentName || 'Sub'})` : f.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ minWidth: '170px' }}>
-                  <label className="text-xs text-text-muted mb-1 block">Proveedor</label>
-                  <select 
-                    value={rawSupplierFilter} 
-                    onChange={(e) => setRawSupplierFilter(e.target.value)}
-                    className="w-full text-sm"
-                  >
-                    <option value="">Todos los proveedores</option>
-                    {allSupplierNames.map((sName) => (
-                      <option key={sName} value={sName}>{sName}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ minWidth: '160px' }}>
-                  <label className="text-xs text-text-muted mb-1 block">Estado de Stock</label>
-                  <select 
-                    value={rawStockFilter} 
-                    onChange={(e) => setRawStockFilter(e.target.value as any)}
-                    className="w-full text-sm"
-                  >
-                    <option value="ALL">Todos los niveles</option>
-                    <option value="LOW">⚠️ Stock Bajo / Crítico</option>
-                    <option value="WITH_STOCK">✅ Con Stock Disponible</option>
-                    <option value="OUT_OF_STOCK">❌ Sin Stock (0)</option>
-                  </select>
-                </div>
-
-                <div style={{ minWidth: '150px' }}>
-                  <label className="text-xs text-text-muted mb-1 block">Estado Artículo</label>
-                  <select 
-                    value={rawStatusFilter} 
-                    onChange={(e) => setRawStatusFilter(e.target.value as any)}
-                    className="w-full text-sm font-medium"
-                  >
-                    <option value="ALL">Todos los Estados</option>
-                    <option value="ACTIVE">✅ Solo Activos</option>
-                    <option value="SUSPENDED">⏸️ Solo Suspendidos</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-end gap-2 pt-4">
-                {(rawSearch || rawFamilyFilter || rawSupplierFilter || rawStockFilter !== 'ALL' || rawStatusFilter !== 'ALL') && (
-                  <button 
-                    type="button" 
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => {
-                      setRawSearch('');
-                      setRawFamilyFilter('');
-                      setRawSupplierFilter('');
-                      setRawStockFilter('ALL');
-                      setRawStatusFilter('ALL');
-                    }}
-                  >
-                    Limpiar Filtros
-                  </button>
-                )}
-                <button 
-                  type="button" 
-                  className="btn btn-secondary btn-sm flex items-center gap-1.5"
-                  onClick={handlePrint}
-                  title="Imprimir o guardar listado como PDF"
-                >
-                  <Printer size={15} /> Imprimir / PDF
-                </button>
-              </div>
-            </div>
-
-            {/* Metrics summary banner */}
-            <div className="no-print flex justify-between items-center text-xs text-text-muted mb-3 px-1">
-              <div>
-                Mostrando <strong className="text-text-dark">{filteredRawMaterials.length}</strong> de {rawMaterialsList.length} materias primas
-              </div>
-              <div className="flex items-center gap-4">
-                <div>
-                  Suspendidas: <strong className="text-amber-600">{rawMaterialsList.filter(i => i.isActive === false).length}</strong>
-                </div>
-                <div>
-                  Stock Bajo / Alerta: <strong className="text-terracotta">{filteredRawMaterials.filter(i => (i.currentStock || 0) <= (i.minStock || 0)).length}</strong>
-                </div>
-              </div>
-            </div>
+            <FilterBar
+              search={rawSearch}
+              onSearch={setRawSearch}
+              placeholder="Buscar por nombre o código..."
+              resultsLabel={<>Mostrando <strong>{filteredRawMaterials.length}</strong> de {rawMaterialsList.length}</>}
+              filters={[
+                { key: 'fam', label: 'Todas las familias', value: rawFamilyFilter, emptyValue: '', onChange: setRawFamilyFilter, options: familyOptions(rawFamilies), primary: true },
+                { key: 'stock', label: 'Todo el stock', value: rawStockFilter, emptyValue: 'ALL', onChange: (v) => setRawStockFilter((v || 'ALL') as any), options: stockOptions, primary: true },
+                { key: 'status', label: 'Todos los estados', value: rawStatusFilter, emptyValue: 'ALL', onChange: (v) => setRawStatusFilter((v || 'ALL') as any), options: statusOptions, primary: true },
+                { key: 'sup', label: 'Todos los proveedores', value: rawSupplierFilter, emptyValue: '', onChange: setRawSupplierFilter, options: supplierOptions },
+              ]}
+            />
 
             {loadingRaw && <div className="py-8 text-center text-text-muted">Cargando materias primas...</div>}
             {errorRaw && <div className="py-8 text-center text-terracotta">Error al cargar materias primas</div>}
@@ -1429,14 +1266,11 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                 <table className="data-table w-full">
                   <thead>
                     <tr>
-                      <th>Código</th>
-                      <th>Nombre Materia Prima</th>
-                      <th>Familia / Categoría</th>
+                      <th>Materia prima</th>
                       <th>Stock Actual</th>
                       <th>Costo / Unidad</th>
                       <th>Proveedor Maestro</th>
                       <th>Ubicación</th>
-                      <th>Estado</th>
                       <th className="no-print" style={{ textAlign: 'right' }}>Acciones</th>
                     </tr>
                   </thead>
@@ -1450,9 +1284,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
 
                       return (
                         <tr key={item.id} className={!isAct ? 'opacity-60 bg-amber-50/20' : ''}>
-                          <td className="font-semibold text-primary-sage">{item.code}</td>
-                          <td className="font-medium">{item.name}</td>
-                          <td><span className="badge gray">{familyName}</span></td>
+                          <td><NameCell code={item.code} name={item.name} tags={[familyName]} suspended={!isAct} /></td>
                           <td>
                             <span className={currentStock <= minStock ? 'text-terracotta font-bold' : ''}>
                               {currentStock} {item.unit || 'UN'}
@@ -1461,95 +1293,15 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                           <td>{(item.costPerUnit || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
                           <td><span className="badge gray">{item.supplierName || 'Sin asignar'}</span></td>
                           <td className="text-sm text-text-muted">{item.storageLocation || 'Depósito Principal'}</td>
-                          <td>
-                            {isAct ? (
-                              <span className="badge green text-[10px]">Activo</span>
-                            ) : (
-                              <span className="badge amber text-[10px]">Suspendido</span>
-                            )}
-                          </td>
                           <td className="no-print" style={{ textAlign: 'right' }}>
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => openPromoteRawToResale(item)}
-                                title="Pasar a Producto Final de Reventa conservando su Familia y Subfamilia"
-                                className="text-xs font-semibold px-2 py-1 rounded border flex items-center gap-1 hover:bg-blue-50 transition"
-                                style={{
-                                  borderColor: '#3B82F6',
-                                  color: '#1D4ED8',
-                                  backgroundColor: '#EFF6FF',
-                                  height: '32px',
-                                  whiteSpace: 'nowrap'
-                                }}
-                              >
-                                <ShoppingBag size={13} /> Pasar a Reventa
-                              </button>
-                              <button 
-                                type="button"
-                                onClick={() => openEditRaw(item)}
-                                title="Editar materia prima"
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '32px',
-                                  height: '32px',
-                                  borderRadius: '8px',
-                                  border: '1px solid #D1D5DB',
-                                  backgroundColor: '#FFFFFF',
-                                  cursor: 'pointer',
-                                  padding: 0,
-                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                }}
-                              >
-                                <Pencil size={15} style={{ color: '#2563EB', strokeWidth: 2.2 }} />
-                              </button>
-                              <button 
-                                type="button"
-                                onClick={() => handleToggleStatusRaw(item)}
-                                title={isAct ? "Suspender / Pausar materia prima" : "Reactivar materia prima"}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '32px',
-                                  height: '32px',
-                                  borderRadius: '8px',
-                                  border: '1px solid #D1D5DB',
-                                  backgroundColor: isAct ? '#FFFFFF' : '#FEF3C7',
-                                  cursor: 'pointer',
-                                  padding: 0,
-                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                }}
-                              >
-                                {isAct ? (
-                                  <PauseCircle size={15} style={{ color: '#D97706', strokeWidth: 2.2 }} />
-                                ) : (
-                                  <PlayCircle size={15} style={{ color: '#10B981', strokeWidth: 2.2 }} />
-                                )}
-                              </button>
-                              <button 
-                                type="button"
-                                onClick={() => handleDeleteRaw(item)}
-                                title="Eliminar materia prima"
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '32px',
-                                  height: '32px',
-                                  borderRadius: '8px',
-                                  border: '1px solid #D1D5DB',
-                                  backgroundColor: '#FFFFFF',
-                                  cursor: 'pointer',
-                                  padding: 0,
-                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                }}
-                              >
-                                <Trash2 size={15} style={{ color: '#DC2626', strokeWidth: 2.2 }} />
-                              </button>
-                            </div>
+                            <RowActions
+                              onEdit={() => openEditRaw(item)}
+                              menu={[
+                                { label: '🛍️ Pasar a reventa', onClick: () => openPromoteRawToResale(item) },
+                                { label: isAct ? '⏸️ Suspender' : '▶️ Reactivar', onClick: () => handleToggleStatusRaw(item) },
+                                { label: '🗑️ Eliminar', danger: true, onClick: () => handleDeleteRaw(item) },
+                              ]}
+                            />
                           </td>
                         </tr>
                       );
@@ -1585,149 +1337,29 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               </div>
             </div>
 
-            {/* Filter Bar (no-print) */}
-            <div className="no-print bg-bg-linen p-3 rounded mb-4 border flex flex-wrap gap-3 items-center justify-between">
-              <div className="flex flex-wrap gap-3 items-center flex-1">
-                <div style={{ minWidth: '220px' }} className="flex-1">
-                  <label className="text-xs text-text-muted mb-1 block">Buscar Empaque / Envase</label>
-                  <input 
-                    type="text" 
-                    placeholder="Buscar por nombre o código..." 
-                    value={pkgSearch}
-                    onChange={(e) => setPkgSearch(e.target.value)}
-                    className="w-full text-sm"
-                  />
-                </div>
-
-                <div style={{ minWidth: '170px' }}>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-xs text-text-muted">Categoría</label>
-                    <button
-                      type="button"
-                      className="text-xs text-primary-sage font-semibold hover:underline cursor-pointer"
-                      onClick={() => {
-                        setIsEditingPkgCategories(true);
-                        setIsPkgModalOpen(true);
-                      }}
-                      title="Editar la lista de Categorías de Insumo"
-                    >
-                      ✏️ Editar
-                    </button>
-                  </div>
-                  <select 
-                    value={pkgCategoryFilter} 
-                    onChange={(e) => setPkgCategoryFilter(e.target.value)}
-                    className="w-full text-sm"
-                  >
-                    <option value="">Todas las categorías</option>
-                    {pkgCategories.map(cat => (
-                      <option key={cat.code} value={cat.code}>
-                        {cat.badgeLabel || cat.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ minWidth: '150px' }}>
-                  <label className="text-xs text-text-muted mb-1 block">Familia</label>
-                  <select 
-                    value={pkgFamilyFilter} 
-                    onChange={(e) => setPkgFamilyFilter(e.target.value)}
-                    className="w-full text-sm"
-                  >
-                    <option value="">Todas las familias</option>
-                    {pkgFamilies.map((f: any) => (
-                      <option key={f.id} value={f.id}>
-                        {f.parentId ? `— ${f.name} (${f.parentName || 'Sub'})` : f.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ minWidth: '150px' }}>
-                  <label className="text-xs text-text-muted mb-1 block">Proveedor</label>
-                  <select 
-                    value={pkgSupplierFilter} 
-                    onChange={(e) => setPkgSupplierFilter(e.target.value)}
-                    className="w-full text-sm"
-                  >
-                    <option value="">Todos los proveedores</option>
-                    {allSupplierNames.map((sName) => (
-                      <option key={sName} value={sName}>{sName}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ minWidth: '150px' }}>
-                  <label className="text-xs text-text-muted mb-1 block">Estado de Stock</label>
-                  <select 
-                    value={pkgStockFilter} 
-                    onChange={(e) => setPkgStockFilter(e.target.value as any)}
-                    className="w-full text-sm"
-                  >
-                    <option value="ALL">Todos los niveles</option>
-                    <option value="LOW">⚠️ Stock Bajo / Crítico</option>
-                    <option value="WITH_STOCK">✅ Con Stock Disponible</option>
-                    <option value="OUT_OF_STOCK">❌ Sin Stock (0)</option>
-                  </select>
-                </div>
-
-                <div style={{ minWidth: '150px' }}>
-                  <label className="text-xs text-text-muted mb-1 block">Estado Artículo</label>
-                  <select 
-                    value={pkgStatusFilter} 
-                    onChange={(e) => setPkgStatusFilter(e.target.value as any)}
-                    className="w-full text-sm font-medium"
-                  >
-                    <option value="ALL">Todos los Estados</option>
-                    <option value="ACTIVE">✅ Solo Activos</option>
-                    <option value="SUSPENDED">⏸️ Solo Suspendidos</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-end gap-2 pt-4">
-                {(pkgSearch || pkgCategoryFilter || pkgFamilyFilter || pkgSupplierFilter || pkgStockFilter !== 'ALL' || pkgStatusFilter !== 'ALL') && (
-                  <button 
-                    type="button" 
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => {
-                      setPkgSearch('');
-                      setPkgCategoryFilter('');
-                      setPkgFamilyFilter('');
-                      setPkgSupplierFilter('');
-                      setPkgStockFilter('ALL');
-                      setPkgStatusFilter('ALL');
-                    }}
-                  >
-                    Limpiar Filtros
-                  </button>
-                )}
-                <button 
-                  type="button" 
-                  className="btn btn-secondary btn-sm flex items-center gap-1.5"
-                  onClick={handlePrint}
-                  title="Imprimir o guardar listado como PDF"
+            <FilterBar
+              search={pkgSearch}
+              onSearch={setPkgSearch}
+              placeholder="Buscar por nombre o código..."
+              resultsLabel={<>Mostrando <strong>{filteredPackagingMaterials.length}</strong> de {packagingMaterialsList.length}</>}
+              extra={
+                <button
+                  type="button"
+                  onClick={() => { setIsEditingPkgCategories(true); setIsPkgModalOpen(true); }}
+                  title="Editar la lista de categorías de insumo"
+                  style={{ height: 36, padding: '0 12px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#FFFFFF', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
                 >
-                  <Printer size={15} /> Imprimir / PDF
+                  ✏️ Categorías
                 </button>
-              </div>
-            </div>
-
-            {/* Metrics summary banner */}
-            <div className="no-print flex justify-between items-center text-xs text-text-muted mb-3 px-1">
-              <div>
-                Mostrando <strong className="text-text-dark">{filteredPackagingMaterials.length}</strong> de {packagingMaterialsList.length} empaques y etiquetas
-              </div>
-              <div className="flex items-center gap-4">
-                <div>
-                  Suspendidos: <strong className="text-amber-600">{packagingMaterialsList.filter(i => i.isActive === false).length}</strong>
-                </div>
-                <div>
-                  Stock Bajo / Alerta: <strong className="text-terracotta">{filteredPackagingMaterials.filter(i => (i.currentStock || 0) <= (i.minStock || 0)).length}</strong>
-                </div>
-              </div>
-            </div>
+              }
+              filters={[
+                { key: 'cat', label: 'Todas las categorías', value: pkgCategoryFilter, emptyValue: '', onChange: setPkgCategoryFilter, options: pkgCategories.map(c => ({ value: c.code, label: c.badgeLabel || c.label })), primary: true },
+                { key: 'stock', label: 'Todo el stock', value: pkgStockFilter, emptyValue: 'ALL', onChange: (v) => setPkgStockFilter((v || 'ALL') as any), options: stockOptions, primary: true },
+                { key: 'status', label: 'Todos los estados', value: pkgStatusFilter, emptyValue: 'ALL', onChange: (v) => setPkgStatusFilter((v || 'ALL') as any), options: statusOptions, primary: true },
+                { key: 'fam', label: 'Todas las familias', value: pkgFamilyFilter, emptyValue: '', onChange: setPkgFamilyFilter, options: familyOptions(pkgFamilies) },
+                { key: 'sup', label: 'Todos los proveedores', value: pkgSupplierFilter, emptyValue: '', onChange: setPkgSupplierFilter, options: supplierOptions },
+              ]}
+            />
 
             {loadingPkg && <div className="py-8 text-center text-text-muted">Cargando materiales de empaque y etiquetas...</div>}
             {errorPkg && <div className="py-8 text-center text-terracotta">Error al cargar materiales de empaque</div>}
@@ -1736,15 +1368,11 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                 <table className="data-table w-full">
                   <thead>
                     <tr>
-                      <th>Código</th>
-                      <th>Nombre Material / Envase</th>
-                      <th>Categoría</th>
-                      <th>Familia Artículos</th>
+                      <th>Material / envase</th>
                       <th>Stock Actual</th>
                       <th>Costo / Unidad</th>
                       <th>Proveedor</th>
                       <th>Ubicación</th>
-                      <th>Estado</th>
                       <th className="no-print" style={{ textAlign: 'right' }}>Acciones</th>
                     </tr>
                   </thead>
@@ -1758,12 +1386,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
 
                       return (
                         <tr key={item.id} className={!isAct ? 'opacity-60 bg-amber-50/20' : ''}>
-                          <td className="font-semibold text-primary-sage">{item.code}</td>
-                          <td className="font-medium">{item.name}</td>
-                          <td>
-                            <span className="badge gray text-xs">{getCategoryBadgeLabel(item.category)}</span>
-                          </td>
-                          <td><span className="badge gray">{familyName}</span></td>
+                          <td><NameCell code={item.code} name={item.name} tags={[getCategoryBadgeLabel(item.category), familyName]} suspended={!isAct} /></td>
                           <td>
                             <span className={currentStock <= minStock ? 'text-terracotta font-bold' : ''}>
                               {currentStock} {item.unit || 'UN'}
@@ -1774,80 +1397,14 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                           </td>
                           <td><span className="badge gray">{item.supplierName || 'Sin asignar'}</span></td>
                           <td className="text-sm text-text-muted">{item.storageLocation || 'Depósito C'}</td>
-                          <td>
-                            {isAct ? (
-                              <span className="badge green text-[10px]">Activo</span>
-                            ) : (
-                              <span className="badge amber text-[10px]">Suspendido</span>
-                            )}
-                          </td>
                           <td className="no-print" style={{ textAlign: 'right' }}>
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button 
-                                type="button"
-                                onClick={() => openEditPkg(item)}
-                                title="Editar empaque"
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '32px',
-                                  height: '32px',
-                                  borderRadius: '8px',
-                                  border: '1px solid #D1D5DB',
-                                  backgroundColor: '#FFFFFF',
-                                  cursor: 'pointer',
-                                  padding: 0,
-                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                }}
-                              >
-                                <Pencil size={15} style={{ color: '#2563EB', strokeWidth: 2.2 }} />
-                              </button>
-                              <button 
-                                type="button"
-                                onClick={() => handleToggleStatusPkg(item)}
-                                title={isAct ? "Suspender / Pausar empaque" : "Reactivar empaque"}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '32px',
-                                  height: '32px',
-                                  borderRadius: '8px',
-                                  border: '1px solid #D1D5DB',
-                                  backgroundColor: isAct ? '#FFFFFF' : '#FEF3C7',
-                                  cursor: 'pointer',
-                                  padding: 0,
-                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                }}
-                              >
-                                {isAct ? (
-                                  <PauseCircle size={15} style={{ color: '#D97706', strokeWidth: 2.2 }} />
-                                ) : (
-                                  <PlayCircle size={15} style={{ color: '#10B981', strokeWidth: 2.2 }} />
-                                )}
-                              </button>
-                              <button 
-                                type="button"
-                                onClick={() => handleDeletePkg(item)}
-                                title="Eliminar empaque"
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '32px',
-                                  height: '32px',
-                                  borderRadius: '8px',
-                                  border: '1px solid #D1D5DB',
-                                  backgroundColor: '#FFFFFF',
-                                  cursor: 'pointer',
-                                  padding: 0,
-                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                }}
-                              >
-                                <Trash2 size={15} style={{ color: '#DC2626', strokeWidth: 2.2 }} />
-                              </button>
-                            </div>
+                            <RowActions
+                              onEdit={() => openEditPkg(item)}
+                              menu={[
+                                { label: isAct ? '⏸️ Suspender' : '▶️ Reactivar', onClick: () => handleToggleStatusPkg(item) },
+                                { label: '🗑️ Eliminar', danger: true, onClick: () => handleDeletePkg(item) },
+                              ]}
+                            />
                           </td>
                         </tr>
                       );
@@ -1883,119 +1440,22 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
               </div>
             </div>
 
-            {/* Filter Bar (no-print) */}
-            <div className="no-print bg-bg-linen p-3 rounded mb-4 border flex flex-wrap gap-3 items-center justify-between">
-              <div className="flex flex-wrap gap-3 items-center flex-1">
-                <div style={{ minWidth: '240px' }} className="flex-1">
-                  <label className="text-xs text-text-muted mb-1 block">Buscar Producto Elaborado</label>
-                  <input 
-                    type="text" 
-                    placeholder="Buscar por nombre, SKU o código de barra..." 
-                    value={finalSearch}
-                    onChange={(e) => setFinalSearch(e.target.value)}
-                    className="w-full text-sm"
-                  />
-                </div>
-
-                <div style={{ minWidth: '180px' }}>
-                  <label className="text-xs text-text-muted mb-1 block">Familia</label>
-                  <select 
-                    value={finalFamilyFilter} 
-                    onChange={(e) => setFinalFamilyFilter(e.target.value)}
-                    className="w-full text-sm"
-                  >
-                    <option value="">Todas las familias</option>
-                    {finalFamilies.map((f: any) => (
-                      <option key={f.id} value={f.id}>
-                        {f.parentId ? `— ${f.name} (${f.parentName || 'Sub'})` : f.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ minWidth: '170px' }}>
-                  <label className="text-xs text-text-muted mb-1 block">Origen / Tipo</label>
-                  <select 
-                    value={finalTypeFilter} 
-                    onChange={(e) => setFinalTypeFilter(e.target.value as any)}
-                    className="w-full text-sm font-medium"
-                  >
-                    <option value="ALL">Todos los tipos</option>
-                    <option value="ELABORATED">🏭 Elaboración / Fraccionado</option>
-                    <option value="RESALE">🛍️ Producto de Reventa</option>
-                    <option value="PACK">🎁 Pack / Combo</option>
-                  </select>
-                </div>
-
-                <div style={{ minWidth: '160px' }}>
-                  <label className="text-xs text-text-muted mb-1 block">Estado de Stock</label>
-                  <select 
-                    value={finalStockFilter} 
-                    onChange={(e) => setFinalStockFilter(e.target.value as any)}
-                    className="w-full text-sm"
-                  >
-                    <option value="ALL">Todos los niveles</option>
-                    <option value="LOW">⚠️ Stock Bajo / Crítico</option>
-                    <option value="WITH_STOCK">✅ Con Stock Disponible</option>
-                    <option value="OUT_OF_STOCK">❌ Sin Stock (0)</option>
-                  </select>
-                </div>
-
-                <div style={{ minWidth: '150px' }}>
-                  <label className="text-xs text-text-muted mb-1 block">Estado Artículo</label>
-                  <select 
-                    value={finalStatusFilter} 
-                    onChange={(e) => setFinalStatusFilter(e.target.value as any)}
-                    className="w-full text-sm font-medium"
-                  >
-                    <option value="ALL">Todos los Estados</option>
-                    <option value="ACTIVE">✅ Solo Activos</option>
-                    <option value="SUSPENDED">⏸️ Solo Suspendidos</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-end gap-2 pt-4">
-                {(finalSearch || finalFamilyFilter || finalTypeFilter !== 'ALL' || finalStockFilter !== 'ALL' || finalStatusFilter !== 'ALL') && (
-                  <button 
-                    type="button" 
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => {
-                      setFinalSearch('');
-                      setFinalFamilyFilter('');
-                      setFinalTypeFilter('ALL');
-                      setFinalStockFilter('ALL');
-                      setFinalStatusFilter('ALL');
-                    }}
-                  >
-                    Limpiar Filtros
-                  </button>
-                )}
-                <button 
-                  type="button" 
-                  className="btn btn-secondary btn-sm flex items-center gap-1.5"
-                  onClick={handlePrint}
-                  title="Imprimir o guardar catálogo/stock como PDF"
-                >
-                  <Printer size={15} /> Imprimir / PDF
-                </button>
-              </div>
-            </div>
-
-            {/* Metrics summary banner */}
-            <div className="no-print flex justify-between items-center text-xs text-text-muted mb-3 px-1">
-              <div>
-                Mostrando <strong className="text-text-dark">{filteredFinalProducts.length}</strong> de {finalProductsList.length} productos elaborados
-              </div>
-              <div className="flex items-center gap-4">
-                <div>
-                  Suspendidos: <strong className="text-amber-600">{finalProductsList.filter(i => i.isActive === false).length}</strong>
-                </div>
-                <div>
-                  Stock Bajo / Alerta: <strong className="text-terracotta">{filteredFinalProducts.filter(i => (i.currentStock || 0) <= (i.minStock || 0)).length}</strong>
-                </div>
-              </div>
-            </div>
+            <FilterBar
+              search={finalSearch}
+              onSearch={setFinalSearch}
+              placeholder="Buscar por nombre, SKU o código de barras..."
+              resultsLabel={<>Mostrando <strong>{filteredFinalProducts.length}</strong> de {finalProductsList.length}</>}
+              filters={[
+                { key: 'fam', label: 'Todas las familias', value: finalFamilyFilter, emptyValue: '', onChange: setFinalFamilyFilter, options: familyOptions(finalFamilies), primary: true },
+                { key: 'type', label: 'Todos los tipos', value: finalTypeFilter, emptyValue: 'ALL', onChange: (v) => setFinalTypeFilter((v || 'ALL') as any), options: [
+                  { value: 'ELABORATED', label: '🏭 Elaboración / fraccionado' },
+                  { value: 'RESALE', label: '🛍️ Reventa' },
+                  { value: 'PACK', label: '🎁 Pack / combo' },
+                ], primary: true },
+                { key: 'stock', label: 'Todo el stock', value: finalStockFilter, emptyValue: 'ALL', onChange: (v) => setFinalStockFilter((v || 'ALL') as any), options: stockOptions, primary: true },
+                { key: 'status', label: 'Todos los estados', value: finalStatusFilter, emptyValue: 'ALL', onChange: (v) => setFinalStatusFilter((v || 'ALL') as any), options: statusOptions },
+              ]}
+            />
 
             {loadingFinal && <div className="py-8 text-center text-text-muted">Cargando productos finales...</div>}
             {errorFinal && <div className="py-8 text-center text-terracotta">Error al cargar productos finales</div>}
@@ -2004,15 +1464,12 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                 <table className="data-table w-full">
                   <thead>
                     <tr>
-                      <th>Código</th>
-                      <th>Nombre Comercial</th>
-                      <th>Familia / Categoría</th>
+                      <th>Producto</th>
                       <th>Stock</th>
                       <th>Precio Venta</th>
                       <th>Peso / Contenido</th>
                       <th>Envase / Embalaje</th>
                       <th>Materia Prima Base</th>
-                      <th>Estado</th>
                       <th className="no-print" style={{ textAlign: 'right' }}>Acciones</th>
                     </tr>
                   </thead>
@@ -2032,9 +1489,7 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
 
                       return (
                         <tr key={item.id} className={!isAct ? 'opacity-60 bg-amber-50/20' : ''}>
-                          <td className="font-semibold text-primary-sage">{item.code}</td>
-                          <td className="font-medium">{item.name}</td>
-                          <td><span className="badge gray">{familyName}</span></td>
+                          <td><NameCell code={item.code} name={item.name} tags={[familyName]} suspended={!isAct} /></td>
                           <td>
                             <span className={currentStock <= minStock ? 'text-terracotta font-bold' : ''}>
                               {currentStock} un.
@@ -2097,80 +1552,14 @@ export const StockPage: React.FC<{ onTabChange?: (tab: string) => void }> = () =
                               <span className="badge gray">{baseRm ? baseRm.name : 'Insumo Base'}</span>
                             )}
                           </td>
-                          <td>
-                            {isAct ? (
-                              <span className="badge green text-[10px]">Activo</span>
-                            ) : (
-                              <span className="badge amber text-[10px]">Suspendido</span>
-                            )}
-                          </td>
                           <td className="no-print" style={{ textAlign: 'right' }}>
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button 
-                                type="button"
-                                onClick={() => openEditFinal(item)}
-                                title="Editar producto final"
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '32px',
-                                  height: '32px',
-                                  borderRadius: '8px',
-                                  border: '1px solid #D1D5DB',
-                                  backgroundColor: '#FFFFFF',
-                                  cursor: 'pointer',
-                                  padding: 0,
-                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                }}
-                              >
-                                <Pencil size={15} style={{ color: '#2563EB', strokeWidth: 2.2 }} />
-                              </button>
-                              <button 
-                                type="button"
-                                onClick={() => handleToggleStatusFinal(item)}
-                                title={isAct ? "Suspender / Pausar producto" : "Reactivar producto"}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '32px',
-                                  height: '32px',
-                                  borderRadius: '8px',
-                                  border: '1px solid #D1D5DB',
-                                  backgroundColor: isAct ? '#FFFFFF' : '#FEF3C7',
-                                  cursor: 'pointer',
-                                  padding: 0,
-                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                }}
-                              >
-                                {isAct ? (
-                                  <PauseCircle size={15} style={{ color: '#D97706', strokeWidth: 2.2 }} />
-                                ) : (
-                                  <PlayCircle size={15} style={{ color: '#10B981', strokeWidth: 2.2 }} />
-                                )}
-                              </button>
-                              <button 
-                                type="button"
-                                onClick={() => handleDeleteFinal(item)}
-                                title="Eliminar producto final"
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '32px',
-                                  height: '32px',
-                                  borderRadius: '8px',
-                                  border: '1px solid #D1D5DB',
-                                  backgroundColor: '#FFFFFF',
-                                  cursor: 'pointer',
-                                  padding: 0,
-                                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                }}
-                              >
-                                <Trash2 size={15} style={{ color: '#DC2626', strokeWidth: 2.2 }} />
-                              </button>
-                            </div>
+                            <RowActions
+                              onEdit={() => openEditFinal(item)}
+                              menu={[
+                                { label: isAct ? '⏸️ Suspender' : '▶️ Reactivar', onClick: () => handleToggleStatusFinal(item) },
+                                { label: '🗑️ Eliminar', danger: true, onClick: () => handleDeleteFinal(item) },
+                              ]}
+                            />
                           </td>
                         </tr>
                       );

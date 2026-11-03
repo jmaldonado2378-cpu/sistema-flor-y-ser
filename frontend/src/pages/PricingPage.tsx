@@ -10,6 +10,7 @@ import { useMerchandiseReceipts } from '../hooks/useReceipts';
 import { useSettings, useUpdatePricingParameters, useUpdateCommissions } from '../hooks/useSettings';
 import { Modal } from '../components/ui/Modal';
 import { PriceListGeneratorModal } from '../components/pricing/PriceListGeneratorModal';
+import { NameCell } from '../components/stock/StockListUI';
 import { PricingStructure } from '../api/pricing';
 import {
   Calculator,
@@ -121,6 +122,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onTabChange }) => {
 
   // Estado del Producto seleccionado en el Modal de Tabla de Composición
   const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const [modalChannel, setModalChannel] = useState<'mostrador' | 'whatsapp' | 'tiendaOnline'>('mostrador');
   const [batchHoursForProduct, setBatchHoursForProduct] = useState<number>(2);
   const [batchUnitsForProduct, setBatchUnitsForProduct] = useState<number>(40);
   const [laborModeForProduct, setLaborModeForProduct] = useState<'BATCH_INCIDENCE' | 'GLOBAL_PCT'>('BATCH_INCIDENCE');
@@ -912,14 +914,14 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onTabChange }) => {
             <table className="data-table w-full text-xs">
               <thead>
                 <tr>
-                  <th>Producto / Familia</th>
-                  <th className="text-right">1. Compra + Envase (Ficha)</th>
-                  <th className="text-right">2. Costo Fijo ({globalPricingParams.fixedCostPercentage}%)</th>
-                  <th className="text-right">3. Mano de Obra (Lote / %)</th>
-                  <th className="text-right">= Costo Total Unit.</th>
-                  <th className="text-right">🏪 Mostrador (Redondeado)</th>
-                  <th className="text-right">📱 WhatsApp / 🌐 Web</th>
-                  <th className="text-center">Composición</th>
+                  <th style={{ textAlign: 'left' }}>Producto</th>
+                  <th className="text-right">Costo producto</th>
+                  <th className="text-right">Costo total</th>
+                  <th className="text-right">Mostrador</th>
+                  <th className="text-right">Ganancia</th>
+                  <th className="text-right">WhatsApp</th>
+                  <th className="text-right">Web</th>
+                  <th className="text-center"></th>
                 </tr>
               </thead>
               <tbody>
@@ -927,72 +929,34 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onTabChange }) => {
                   const comp = computeFullComposition(fp, p);
                   const isPack = isProductPack(fp);
                   const isResale = Boolean(fp.isResale) && !isPack;
+                  const typeLabel = isPack ? 'Pack' : isResale ? 'Reventa' : fp.isBlend ? 'Blend' : 'Fraccionado';
                   const mostradorFinal = p?.channels?.mostrador?.finalPrice || comp.channels.mostrador.finalPrice;
                   const whatsappFinal = p?.channels?.whatsapp?.finalPrice || comp.channels.whatsapp.finalPrice;
                   const onlineFinal = p?.channels?.tiendaOnline?.finalPrice || comp.channels.tiendaOnline.finalPrice;
+                  const deductPct = (comp.channels.mostrador.taxPct + comp.channels.mostrador.commPct) / 100;
+                  const profit = mostradorFinal * (1 - deductPct) - comp.totalUnitCost;
+                  const profitPct = comp.totalUnitCost > 0 ? (profit / comp.totalUnitCost) * 100 : 0;
 
                   return (
                     <tr key={fp.id}>
-                      <td>
-                        <div className="font-semibold text-text-dark flex items-center gap-1.5 flex-wrap">
-                          <span>{fp.name}</span>
-                          <span className="text-[11px] text-text-muted font-normal">({fp.code})</span>
-                          {isPack ? (
-                            <span className="badge amber text-[10px]">🎁 Pack</span>
-                          ) : isResale ? (
-                            <span className="badge blue text-[10px]">🛍️ Reventa</span>
-                          ) : fp.isBlend ? (
-                            <span className="badge purple text-[10px]">📚 Blend</span>
-                          ) : (
-                            <span className="badge green text-[10px]">🏭 Fraccionado</span>
-                          )}
-                        </div>
-                        <div className="text-[11px] text-text-muted">{getFamilyDisplayLabel(fp)}</div>
-                      </td>
-
+                      <td><NameCell code={fp.code} name={fp.name} tags={[typeLabel, getFamilyDisplayLabel(fp)]} /></td>
+                      <td className="text-right">{formatCurrency(comp.costoProducto)}</td>
+                      <td className="text-right font-semibold">{formatCurrency(comp.totalUnitCost)}</td>
+                      <td className="text-right font-bold text-primary-sage" style={{ fontSize: 14 }}>{formatCurrency(mostradorFinal)}</td>
                       <td className="text-right">
-                        <div className="font-bold text-text-dark">{formatCurrency(comp.costoProducto)}</div>
-                        <div className="text-[10px] text-text-muted">
-                          Compra: {formatCurrency(comp.ficha.purchaseCost)}
-                          {comp.ficha.packagingCost > 0 ? ` + Env: ${formatCurrency(comp.ficha.packagingCost)}` : ''}
-                        </div>
+                        <span style={{ fontWeight: 700, color: profit >= 0 ? '#166534' : '#DC2626' }}>{formatCurrency(profit)}</span>
+                        <span style={{ marginLeft: 6, fontSize: 11, color: '#6B7280' }}>{profitPct.toFixed(0)}%</span>
                       </td>
-
-                      <td className="text-right">
-                        <div className="font-medium text-blue-800">+{formatCurrency(comp.fixedCostAmount)}</div>
-                        <div className="text-[10px] text-text-muted">{comp.fixedCostPct}% s/Costo Prod.</div>
-                      </td>
-
-                      <td className="text-right">
-                        <div className="font-medium text-amber-800">+{formatCurrency(comp.laborCostAmount)}</div>
-                        <div className="text-[10px] text-text-muted">
-                          {comp.laborCostAmount > 0 ? `${comp.effectiveLaborPct.toFixed(1)}% s/Costo Prod.` : '0% (Reventa)'}
-                        </div>
-                      </td>
-
-                      <td className="text-right font-bold text-text-dark bg-bg-linen/60">
-                        {formatCurrency(comp.totalUnitCost)}
-                      </td>
-
-                      <td className="text-right">
-                        <div className="font-bold text-sm text-primary-sage">{formatCurrency(mostradorFinal)}</div>
-                        <div className="text-[10px] text-text-muted">
-                          Margen +{comp.channels.mostrador.marginPct}% • Ganancia: {formatCurrency(comp.channels.mostrador.netProfit)}
-                        </div>
-                      </td>
-
-                      <td className="text-right text-xs">
-                        <div>WA: <strong>{formatCurrency(whatsappFinal)}</strong></div>
-                        <div>Web: <strong>{formatCurrency(onlineFinal)}</strong></div>
-                      </td>
-
+                      <td className="text-right">{formatCurrency(whatsappFinal)}</td>
+                      <td className="text-right">{formatCurrency(onlineFinal)}</td>
                       <td className="text-center">
                         <button
                           type="button"
                           onClick={() => handleOpenConfigModal(p, fp)}
-                          className="btn btn-primary btn-sm text-xs flex items-center gap-1 mx-auto"
+                          title="Ver composición del precio"
+                          style={{ height: 32, padding: '0 12px', borderRadius: 8, border: '1px solid #2E5339', background: '#FFFFFF', color: '#2E5339', fontWeight: 600, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
                         >
-                          <Calculator size={13} /> Ver Tabla Ítem x Ítem
+                          Ver composición
                         </button>
                       </td>
                     </tr>
@@ -1074,383 +1038,184 @@ export const PricingPage: React.FC<PricingPageProps> = ({ onTabChange }) => {
               </div>
             </div>
 
-            {/* ===================================================================
-                TABLA PARTE 1: COMPOSICIÓN DEL COSTO PRODUCTO Y COSTO TOTAL UNITARIO
-               =================================================================== */}
-            <div className="border rounded-lg overflow-hidden shadow-sm">
-              <div className="bg-primary-sage text-white px-3.5 py-2 flex justify-between items-center text-xs font-bold">
-                <span>PARTE 1 — COMPOSICIÓN DEL COSTO UNITARIO (FICHA + PANEL DE CONFIGURACIÓN)</span>
-                <span>Múltiplo de Redondeo Activo: ${globalPricingParams.roundingMultiple} ({globalPricingParams.roundingMode === 'NEAREST' ? 'Más cercano' : 'Hacia arriba'})</span>
-              </div>
+            {(() => {
+              const ch = modalCalc.channels[modalChannel];
+              const channelDefs: { key: 'mostrador' | 'whatsapp' | 'tiendaOnline'; label: string; price: number }[] = [
+                { key: 'mostrador', label: 'Mostrador', price: modalCalc.channels.mostrador.finalPrice },
+                { key: 'whatsapp', label: 'WhatsApp', price: modalCalc.channels.whatsapp.finalPrice },
+                { key: 'tiendaOnline', label: 'Tienda online', price: modalCalc.channels.tiendaOnline.finalPrice },
+              ];
+              const marginValue = modalChannel === 'mostrador' ? mostradorMarginPct : modalChannel === 'whatsapp' ? whatsappMarginPct : onlineMarginPct;
+              const setMargin = (v: number) => {
+                if (modalChannel === 'mostrador') { setMostradorMarginPct(v); setCustomMostradorPrice(null); }
+                else if (modalChannel === 'whatsapp') { setWhatsappMarginPct(v); setCustomWhatsappPrice(null); }
+                else { setOnlineMarginPct(v); setCustomOnlinePrice(null); }
+              };
+              const setFinal = (v: number) => {
+                if (modalChannel === 'mostrador') setCustomMostradorPrice(v);
+                else if (modalChannel === 'whatsapp') setCustomWhatsappPrice(v);
+                else setCustomOnlinePrice(v);
+              };
+              const isResaleFp = Boolean(currentModalFp.isResale) && !isProductPack(currentModalFp);
+              const f = modalCalc.ficha;
+              const hasPrimary = f.primaryPkgCost > 0 || currentModalFp.primaryPackagingId;
+              const hasSecondary = f.secondaryPkgCost > 0 || currentModalFp.secondaryPackagingId;
+              const cell: React.CSSProperties = { padding: '7px 12px' };
+              const subtotalRow = (label: string, amount: number, bg: string, color: string) => (
+                <tr style={{ backgroundColor: bg, fontWeight: 700, color }}>
+                  <td style={cell} colSpan={2}>{label}</td>
+                  <td style={{ ...cell, textAlign: 'right' }}>{formatCurrency(amount, 2)}</td>
+                </tr>
+              );
 
-              <table className="data-table w-full text-xs">
-                <thead>
-                  <tr className="bg-bg-linen">
-                    <th style={{ width: '42px' }}>#</th>
-                    <th>Concepto / Ítem de Costo</th>
-                    <th>Origen / Base de Cálculo</th>
-                    <th className="text-center">% Incidencia</th>
-                    <th className="text-right">Importe Unitario ($)</th>
-                    <th className="text-right">Subtotal Acumulado ($)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Ítem 1: Costo de Compra / Materia Prima */}
-                  <tr>
-                    <td className="font-bold text-center text-primary-sage">1</td>
-                    <td className="font-semibold text-text-dark">Costo de Compra / Materia Prima</td>
-                    <td className="text-text-muted">
-                      Ficha de Producto: <strong className="text-text-dark">{modalCalc.ficha.purchaseDetail}</strong>
-                    </td>
-                    <td className="text-center text-text-muted">—</td>
-                    <td className="text-right font-semibold">{formatCurrency(modalCalc.ficha.purchaseCost, 2)}</td>
-                    <td className="text-right font-semibold">{formatCurrency(modalCalc.ficha.purchaseCost, 2)}</td>
-                  </tr>
+              return (
+                <>
+                  {/* Selector de canal */}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {channelDefs.map(c => (
+                      <button
+                        key={c.key}
+                        type="button"
+                        onClick={() => setModalChannel(c.key)}
+                        style={{
+                          flex: '1 1 140px',
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          border: modalChannel === c.key ? '2px solid #2E5339' : '1px solid #D1D5DB',
+                          backgroundColor: modalChannel === c.key ? '#E9EFEA' : '#FFFFFF',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600 }}>{c.label}</div>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: '#2E5339' }}>{formatCurrency(c.price)}</div>
+                      </button>
+                    ))}
+                  </div>
 
-                  {/* Ítem 2: Envase Primario */}
-                  <tr>
-                    <td className="font-bold text-center text-primary-sage">2</td>
-                    <td className="font-semibold text-text-dark">Envase Primario</td>
-                    <td className="text-text-muted">
-                      Ficha de Producto: <strong className="text-text-dark">📦 {modalCalc.ficha.primaryPkgName}</strong>
-                    </td>
-                    <td className="text-center text-text-muted">—</td>
-                    <td className="text-right font-semibold">+{formatCurrency(modalCalc.ficha.primaryPkgCost, 2)}</td>
-                    <td className="text-right font-semibold">
-                      {formatCurrency(modalCalc.ficha.purchaseCost + modalCalc.ficha.primaryPkgCost, 2)}
-                    </td>
-                  </tr>
+                  {/* Tabla única de composición */}
+                  <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#F9FAFB', color: '#6B7280', fontSize: 11, textTransform: 'uppercase' }}>
+                          <th style={{ ...cell, textAlign: 'left' }}>Concepto</th>
+                          <th style={{ ...cell, textAlign: 'center', width: 150 }}>% / Base</th>
+                          <th style={{ ...cell, textAlign: 'right', width: 130 }}>Importe</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr title={f.purchaseDetail} style={{ borderTop: '1px solid #F3F4F6' }}>
+                          <td style={cell}>Costo de compra</td>
+                          <td style={{ ...cell, textAlign: 'center', color: '#9CA3AF' }}>Ficha</td>
+                          <td style={{ ...cell, textAlign: 'right' }}>{formatCurrency(f.purchaseCost, 2)}</td>
+                        </tr>
+                        {hasPrimary && (
+                          <tr title={f.primaryPkgName} style={{ borderTop: '1px solid #F3F4F6' }}>
+                            <td style={cell}>Envase primario</td>
+                            <td style={{ ...cell, textAlign: 'center', color: '#6B7280', fontSize: 11.5, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.primaryPkgName}</td>
+                            <td style={{ ...cell, textAlign: 'right' }}>{formatCurrency(f.primaryPkgCost, 2)}</td>
+                          </tr>
+                        )}
+                        {hasSecondary && (
+                          <tr title={f.secondaryPkgName} style={{ borderTop: '1px solid #F3F4F6' }}>
+                            <td style={cell}>Etiqueta / embalaje</td>
+                            <td style={{ ...cell, textAlign: 'center', color: '#6B7280', fontSize: 11.5, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.secondaryPkgName}</td>
+                            <td style={{ ...cell, textAlign: 'right' }}>{formatCurrency(f.secondaryPkgCost, 2)}</td>
+                          </tr>
+                        )}
+                        {subtotalRow('Costo producto', modalCalc.costoProducto, '#E9EFEA', '#2E5339')}
 
-                  {/* Ítem 3: Etiqueta / Embalaje Secundario */}
-                  <tr>
-                    <td className="font-bold text-center text-primary-sage">3</td>
-                    <td className="font-semibold text-text-dark">Etiqueta / Embalaje Secundario</td>
-                    <td className="text-text-muted">
-                      Ficha de Producto: <strong className="text-text-dark">🏷️ {modalCalc.ficha.secondaryPkgName}</strong>
-                    </td>
-                    <td className="text-center text-text-muted">—</td>
-                    <td className="text-right font-semibold">+{formatCurrency(modalCalc.ficha.secondaryPkgCost, 2)}</td>
-                    <td className="text-right font-semibold">{formatCurrency(modalCalc.costoProducto, 2)}</td>
-                  </tr>
+                        <tr title="Porcentaje global definido en Configuración" style={{ borderTop: '1px solid #F3F4F6' }}>
+                          <td style={cell}>Costo fijo</td>
+                          <td style={{ ...cell, textAlign: 'center' }}>{modalCalc.fixedCostPct}%</td>
+                          <td style={{ ...cell, textAlign: 'right' }}>{formatCurrency(modalCalc.fixedCostAmount, 2)}</td>
+                        </tr>
+                        <tr title="Valor hora × horas del lote ÷ unidades del lote" style={{ borderTop: '1px solid #F3F4F6' }}>
+                          <td style={cell}>Mano de obra</td>
+                          <td style={{ ...cell, textAlign: 'center' }}>
+                            {modalCalc.laborCostAmount > 0 ? `${modalCalc.effectiveLaborPct.toFixed(1)}%` : (isResaleFp ? 'Reventa' : '0%')}
+                          </td>
+                          <td style={{ ...cell, textAlign: 'right' }}>{formatCurrency(modalCalc.laborCostAmount, 2)}</td>
+                        </tr>
+                        {subtotalRow('Costo total', modalCalc.totalUnitCost, '#FEF3C7', '#78350F')}
 
-                  {/* SUBTOTAL 1: COSTO PRODUCTO */}
-                  <tr style={{ backgroundColor: '#E9EFEA', fontWeight: 700 }}>
-                    <td className="text-center text-primary-sage">=</td>
-                    <td className="text-primary-sage font-bold">COSTO PRODUCTO (Compra + Envase/Embalaje)</td>
-                    <td className="text-xs text-primary-sage">Suma Ítems 1 + 2 + 3 (Definido en la Ficha)</td>
-                    <td className="text-center">
-                      <span className="badge green text-[10px]">Base 100%</span>
-                    </td>
-                    <td className="text-right text-primary-sage">{formatCurrency(modalCalc.costoProducto, 2)}</td>
-                    <td className="text-right text-sm text-primary-sage">{formatCurrency(modalCalc.costoProducto, 2)}</td>
-                  </tr>
-
-                  {/* Ítem 4: Costo Fijo Global (%) */}
-                  <tr>
-                    <td className="font-bold text-center text-blue-700">4</td>
-                    <td className="font-semibold text-text-dark">Costo Fijo Global (%)</td>
-                    <td className="text-text-muted">
-                      Panel de Configuración (<strong>{modalCalc.fixedCostPct}%</strong> sobre Costo Producto de {formatCurrency(modalCalc.costoProducto)})
-                    </td>
-                    <td className="text-center font-bold text-blue-700">+{modalCalc.fixedCostPct}%</td>
-                    <td className="text-right font-semibold text-blue-800">+{formatCurrency(modalCalc.fixedCostAmount, 2)}</td>
-                    <td className="text-right font-semibold">
-                      {formatCurrency(modalCalc.costoProducto + modalCalc.fixedCostAmount, 2)}
-                    </td>
-                  </tr>
-
-                  {/* Ítem 5: Mano de Obra (Opción C: Horas por Lote Procesado / Incidencia %) */}
-                  <tr>
-                    <td className="font-bold text-center text-amber-700">5</td>
-                    <td className="font-semibold text-text-dark">
-                      Mano de Obra (Opción C: Lote Procesado)
-                    </td>
-                    <td>
-                      {currentModalFp.isResale && !globalPricingParams.applyLaborToResale ? (
-                        <span className="text-text-muted">
-                          Producto de Reventa Directa (Sin proceso de fraccionado = <strong>0%</strong>)
-                        </span>
-                      ) : (
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="text-text-muted">
-                            Valor Hora: <strong>{formatCurrency(modalCalc.hourlyRate)}/h</strong> ×
-                          </span>
-                          <label className="flex items-center gap-1">
-                            <span>Hs Lote:</span>
+                        <tr style={{ borderTop: '1px solid #F3F4F6' }}>
+                          <td style={cell}>Margen</td>
+                          <td style={{ ...cell, textAlign: 'center' }}>
                             <input
                               type="number"
-                              step="0.25"
-                              min="0.1"
-                              className="input text-xs py-0.5 px-1.5 w-16 font-bold text-center"
-                              value={batchHoursForProduct}
-                              onChange={(e) => setBatchHoursForProduct(parseFloat(e.target.value) || 0.5)}
-                            />
-                          </label>
-                          <label className="flex items-center gap-1">
-                            <span>÷ Unid. Lote:</span>
+                              step="0.5"
+                              value={marginValue}
+                              onChange={e => setMargin(parseFloat(e.target.value) || 0)}
+                              style={{ width: 70, height: 28, textAlign: 'center', fontWeight: 700, border: '1px solid #D1D5DB', borderRadius: 6 }}
+                            /> %
+                          </td>
+                          <td style={{ ...cell, textAlign: 'right' }}>{formatCurrency(ch.marginAmount, 2)}</td>
+                        </tr>
+                        {ch.taxPct > 0 && (
+                          <tr title="Definido en Configuración" style={{ borderTop: '1px solid #F3F4F6' }}>
+                            <td style={cell}>Impuestos</td>
+                            <td style={{ ...cell, textAlign: 'center' }}>{ch.taxPct}%</td>
+                            <td style={{ ...cell, textAlign: 'right' }}>{formatCurrency(ch.taxAmount, 2)}</td>
+                          </tr>
+                        )}
+                        {ch.commPct > 0 && (
+                          <tr title="Definido en Configuración" style={{ borderTop: '1px solid #F3F4F6' }}>
+                            <td style={cell}>Comisión del canal</td>
+                            <td style={{ ...cell, textAlign: 'center' }}>{ch.commPct}%</td>
+                            <td style={{ ...cell, textAlign: 'right' }}>{formatCurrency(ch.commAmount, 2)}</td>
+                          </tr>
+                        )}
+                        {subtotalRow('Precio calculado', ch.exactPrice, '#F3F4F6', '#374151')}
+
+                        <tr title="Según múltiplo definido en Configuración" style={{ borderTop: '1px solid #F3F4F6' }}>
+                          <td style={cell}>Redondeo</td>
+                          <td style={{ ...cell, textAlign: 'center' }}>múltiplo {formatCurrency(globalPricingParams.roundingMultiple)}</td>
+                          <td style={{ ...cell, textAlign: 'right' }}>{ch.roundingDiff >= 0 ? '+' : ''}{formatCurrency(ch.roundingDiff, 2)}</td>
+                        </tr>
+                        <tr style={{ backgroundColor: '#2E5339', color: '#FFFFFF' }}>
+                          <td style={{ ...cell, fontSize: 15, fontWeight: 800 }} colSpan={2}>PRECIO FINAL</td>
+                          <td style={{ ...cell, textAlign: 'right' }}>
                             <input
                               type="number"
-                              step="1"
-                              min="1"
-                              className="input text-xs py-0.5 px-1.5 w-16 font-bold text-center"
-                              value={batchUnitsForProduct}
-                              onChange={(e) => setBatchUnitsForProduct(Math.max(1, parseFloat(e.target.value) || 1))}
+                              step={globalPricingParams.roundingMultiple || 10}
+                              value={ch.finalPrice}
+                              onChange={e => setFinal(parseFloat(e.target.value) || 0)}
+                              style={{ width: 110, height: 32, textAlign: 'right', fontWeight: 800, fontSize: 15, border: 'none', borderRadius: 6, color: '#2E5339' }}
                             />
-                          </label>
-                          <span className="text-[11px] text-amber-900 font-semibold">
-                            (= {formatCurrency(modalCalc.batchUnitLaborCost)}/u.)
-                          </span>
-                        </div>
-                      )}
-                    </td>
-                    <td className="text-center font-bold text-amber-800">
-                      +{modalCalc.effectiveLaborPct.toFixed(1)}%
-                    </td>
-                    <td className="text-right font-semibold text-amber-800">
-                      +{formatCurrency(modalCalc.laborCostAmount, 2)}
-                    </td>
-                    <td className="text-right font-semibold">
-                      {formatCurrency(modalCalc.totalUnitCost, 2)}
-                    </td>
-                  </tr>
+                          </td>
+                        </tr>
+                        <tr style={{ backgroundColor: '#F0FDF4', color: '#166534' }}>
+                          <td style={cell}>Ganancia limpia</td>
+                          <td style={{ ...cell, textAlign: 'center' }}>{ch.realMarkupPct.toFixed(1)}%</td>
+                          <td style={{ ...cell, textAlign: 'right', fontWeight: 700 }}>{formatCurrency(ch.netProfit)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
 
-                  {/* SUBTOTAL 2: COSTO TOTAL UNITARIO */}
-                  <tr style={{ backgroundColor: '#FEF3C7', fontWeight: 700 }}>
-                    <td className="text-center text-amber-900">=</td>
-                    <td className="text-amber-900 font-bold">COSTO TOTAL UNITARIO</td>
-                    <td className="text-xs text-amber-900">
-                      Costo Producto ({formatCurrency(modalCalc.costoProducto)}) + Costo Fijo ({formatCurrency(modalCalc.fixedCostAmount)}) + Mano de Obra ({formatCurrency(modalCalc.laborCostAmount)})
-                    </td>
-                    <td className="text-center font-bold text-amber-900">
-                      +{(modalCalc.fixedCostPct + modalCalc.effectiveLaborPct).toFixed(1)}% s/Prod.
-                    </td>
-                    <td className="text-right text-amber-900">{formatCurrency(modalCalc.totalUnitCost, 2)}</td>
-                    <td className="text-right text-sm text-amber-900">{formatCurrency(modalCalc.totalUnitCost, 2)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* ===================================================================
-                TABLA PARTE 2: FORMACIÓN DEL PRECIO POR CANAL HASTA REDONDEO FINAL
-               =================================================================== */}
-            <div className="border rounded-lg overflow-hidden shadow-sm">
-              <div className="bg-text-dark text-white px-3.5 py-2 flex justify-between items-center text-xs font-bold">
-                <span>PARTE 2 — FORMACIÓN DEL PRECIO POR CANAL HASTA PRECIO FINAL REDONDEADO</span>
-                <span>Impuestos Panel: {globalPricingParams.taxPercentage}% • Comisiones Panel: Mostrador {globalCommissions.mostrador}% | WA {globalCommissions.whatsapp}% | Web {globalCommissions.tiendaOnline}%</span>
-              </div>
-
-              <table className="data-table w-full text-xs">
-                <thead>
-                  <tr className="bg-bg-linen">
-                    <th style={{ width: '42px' }}>#</th>
-                    <th>Concepto / Escalón</th>
-                    <th>Base de Cálculo</th>
-                    <th className="text-right">🏪 Canal Mostrador</th>
-                    <th className="text-right">📱 Canal WhatsApp</th>
-                    <th className="text-right">🌐 Canal Tienda Online</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Base: Costo Total Unitario */}
-                  <tr className="bg-amber-50/40 font-semibold">
-                    <td className="text-center">Base</td>
-                    <td>Costo Total Unitario</td>
-                    <td className="text-text-muted">Suma ítems 1 a 5</td>
-                    <td className="text-right">{formatCurrency(modalCalc.totalUnitCost, 2)}</td>
-                    <td className="text-right">{formatCurrency(modalCalc.totalUnitCost, 2)}</td>
-                    <td className="text-right">{formatCurrency(modalCalc.totalUnitCost, 2)}</td>
-                  </tr>
-
-                  {/* Ítem 6: Margen de Ganancia (%) */}
-                  <tr>
-                    <td className="font-bold text-center text-primary-sage">6</td>
-                    <td className="font-semibold text-text-dark">+ Margen de Ganancia (%)</td>
-                    <td className="text-text-muted">% sobre Costo Total Unitario</td>
-                    <td className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <input
-                          type="number"
-                          step="0.5"
-                          className="input text-xs font-bold text-right w-16 py-0.5 px-1.5 text-primary-sage"
-                          value={mostradorMarginPct}
-                          onChange={(e) => {
-                            setMostradorMarginPct(parseFloat(e.target.value) || 0);
-                            setCustomMostradorPrice(null);
-                          }}
-                        />
-                        <span className="font-bold text-primary-sage">%</span>
-                        <span className="text-text-muted">
-                          (+{formatCurrency(modalCalc.channels.mostrador.marginAmount, 0)})
-                        </span>
-                      </div>
-                    </td>
-                    <td className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <input
-                          type="number"
-                          step="0.5"
-                          className="input text-xs font-bold text-right w-16 py-0.5 px-1.5 text-primary-sage"
-                          value={whatsappMarginPct}
-                          onChange={(e) => {
-                            setWhatsappMarginPct(parseFloat(e.target.value) || 0);
-                            setCustomWhatsappPrice(null);
-                          }}
-                        />
-                        <span className="font-bold text-primary-sage">%</span>
-                        <span className="text-text-muted">
-                          (+{formatCurrency(modalCalc.channels.whatsapp.marginAmount, 0)})
-                        </span>
-                      </div>
-                    </td>
-                    <td className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <input
-                          type="number"
-                          step="0.5"
-                          className="input text-xs font-bold text-right w-16 py-0.5 px-1.5 text-primary-sage"
-                          value={onlineMarginPct}
-                          onChange={(e) => {
-                            setOnlineMarginPct(parseFloat(e.target.value) || 0);
-                            setCustomOnlinePrice(null);
-                          }}
-                        />
-                        <span className="font-bold text-primary-sage">%</span>
-                        <span className="text-text-muted">
-                          (+{formatCurrency(modalCalc.channels.tiendaOnline.marginAmount, 0)})
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-
-                  {/* Ítem 7: Impuestos sobre Venta (%) */}
-                  <tr>
-                    <td className="font-bold text-center text-amber-700">7</td>
-                    <td className="font-semibold text-text-dark">+ Impuestos sobre Venta (%)</td>
-                    <td className="text-text-muted">
-                      Fijado en Panel de Configuración ({modalCalc.channels.mostrador.taxPct}%)
-                    </td>
-                    <td className="text-right">
-                      +{formatCurrency(modalCalc.channels.mostrador.taxAmount, 2)}{' '}
-                      <span className="text-[10px] text-text-muted">({modalCalc.channels.mostrador.taxPct}%)</span>
-                    </td>
-                    <td className="text-right">
-                      +{formatCurrency(modalCalc.channels.whatsapp.taxAmount, 2)}{' '}
-                      <span className="text-[10px] text-text-muted">({modalCalc.channels.whatsapp.taxPct}%)</span>
-                    </td>
-                    <td className="text-right">
-                      +{formatCurrency(modalCalc.channels.tiendaOnline.taxAmount, 2)}{' '}
-                      <span className="text-[10px] text-text-muted">({modalCalc.channels.tiendaOnline.taxPct}%)</span>
-                    </td>
-                  </tr>
-
-                  {/* Ítem 8: Comisión por Canal (%) */}
-                  <tr>
-                    <td className="font-bold text-center text-purple-700">8</td>
-                    <td className="font-semibold text-text-dark">+ Comisión del Canal (%)</td>
-                    <td className="text-text-muted">Fijado en Panel de Configuración</td>
-                    <td className="text-right">
-                      +{formatCurrency(modalCalc.channels.mostrador.commAmount, 2)}{' '}
-                      <span className="text-[10px] text-text-muted">({modalCalc.channels.mostrador.commPct}%)</span>
-                    </td>
-                    <td className="text-right">
-                      +{formatCurrency(modalCalc.channels.whatsapp.commAmount, 2)}{' '}
-                      <span className="text-[10px] text-text-muted">({modalCalc.channels.whatsapp.commPct}%)</span>
-                    </td>
-                    <td className="text-right">
-                      +{formatCurrency(modalCalc.channels.tiendaOnline.commAmount, 2)}{' '}
-                      <span className="text-[10px] text-text-muted">({modalCalc.channels.tiendaOnline.commPct}%)</span>
-                    </td>
-                  </tr>
-
-                  {/* SUBTOTAL 3: PRECIO CALCULADO EXACTO */}
-                  <tr className="bg-gray-100 font-bold">
-                    <td className="text-center">=</td>
-                    <td>PRECIO CALCULADO (Exacto sin redondear)</td>
-                    <td className="text-text-muted">Costo Total + Margen + Impuestos + Comisión</td>
-                    <td className="text-right">{formatCurrency(modalCalc.channels.mostrador.exactPrice, 2)}</td>
-                    <td className="text-right">{formatCurrency(modalCalc.channels.whatsapp.exactPrice, 2)}</td>
-                    <td className="text-right">{formatCurrency(modalCalc.channels.tiendaOnline.exactPrice, 2)}</td>
-                  </tr>
-
-                  {/* Ítem 9: Ajuste por Redondeo (Múltiplo) */}
-                  <tr>
-                    <td className="font-bold text-center text-primary-sage">9</td>
-                    <td className="font-semibold text-text-dark">Ajuste por Redondeo</td>
-                    <td className="text-text-muted">
-                      Múltiplo de <strong>${globalPricingParams.roundingMultiple}</strong> ({globalPricingParams.roundingMode === 'NEAREST' ? 'Al más cercano' : 'Hacia arriba'})
-                    </td>
-                    <td className="text-right font-medium text-primary-sage">
-                      {modalCalc.channels.mostrador.roundingDiff >= 0 ? '+' : ''}
-                      {formatCurrency(modalCalc.channels.mostrador.roundingDiff, 2)}
-                    </td>
-                    <td className="text-right font-medium text-primary-sage">
-                      {modalCalc.channels.whatsapp.roundingDiff >= 0 ? '+' : ''}
-                      {formatCurrency(modalCalc.channels.whatsapp.roundingDiff, 2)}
-                    </td>
-                    <td className="text-right font-medium text-primary-sage">
-                      {modalCalc.channels.tiendaOnline.roundingDiff >= 0 ? '+' : ''}
-                      {formatCurrency(modalCalc.channels.tiendaOnline.roundingDiff, 2)}
-                    </td>
-                  </tr>
-
-                  {/* FILA FINAL: PRECIO FINAL REDONDEADO */}
-                  <tr style={{ backgroundColor: '#E9EFEA', fontWeight: 800 }}>
-                    <td className="text-center text-primary-sage text-sm">★</td>
-                    <td className="text-primary-sage text-sm font-bold">PRECIO FINAL REDONDEADO ($)</td>
-                    <td className="text-xs text-primary-sage">Precio final de venta al público</td>
-                    <td className="text-right">
+                  {/* Ajuste de mano de obra por lote (solo si aplica) */}
+                  {!(isResaleFp && !globalPricingParams.applyLaborToResale) && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, fontSize: 12, color: '#6B7280' }}>
+                      <span>Mano de obra del lote:</span>
                       <input
-                        type="number"
-                        step={globalPricingParams.roundingMultiple || 10}
-                        className="input font-bold text-right text-sm w-28 py-1 border-primary-sage text-primary-sage"
-                        value={modalCalc.channels.mostrador.finalPrice}
-                        onChange={(e) => setCustomMostradorPrice(parseFloat(e.target.value) || 0)}
-                      />
-                    </td>
-                    <td className="text-right">
+                        type="number" step="0.25" min="0.1" value={batchHoursForProduct}
+                        onChange={e => setBatchHoursForProduct(parseFloat(e.target.value) || 0.5)}
+                        style={{ width: 64, height: 28, textAlign: 'center', border: '1px solid #D1D5DB', borderRadius: 6 }}
+                      /> hs ÷
                       <input
-                        type="number"
-                        step={globalPricingParams.roundingMultiple || 10}
-                        className="input font-bold text-right text-sm w-28 py-1 border-primary-sage text-primary-sage"
-                        value={modalCalc.channels.whatsapp.finalPrice}
-                        onChange={(e) => setCustomWhatsappPrice(parseFloat(e.target.value) || 0)}
-                      />
-                    </td>
-                    <td className="text-right">
-                      <input
-                        type="number"
-                        step={globalPricingParams.roundingMultiple || 10}
-                        className="input font-bold text-right text-sm w-28 py-1 border-primary-sage text-primary-sage"
-                        value={modalCalc.channels.tiendaOnline.finalPrice}
-                        onChange={(e) => setCustomOnlinePrice(parseFloat(e.target.value) || 0)}
-                      />
-                    </td>
-                  </tr>
-
-                  {/* Fila de Ganancia Neta Limpia en Mano */}
-                  <tr className="bg-green-50/50">
-                    <td className="text-center font-bold text-green-800">✓</td>
-                    <td className="font-bold text-green-900">Ganancia Limpia en Mano ($)</td>
-                    <td className="text-text-muted">Precio Final − Costo Total − Impuestos − Comisión</td>
-                    <td className="text-right font-bold text-green-800">
-                      {formatCurrency(modalCalc.channels.mostrador.netProfit)} ({modalCalc.channels.mostrador.realMarkupPct.toFixed(1)}%)
-                    </td>
-                    <td className="text-right font-bold text-green-800">
-                      {formatCurrency(modalCalc.channels.whatsapp.netProfit)} ({modalCalc.channels.whatsapp.realMarkupPct.toFixed(1)}%)
-                    </td>
-                    <td className="text-right font-bold text-green-800">
-                      {formatCurrency(modalCalc.channels.tiendaOnline.netProfit)} ({modalCalc.channels.tiendaOnline.realMarkupPct.toFixed(1)}%)
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                        type="number" step="1" min="1" value={batchUnitsForProduct}
+                        onChange={e => setBatchUnitsForProduct(Math.max(1, parseFloat(e.target.value) || 1))}
+                        style={{ width: 64, height: 28, textAlign: 'center', border: '1px solid #D1D5DB', borderRadius: 6 }}
+                      /> unidades
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             <div className="form-actions flex justify-between items-center border-t pt-3">
-              <span className="text-xs text-text-muted">
-                Al guardar, el Precio Final de Mostrador (<strong>{formatCurrency(modalCalc.channels.mostrador.finalPrice)}</strong>) actualiza automáticamente el precio del producto en Stock y Punto de Venta.
-              </span>
+              <span className="text-xs text-text-muted">El precio de Mostrador actualiza el producto en Stock y Punto de Venta.</span>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary">
                   Cancelar

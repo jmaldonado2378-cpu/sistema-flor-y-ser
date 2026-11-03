@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { User, ModuleKey, UserRole } from '../types/auth';
 import { getAuditLogs, syncAndFetchAuditLogs, AuditLog } from '../api/client';
+import { getSellerCommissionRates, updateSellerCommissionRate } from '../api/commissions';
 import {
   Users, UserPlus, Shield, CheckCircle, XCircle, Trash2, Key, Edit,
   Eye, EyeOff, Copy, Check, RefreshCw, Activity, Clock, Lock, Sparkles, Search, Filter
@@ -30,6 +31,13 @@ const PROTECTED_EMAILS = new Set([
   'memimaldonado05@gmail.com'
 ]);
 
+const COMMISSION_CHANNELS = [
+  { channel: 'LOCAL', label: 'Mostrador / Local', defaultPct: 2.5 },
+  { channel: 'WHATSAPP', label: 'WhatsApp', defaultPct: 4.0 },
+  { channel: 'ONLINE_STORE', label: 'Tienda Online', defaultPct: 5.0 },
+  { channel: 'INSTAGRAM', label: 'Instagram / Redes', defaultPct: 4.5 }
+];
+
 const PRESET_SALES: ModuleKey[] = ['dashboard', 'customers', 'new_sale', 'kanban_orders', 'stock', 'checking_accounts'];
 const PRESET_OPERATIONS: ModuleKey[] = ['stock', 'article_families', 'merchandise_receipt', 'fractioning', 'kanban_tasks', 'kanban_orders'];
 
@@ -57,6 +65,7 @@ export const UserManagement: React.FC = () => {
   const [auditModuleFilter, setAuditModuleFilter] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [commRates, setCommRates] = useState<Record<string, number>>({});
 
   // Sincronizar usuarios y auditoría centralizada al abrir la pantalla
   useEffect(() => {
@@ -118,6 +127,7 @@ export const UserManagement: React.FC = () => {
     setSelectedModules(PRESET_SALES);
     setAvatarUrl('');
     setActive(true);
+    setCommRates({});
     setShowModal(true);
   };
 
@@ -132,6 +142,12 @@ export const UserManagement: React.FC = () => {
     setSelectedModules(u.role === 'ADMIN' ? MODULE_LABELS.map(m => m.key) : (u.allowedModules || []));
     setAvatarUrl(u.avatarUrl || '');
     setActive(isUserProtected(u) ? true : u.active);
+    setCommRates({});
+    getSellerCommissionRates(u.id).then(rates => {
+      const map: Record<string, number> = {};
+      (Array.isArray(rates) ? rates : []).forEach((r: any) => { map[r.channel] = Number(r.commissionPercentage) || 0; });
+      setCommRates(map);
+    }).catch(() => {});
     setShowModal(true);
   };
 
@@ -214,6 +230,14 @@ export const UserManagement: React.FC = () => {
       if (editingUser) {
         const res = await updateUser(editingUser.id, userData);
         if (res.success) {
+          try {
+            for (const ch of COMMISSION_CHANNELS) {
+              const pct = commRates[ch.channel] ?? ch.defaultPct;
+              await updateSellerCommissionRate(editingUser.id, ch.channel, pct);
+            }
+          } catch {
+            alert('El usuario se guardó, pero no se pudieron guardar las comisiones por canal.');
+          }
           const cloudLogs = await syncAndFetchAuditLogs();
           setAuditLogs(cloudLogs);
           setShowModal(false);
@@ -1151,6 +1175,21 @@ export const UserManagement: React.FC = () => {
                 </div>
               )}
 
+              {/* COMISIÓN POR CANAL (única ubicación de carga) */}
+              {editingUser && (
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: '10px', padding: '12px', background: '#F8FAFC' }}>
+                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#1E293B', marginBottom: '8px' }}>💰 Comisión de venta por canal (%)</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                    {COMMISSION_CHANNELS.map(ch => (
+                      <label key={ch.channel} style={{ fontSize: '11px', color: '#475569', fontWeight: 600 }}>
+                        {ch.label}
+                        <input type="number" step="0.1" min="0" max="100" value={commRates[ch.channel] ?? ch.defaultPct} onChange={e => setCommRates(prev => ({ ...prev, [ch.channel]: parseFloat(e.target.value) || 0 }))} style={{ width: '100%', marginTop: '3px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '13px', fontWeight: 700 }} />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* BOTONES DE GUARDADO */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid #E2E8F0', paddingTop: '14px' }}>
                 <button
@@ -1193,3 +1232,4 @@ export const UserManagement: React.FC = () => {
     </div>
   );
 };
+

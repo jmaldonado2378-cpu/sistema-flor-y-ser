@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { 
-  TrendingUp, Wallet, Award, CheckCircle, Calendar, DollarSign, 
+  TrendingUp, Wallet, Award, CheckCircle, Calendar, 
   Users, Filter, Printer, Download, ArrowUpRight, ArrowDownRight, 
   PieChart, BarChart2, Package, ShoppingBag, ShieldCheck, RefreshCw, FileText
 } from 'lucide-react';
@@ -10,18 +10,15 @@ import {
   settleCommissions, 
   getCommissionSettlements, 
   getProfitabilityMonitor,
-  getSellerCommissionRates,
-  updateSellerCommissionRate,
   PendingCommissionsReport,
   CommissionSettlement,
-  ProfitabilityReport,
-  SellerChannelRate
+  ProfitabilityReport
 } from '../api/commissions';
 
 export const CommissionsAndProfitabilityPage: React.FC = () => {
   const { users, user: currentUser } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'settlements' | 'profitability' | 'settings'>('settlements');
+  const [activeTab, setActiveTab] = useState<'settlements' | 'profitability'>('settlements');
 
   // Filtros de Comisiones
   const [selectedUserId, setSelectedUserId] = useState<string>('');
@@ -37,11 +34,6 @@ export const CommissionsAndProfitabilityPage: React.FC = () => {
   const [profitabilityData, setProfitabilityData] = useState<ProfitabilityReport | null>(null);
   const [profitView, setProfitView] = useState<'product' | 'volume' | 'channel' | 'seller'>('product');
   const [loadingProfit, setLoadingProfit] = useState(false);
-
-  // Configuración de Tarifas por Canal
-  const [configUserId, setConfigUserId] = useState<string>(currentUser?.id || '');
-  const [configRates, setConfigRates] = useState<SellerChannelRate[]>([]);
-  const [savingConfig, setSavingConfig] = useState(false);
 
   // Cargar comisiones pendientes
   const loadCommissionsData = async () => {
@@ -67,28 +59,10 @@ export const CommissionsAndProfitabilityPage: React.FC = () => {
       setLoadingProfit(false);
     }
   };
-
-  // Cargar configuración de tarifas
-  const loadConfigRates = async (userId: string) => {
-    if (!userId) return;
-    try {
-      const rates = await getSellerCommissionRates(userId);
-      setConfigRates(rates);
-    } catch (e) {
-      console.error('Error cargando tarifas:', e);
-    }
-  };
-
   useEffect(() => {
     loadCommissionsData();
     loadProfitabilityData();
   }, [selectedUserId]);
-
-  useEffect(() => {
-    if (configUserId) {
-      loadConfigRates(configUserId);
-    }
-  }, [configUserId]);
 
   // Ejecutar liquidación
   const handleSettle = async () => {
@@ -116,20 +90,6 @@ export const CommissionsAndProfitabilityPage: React.FC = () => {
       alert(`Error al liquidar comisiones: ${e.message}`);
     } finally {
       setSettling(false);
-    }
-  };
-
-  // Guardar porcentaje de comisión por canal
-  const handleSaveRate = async (channel: string, pct: number) => {
-    if (!configUserId) return;
-    setSavingConfig(true);
-    try {
-      await updateSellerCommissionRate(configUserId, channel, pct);
-      await loadConfigRates(configUserId);
-    } catch (e) {
-      alert('Error guardando tarifa');
-    } finally {
-      setSavingConfig(false);
     }
   };
 
@@ -212,25 +172,6 @@ export const CommissionsAndProfitabilityPage: React.FC = () => {
           }}
         >
           <TrendingUp size={18} /> Monitor de Ganancias (P&L Real-Time)
-        </button>
-
-        <button
-          onClick={() => setActiveTab('settings')}
-          style={{
-            padding: '12px 20px',
-            border: 'none',
-            background: 'none',
-            fontSize: '14px',
-            fontWeight: 600,
-            color: activeTab === 'settings' ? '#2E5339' : '#64748B',
-            borderBottom: activeTab === 'settings' ? '3px solid #2E5339' : 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}
-        >
-          <DollarSign size={18} /> Configuración de % por Canal
         </button>
       </div>
 
@@ -603,62 +544,6 @@ export const CommissionsAndProfitabilityPage: React.FC = () => {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* PESTAÑA 3: CONFIGURACIÓN DE TARIFAS DE COMISIÓN POR CANAL */}
-      {/* ========================================================================= */}
-      {activeTab === 'settings' && (
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '24px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#1E293B', marginBottom: '8px' }}>
-            Configuración de % de Comisión por Canal de Venta
-          </h3>
-          <p style={{ fontSize: '14px', color: '#64748B', marginBottom: '24px' }}>
-            Define qué porcentaje de comisión devenga cada usuario según el canal donde se originó la venta.
-          </p>
-
-          <div style={{ marginBottom: '20px', maxWidth: '400px' }}>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>Seleccionar Usuario:</label>
-            <select
-              value={configUserId}
-              onChange={e => setConfigUserId(e.target.value)}
-              style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '14px' }}
-            >
-              {users.map(u => (
-                <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
-            {[
-              { channel: 'LOCAL', label: 'Mostrador / Local Directo', defaultPct: 2.5 },
-              { channel: 'WHATSAPP', label: 'Ventas por WhatsApp', defaultPct: 4.0 },
-              { channel: 'ONLINE_STORE', label: 'Tienda Online Web', defaultPct: 5.0 },
-              { channel: 'INSTAGRAM', label: 'Instagram / Redes', defaultPct: 4.5 }
-            ].map(ch => {
-              const currentRate = configRates.find(r => r.channel === ch.channel)?.commissionPercentage ?? ch.defaultPct;
-
-              return (
-                <div key={ch.channel} style={{ border: '1px solid #E2E8F0', padding: '18px', borderRadius: '12px', backgroundColor: '#F8FAFC' }}>
-                  <h4 style={{ margin: '0 0 8px 0', fontSize: '15px', color: '#1E293B' }}>{ch.label}</h4>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="100"
-                      value={currentRate}
-                      onChange={e => handleSaveRate(ch.channel, parseFloat(e.target.value) || 0)}
-                      style={{ width: '100px', padding: '8px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '16px', fontWeight: 700 }}
-                    />
-                    <span style={{ fontWeight: 700, color: '#334155' }}>%</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Modal de Confirmación de Liquidación */}
       {showSettleModal && pendingData && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
@@ -718,3 +603,4 @@ export const CommissionsAndProfitabilityPage: React.FC = () => {
     </div>
   );
 };
+
