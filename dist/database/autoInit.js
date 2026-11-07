@@ -157,6 +157,15 @@ async function autoInitDatabase(db) {
             }
             catch (e) { }
             try {
+                // Limpiar registros de prueba de fraccionamiento y gastos si hubieran quedado en la BD
+                await db.query(`DELETE FROM fractioning_orders WHERE id IN ('fo-001', 'fo-002') OR order_number IN ('FRAC-20260720-01', 'FRAC-20260718-02')`);
+            }
+            catch (e) { }
+            try {
+                await db.query(`DELETE FROM operational_expenses WHERE id IN ('exp-001', 'exp-002', 'exp-003', 'e1000000-0000-0000-0000-000000000001', 'e2000000-0000-0000-0000-000000000002', 'e3000000-0000-0000-0000-000000000003', 'e4000000-0000-0000-0000-000000000004', 'e5000000-0000-0000-0000-000000000005')`);
+            }
+            catch (e) { }
+            try {
                 // Garantizar que exista la tabla operational_tasks si no estuviese creada
                 await db.query(`
           CREATE TABLE IF NOT EXISTS operational_tasks (

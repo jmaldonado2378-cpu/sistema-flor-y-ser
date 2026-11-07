@@ -8,78 +8,8 @@ const uuid_1 = require("uuid");
  */
 class FinanceService {
     db;
-    // Datos iniciales de simulación en memoria (para funcionamiento offline o testing)
-    inMemoryExpenses = [
-        {
-            id: 'e1000000-0000-0000-0000-000000000001',
-            description: 'Alquiler del Local Comercial (Julio 2026)',
-            category: 'ALQUILER',
-            voucherType: 'FACTURA_B',
-            voucherNumber: 'F-0001-00004512',
-            expenseDate: '2026-07-01',
-            amount: 450000,
-            paymentMethod: 'TRANSFERENCIA',
-            supplierName: 'Inmobiliaria Central',
-            notes: 'Pago del alquiler mensual de la sucursal principal.',
-            createdAt: '2026-07-01T10:00:00Z',
-            updatedAt: '2026-07-01T10:00:00Z'
-        },
-        {
-            id: 'e2000000-0000-0000-0000-000000000002',
-            description: 'Servicio de Luz Eléctrica Edesur',
-            category: 'SERVICIOS',
-            voucherType: 'FACTURA_B',
-            voucherNumber: 'ED-8849201',
-            expenseDate: '2026-07-05',
-            amount: 85000,
-            paymentMethod: 'MERCADO_PAGO',
-            supplierName: 'Edesur S.A.',
-            notes: 'Incluye consumo de heladeras y balanzas.',
-            createdAt: '2026-07-05T12:30:00Z',
-            updatedAt: '2026-07-05T12:30:00Z'
-        },
-        {
-            id: 'e3000000-0000-0000-0000-000000000003',
-            description: 'Sueldos Personal de Mostrador y Armado',
-            category: 'SUELDOS',
-            voucherType: 'RECIBO',
-            voucherNumber: 'REC-2026-07',
-            expenseDate: '2026-07-10',
-            amount: 680000,
-            paymentMethod: 'TRANSFERENCIA',
-            notes: 'Pago de haberes del personal operativo.',
-            createdAt: '2026-07-10T16:00:00Z',
-            updatedAt: '2026-07-10T16:00:00Z'
-        },
-        {
-            id: 'e4000000-0000-0000-0000-000000000004',
-            description: 'Compra de Bolsas Biodegradables y Bobinas de Etiquetas Thermal',
-            category: 'LOGISTICA',
-            voucherType: 'FACTURA_A',
-            voucherNumber: 'A-0005-00012399',
-            expenseDate: '2026-07-15',
-            amount: 42000,
-            paymentMethod: 'TRANSFERENCIA',
-            supplierName: 'EcoEmpaques SRL',
-            notes: 'Insumos de empaque para fraccionado y mostrador.',
-            createdAt: '2026-07-15T09:15:00Z',
-            updatedAt: '2026-07-15T09:15:00Z'
-        },
-        {
-            id: 'e5000000-0000-0000-0000-000000000005',
-            description: 'Publicidad en Instagram y Facebook Ads',
-            category: 'MARKETING',
-            voucherType: 'FACTURA_C',
-            voucherNumber: 'FB-9938210',
-            expenseDate: '2026-07-18',
-            amount: 55000,
-            paymentMethod: 'TARJETA_CREDITO',
-            supplierName: 'Meta Platforms Inc.',
-            notes: 'Campaña de fidelización y promociones de productos orgánicos.',
-            createdAt: '2026-07-18T14:20:00Z',
-            updatedAt: '2026-07-18T14:20:00Z'
-        }
-    ];
+    // Sin gastos de prueba iniciales
+    inMemoryExpenses = [];
     inMemoryPricingStructures = [
         {
             id: 'ps100000-0000-0000-0000-000000000001',
@@ -337,7 +267,7 @@ class FinanceService {
                 }
                 query += ` ORDER BY expense_date DESC, created_at DESC;`;
                 const res = await this.db.query(query, values);
-                if (res.rows.length > 0) {
+                if (res && Array.isArray(res.rows)) {
                     return res.rows.map((row) => this.mapDbExpense(row));
                 }
             }

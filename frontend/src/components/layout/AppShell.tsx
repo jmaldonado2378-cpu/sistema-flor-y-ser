@@ -16,7 +16,6 @@ import {
   ExpensesPage,
   PricingPage,
   TasksKanbanPage,
-  LabelsPage,
   SettingsPage,
   ArticleFamiliesPage,
   UserManagement,
@@ -76,8 +75,6 @@ export const AppShell: React.FC = () => {
         return <CommissionsAndProfitabilityPage />;
       case 'tab-tasks': 
         return <TasksKanbanPage onTabChange={setActiveTab} />;
-      case 'tab-labels': 
-        return <LabelsPage onTabChange={setActiveTab} />;
       case 'tab-settings': 
         return <SettingsPage onTabChange={setActiveTab} />;
       case 'tab-families': 

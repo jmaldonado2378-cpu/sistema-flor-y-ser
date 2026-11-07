@@ -93,11 +93,7 @@ export const MOCK_TASKS = [
   { id: 'task-3', title: 'Control de Stock de Frutos Secos', description: 'Verificar diferencia en Nuez Mariposa', status: 'COMPLETED', priority: 'LOW', assignedTo: 'María Clara', dueDate: '2026-08-10' }
 ];
 
-export const MOCK_EXPENSES = [
-  { id: 'exp-1', category: 'Alquiler', amount: 180000, date: '2026-08-01', description: 'Alquiler local comercial agosto', status: 'PAID' },
-  { id: 'exp-2', category: 'Servicios', amount: 35000, date: '2026-08-05', description: 'Luz y gas almacén', status: 'PAID' },
-  { id: 'exp-3', category: 'Empaques', amount: 42000, date: '2026-08-08', description: 'Compra de 500 Bolsas Doypack', status: 'PENDING' }
-];
+export const MOCK_EXPENSES: any[] = [];
 
 export const MOCK_SUPPLIERS = [
   { id: 'supp-1', name: 'Granos del Sur S.A.', category: 'Legumbres y Cereales', phone: '+5491133221100', email: 'ventas@granosdelsur.com', contactPerson: 'Roberto Gómez', isCertifiedOrganic: true },

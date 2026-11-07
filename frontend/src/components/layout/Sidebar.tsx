@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { 
   Menu, Leaf, LayoutDashboard, Users, Package, Download, Scale, 
   ShoppingCart, Kanban, Truck, Wallet, Building2, Receipt, Calculator, 
-  CheckSquare, Printer, Settings, FolderTree, Shield, LogOut, TrendingUp
+  CheckSquare, Settings, FolderTree, Shield, LogOut, TrendingUp
 } from 'lucide-react';
 import { useSettings } from '../../hooks/useSettings';
 import { useAuth } from '../../context/AuthContext';
@@ -56,8 +56,7 @@ const navSections: NavSection[] = [
   {
     title: 'OPERACIONES',
     items: [
-      { id: 'tab-tasks', label: 'Kanban Tareas', icon: CheckSquare, moduleKey: 'kanban_tasks' },
-      { id: 'tab-labels', label: 'Etiquetas', icon: Printer, moduleKey: 'stock' }
+      { id: 'tab-tasks', label: 'Kanban Tareas', icon: CheckSquare, moduleKey: 'kanban_tasks' }
     ]
   },
   {

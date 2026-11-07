@@ -8,50 +8,7 @@ import {
   FractioningOrder 
 } from '../types/fractioning';
 
-const initialFractioningOrders: FractioningOrder[] = [
-  {
-    id: 'fo-001',
-    orderNumber: 'FRAC-20260720-01',
-    rawMaterialId: 'rm-001',
-    rawMaterialName: 'Almendras Peladas Importadas Granel',
-    finalProductId: 'fp-001',
-    finalProductName: 'Almendras Peladas Selección 250g',
-    inputQtyKg: 10.000,
-    targetUnits: 40,
-    actualOutputUnits: 39,
-    wasteKg: 0.250,
-    wastePercentage: 2.50,
-    wasteReason: 'Merma normal de descarte por rotura y polvo de empaque',
-    rawMaterialBatch: 'L-ALM-2026-06',
-    generatedBatch: 'LOT-20260720-A',
-    fractioningDate: '2026-07-20T14:30:00.000Z',
-    expirationDate: '2027-01-16',
-    operatorName: 'María Clara (Empaque)',
-    notes: 'Proceso completado sin inconvenientes. Excelente calidad del lote.',
-    createdAt: '2026-07-20T14:30:00.000Z'
-  },
-  {
-    id: 'fo-002',
-    orderNumber: 'FRAC-20260718-02',
-    rawMaterialId: 'rm-002',
-    rawMaterialName: 'Granola Miel & Coco Base Granel',
-    finalProductId: 'fp-003',
-    finalProductName: 'Granola Artesanal Coco & Almendras 500g',
-    inputQtyKg: 20.000,
-    targetUnits: 40,
-    actualOutputUnits: 39,
-    wasteKg: 0.500,
-    wastePercentage: 2.50,
-    wasteReason: 'Restos en tolva de envasado',
-    rawMaterialBatch: 'L-GRA-2026-05',
-    generatedBatch: 'LOT-20260718-B',
-    fractioningDate: '2026-07-18T10:15:00.000Z',
-    expirationDate: '2026-11-15',
-    operatorName: 'Lucía Fernández',
-    notes: 'Empacado en bolsas selladas al vacío.',
-    createdAt: '2026-07-18T10:15:00.000Z'
-  }
-];
+const initialFractioningOrders: FractioningOrder[] = [];
 
 export class FractioningService {
   private inMemoryOrders: FractioningOrder[] = [...initialFractioningOrders];
@@ -346,7 +303,7 @@ export class FractioningService {
         LEFT JOIN final_products fp ON fo.final_product_id = fp.id
         ORDER BY fo.fractioning_date DESC;
       `);
-      if (res.rows.length > 0) {
+      if (res && Array.isArray(res.rows)) {
         return res.rows.map((row: any) => ({
           ...row,
           inputQtyKg: parseFloat(row.inputQtyKg),
