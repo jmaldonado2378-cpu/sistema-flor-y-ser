@@ -1,4 +1,5 @@
 import { importCatalogSeed } from '../database/seedCatalog';
+import { autoInitDatabase } from '../database/autoInit';
 
 export class SystemService {
   constructor(private db: any) {}
@@ -45,6 +46,25 @@ export class SystemService {
           }
         } catch {
           tableCounts[table] = 0;
+        }
+      }
+
+      // Si MySQL está conectado pero aún faltan tablas principales (ej. la BD se creó después del arranque),
+      // ejecutar autoInitDatabase automáticamente y volver a contar.
+      if (connected && totalTables < 8) {
+        await autoInitDatabase(this.db);
+        totalTables = 0;
+        for (const table of tablesToCheck) {
+          try {
+            const countRes = await this.db.query(`SELECT COUNT(*) as count FROM ${table}`);
+            if (countRes.rows && countRes.rows.length > 0) {
+              const cnt = parseInt(countRes.rows[0].count || countRes.rows[0].COUNT || '0', 10);
+              tableCounts[table] = cnt;
+              totalTables++;
+            }
+          } catch {
+            tableCounts[table] = 0;
+          }
         }
       }
 
@@ -113,6 +133,7 @@ export class SystemService {
    * desde las tablas de respaldo (Kardex stock_movements, product_pricing_structures y products).
    */
   async restoreCatalog(): Promise<{ success: boolean; counts: any; message: string }> {
+    await autoInitDatabase(this.db);
     const res = await importCatalogSeed(this.db);
     return {
       success: res.success,

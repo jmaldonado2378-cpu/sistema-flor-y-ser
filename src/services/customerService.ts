@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { autoInitDatabase } from '../database/autoInit';
 import {
   CreateCustomerDTO,
   UpdateCustomerDTO,
@@ -45,6 +46,12 @@ export class CustomerService {
    */
   public async ensureSeedCustomers(): Promise<void> {
     if (this.seeded) return;
+    try {
+      const check = await this.db.query("SHOW TABLES LIKE 'customers'");
+      if (!check.rows || check.rows.length === 0) {
+        await autoInitDatabase(this.db);
+      }
+    } catch {}
     try {
       await this.db.query(`ALTER TABLE customers MODIFY COLUMN preferred_channel VARCHAR(100) NOT NULL DEFAULT 'LOCAL'`);
     } catch {

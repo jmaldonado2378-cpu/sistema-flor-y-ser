@@ -8,18 +8,34 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const seedCatalog_1 = require("./seedCatalog");
 const articleFamilyService_1 = require("../services/articleFamilyService");
+let isInitializing = false;
+const REQUIRED_CORE_TABLES = [
+    'system_users',
+    'customers',
+    'orders',
+    'order_items',
+    'final_products',
+    'raw_materials',
+    'packaging_materials',
+    'article_families'
+];
 /**
- * AutoInitDatabase - Verfica y crea automáticamente la estructura de tablas MySQL
- * en Hostinger si aún no existen.
+ * AutoInitDatabase - Verifica y crea automáticamente la estructura de tablas MySQL
+ * en Hostinger si aún no existen todas las tablas principales.
  */
 async function autoInitDatabase(db) {
+    if (isInitializing)
+        return false;
+    isInitializing = true;
     try {
-        // 1. Probar si la base de datos responde y si existe la tabla de usuarios
+        // 1. Probar si la base de datos responde y verificar todas las tablas principales
         //    Reintenta hasta 6 veces (≈30s) para no saltear migraciones si MySQL tarda al arrancar.
-        let checkResult = null;
+        let existingTables = new Set();
         for (let attempt = 1; attempt <= 6; attempt++) {
             try {
-                checkResult = await db.query("SHOW TABLES LIKE 'system_users'");
+                const tablesRes = await db.query('SHOW TABLES');
+                const rows = tablesRes?.rows || [];
+                existingTables = new Set(rows.map((r) => String(Object.values(r)[0] || '').toLowerCase()));
                 break;
             }
             catch (e) {
@@ -29,7 +45,43 @@ async function autoInitDatabase(db) {
                 await new Promise(r => setTimeout(r, 5000));
             }
         }
-        if (checkResult.rows && checkResult.rows.length > 0) {
+        const missingTables = REQUIRED_CORE_TABLES.filter(t => !existingTables.has(t));
+        if (missingTables.length > 0) {
+            console.log(`⚡ Faltan tablas en MySQL (${missingTables.join(', ')}). Ejecutando esquema automático schema_mysql.sql...`);
+            let schemaPath = path_1.default.join(__dirname, '../../schema_mysql.sql');
+            if (!fs_1.default.existsSync(schemaPath)) {
+                schemaPath = path_1.default.join(process.cwd(), 'schema_mysql.sql');
+            }
+            if (fs_1.default.existsSync(schemaPath)) {
+                const schemaSql = fs_1.default.readFileSync(schemaPath, 'utf-8');
+                await db.query('SET FOREIGN_KEY_CHECKS = 0');
+                // PROTECCIÓN DE DATOS: nunca ejecuta sentencias destructivas (DROP / TRUNCATE / DELETE)
+                const cleanSql = schemaSql.replace(/--.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+                const statements = cleanSql
+                    .split(';')
+                    .map(s => s.trim())
+                    .filter(s => s.length > 0)
+                    .filter(s => !/^(DROP|TRUNCATE|DELETE)\b/i.test(s));
+                let executed = 0;
+                for (const statement of statements) {
+                    try {
+                        await db.query(statement);
+                        executed++;
+                    }
+                    catch (err) {
+                        if (!err.message?.includes('already exists')) {
+                            console.warn(`⚠️ Nota en DDL automático (${err.message}):`, statement.substring(0, 60));
+                        }
+                    }
+                }
+                await db.query('SET FOREIGN_KEY_CHECKS = 1');
+                console.log(`🚀 Esquema de MySQL inicializado exitosamente (${executed} sentencias ejecutadas)!`);
+            }
+            else {
+                console.warn('⚠️ No se encontró schema_mysql.sql para inicialización automática.');
+            }
+        }
+        if (true) {
             console.log('✅ Base de datos MySQL inicializada y tablas verificadas.');
             // Migraciones de compatibilidad automáticas
             try {
@@ -184,44 +236,12 @@ async function autoInitDatabase(db) {
             }
             return true;
         }
-        console.log('⚡ Tablas no encontradas en MySQL. Ejecutando esquema automático schema_mysql.sql...');
-        const schemaPath = path_1.default.join(__dirname, '../../schema_mysql.sql');
-        if (!fs_1.default.existsSync(schemaPath)) {
-            console.warn('⚠️ No se encontró schema_mysql.sql para inicialización automática.');
-            return false;
-        }
-        const schemaSql = fs_1.default.readFileSync(schemaPath, 'utf-8');
-        // Desactivar claves foráneas temporalmente durante la creación de tablas
-        await db.query('SET FOREIGN_KEY_CHECKS = 0');
-        // Limpiar comentarios de bloque y dividir por punto y coma
-        // PROTECCIÓN DE DATOS: el arranque automático NUNCA ejecuta sentencias destructivas
-        // (DROP / TRUNCATE / DELETE). Solo crea lo que falta.
-        const cleanSql = schemaSql.replace(/--.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
-        const statements = cleanSql
-            .split(';')
-            .map(s => s.trim())
-            .filter(s => s.length > 0)
-            .filter(s => !/^(DROP|TRUNCATE|DELETE)\b/i.test(s));
-        let executed = 0;
-        for (const statement of statements) {
-            try {
-                await db.query(statement);
-                executed++;
-            }
-            catch (err) {
-                // Ignorar advertencias menores de tablas existentes
-                if (!err.message?.includes('already exists')) {
-                    console.warn(`⚠️ Nota en DDL automático (${err.message}):`, statement.substring(0, 60));
-                }
-            }
-        }
-        await db.query('SET FOREIGN_KEY_CHECKS = 1');
-        console.log(`🚀 Esquema de MySQL inicializado exitosamente (${executed} sentencias ejecutadas)!`);
-        await (0, seedCatalog_1.importCatalogSeed)(db);
-        return true;
     }
     catch (error) {
         console.error('❌ No se pudo auto-inicializar la base de datos MySQL:', error.message);
         return false;
+    }
+    finally {
+        isInitializing = false;
     }
 }

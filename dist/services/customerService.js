@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CustomerService = void 0;
 const uuid_1 = require("uuid");
+const autoInit_1 = require("../database/autoInit");
 const customer_1 = require("../types/customer");
 const DIETARY_CODE_TO_ID = {
     '10000000-0000-0000-0000-000000000001': 'dp-1',
@@ -42,6 +43,13 @@ class CustomerService {
     async ensureSeedCustomers() {
         if (this.seeded)
             return;
+        try {
+            const check = await this.db.query("SHOW TABLES LIKE 'customers'");
+            if (!check.rows || check.rows.length === 0) {
+                await (0, autoInit_1.autoInitDatabase)(this.db);
+            }
+        }
+        catch { }
         try {
             await this.db.query(`ALTER TABLE customers MODIFY COLUMN preferred_channel VARCHAR(100) NOT NULL DEFAULT 'LOCAL'`);
         }

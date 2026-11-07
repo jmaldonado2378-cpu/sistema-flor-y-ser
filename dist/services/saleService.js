@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SaleService = exports.PersistenceError = void 0;
 const customer_1 = require("../types/customer");
 const mysqlAdapter_1 = require("../database/mysqlAdapter");
+const autoInit_1 = require("../database/autoInit");
 const uuid_1 = require("uuid");
 /**
  * Error de persistencia: la operación NO se guardó en la base de datos.
@@ -61,6 +62,13 @@ class SaleService {
     async ensureOrdersSchema() {
         if (this.schemaEnsured)
             return;
+        try {
+            const check = await this.db.query("SHOW TABLES LIKE 'orders'");
+            if (!check.rows || check.rows.length === 0) {
+                await (0, autoInit_1.autoInitDatabase)(this.db);
+            }
+        }
+        catch { }
         try {
             await this.db.query(`ALTER TABLE orders ADD COLUMN payment_method VARCHAR(50) NULL DEFAULT 'EFECTIVO'`);
         }
@@ -381,6 +389,7 @@ class SaleService {
         throw new PersistenceError(`Pedido con ID ${id} no encontrado.`, 404);
     }
     async getOrders(filter = {}) {
+        await this.ensureOrdersSchema();
         try {
             const where = [];
             const values = [];

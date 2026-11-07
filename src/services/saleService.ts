@@ -13,6 +13,7 @@ import { PaymentService } from './paymentService';
 import { CustomerService } from './customerService';
 import { CheckingAccountService } from './checkingAccountService';
 import { isConnectionError } from '../database/mysqlAdapter';
+import { autoInitDatabase } from '../database/autoInit';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -71,6 +72,12 @@ export class SaleService {
 
   private async ensureOrdersSchema(): Promise<void> {
     if (this.schemaEnsured) return;
+    try {
+      const check = await this.db.query("SHOW TABLES LIKE 'orders'");
+      if (!check.rows || check.rows.length === 0) {
+        await autoInitDatabase(this.db);
+      }
+    } catch {}
     try {
       await this.db.query(`ALTER TABLE orders ADD COLUMN payment_method VARCHAR(50) NULL DEFAULT 'EFECTIVO'`);
     } catch {}
@@ -439,6 +446,7 @@ export class SaleService {
   }
 
   public async getOrders(filter: OrderFilterDTO = {}): Promise<{ orders: Order[]; total: number }> {
+    await this.ensureOrdersSchema();
     try {
       const where: string[] = [];
       const values: any[] = [];

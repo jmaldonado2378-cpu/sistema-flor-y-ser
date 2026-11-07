@@ -3,18 +3,37 @@ import path from 'path';
 import { importCatalogSeed, reconstructFromSurvivingTables } from './seedCatalog';
 import { ArticleFamilyService } from '../services/articleFamilyService';
 
+let isInitializing = false;
+
+const REQUIRED_CORE_TABLES = [
+  'system_users',
+  'customers',
+  'orders',
+  'order_items',
+  'final_products',
+  'raw_materials',
+  'packaging_materials',
+  'article_families'
+];
+
 /**
- * AutoInitDatabase - Verfica y crea automáticamente la estructura de tablas MySQL
- * en Hostinger si aún no existen.
+ * AutoInitDatabase - Verifica y crea automáticamente la estructura de tablas MySQL
+ * en Hostinger si aún no existen todas las tablas principales.
  */
 export async function autoInitDatabase(db: any): Promise<boolean> {
+  if (isInitializing) return false;
+  isInitializing = true;
   try {
-    // 1. Probar si la base de datos responde y si existe la tabla de usuarios
+    // 1. Probar si la base de datos responde y verificar todas las tablas principales
     //    Reintenta hasta 6 veces (≈30s) para no saltear migraciones si MySQL tarda al arrancar.
-    let checkResult: any = null;
+    let existingTables = new Set<string>();
     for (let attempt = 1; attempt <= 6; attempt++) {
       try {
-        checkResult = await db.query("SHOW TABLES LIKE 'system_users'");
+        const tablesRes = await db.query('SHOW TABLES');
+        const rows = tablesRes?.rows || [];
+        existingTables = new Set(
+          rows.map((r: any) => String(Object.values(r)[0] || '').toLowerCase())
+        );
         break;
       } catch (e: any) {
         console.warn(`⏳ MySQL aún no responde (intento ${attempt}/6): ${e.message}`);
@@ -22,7 +41,47 @@ export async function autoInitDatabase(db: any): Promise<boolean> {
         await new Promise(r => setTimeout(r, 5000));
       }
     }
-    if (checkResult.rows && checkResult.rows.length > 0) {
+
+    const missingTables = REQUIRED_CORE_TABLES.filter(t => !existingTables.has(t));
+
+    if (missingTables.length > 0) {
+      console.log(`⚡ Faltan tablas en MySQL (${missingTables.join(', ')}). Ejecutando esquema automático schema_mysql.sql...`);
+      let schemaPath = path.join(__dirname, '../../schema_mysql.sql');
+      if (!fs.existsSync(schemaPath)) {
+        schemaPath = path.join(process.cwd(), 'schema_mysql.sql');
+      }
+      if (fs.existsSync(schemaPath)) {
+        const schemaSql = fs.readFileSync(schemaPath, 'utf-8');
+        await db.query('SET FOREIGN_KEY_CHECKS = 0');
+
+        // PROTECCIÓN DE DATOS: nunca ejecuta sentencias destructivas (DROP / TRUNCATE / DELETE)
+        const cleanSql = schemaSql.replace(/--.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+        const statements = cleanSql
+          .split(';')
+          .map(s => s.trim())
+          .filter(s => s.length > 0)
+          .filter(s => !/^(DROP|TRUNCATE|DELETE)\b/i.test(s));
+
+        let executed = 0;
+        for (const statement of statements) {
+          try {
+            await db.query(statement);
+            executed++;
+          } catch (err: any) {
+            if (!err.message?.includes('already exists')) {
+              console.warn(`⚠️ Nota en DDL automático (${err.message}):`, statement.substring(0, 60));
+            }
+          }
+        }
+
+        await db.query('SET FOREIGN_KEY_CHECKS = 1');
+        console.log(`🚀 Esquema de MySQL inicializado exitosamente (${executed} sentencias ejecutadas)!`);
+      } else {
+        console.warn('⚠️ No se encontró schema_mysql.sql para inicialización automática.');
+      }
+    }
+
+    if ( true ) {
       console.log('✅ Base de datos MySQL inicializada y tablas verificadas.');
 
       // Migraciones de compatibilidad automáticas
@@ -165,48 +224,10 @@ export async function autoInitDatabase(db: any): Promise<boolean> {
 
       return true;
     }
-
-    console.log('⚡ Tablas no encontradas en MySQL. Ejecutando esquema automático schema_mysql.sql...');
-    const schemaPath = path.join(__dirname, '../../schema_mysql.sql');
-    if (!fs.existsSync(schemaPath)) {
-      console.warn('⚠️ No se encontró schema_mysql.sql para inicialización automática.');
-      return false;
-    }
-
-    const schemaSql = fs.readFileSync(schemaPath, 'utf-8');
-
-    // Desactivar claves foráneas temporalmente durante la creación de tablas
-    await db.query('SET FOREIGN_KEY_CHECKS = 0');
-
-    // Limpiar comentarios de bloque y dividir por punto y coma
-    // PROTECCIÓN DE DATOS: el arranque automático NUNCA ejecuta sentencias destructivas
-    // (DROP / TRUNCATE / DELETE). Solo crea lo que falta.
-    const cleanSql = schemaSql.replace(/--.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
-    const statements = cleanSql
-      .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0)
-      .filter(s => !/^(DROP|TRUNCATE|DELETE)\b/i.test(s));
-
-    let executed = 0;
-    for (const statement of statements) {
-      try {
-        await db.query(statement);
-        executed++;
-      } catch (err: any) {
-        // Ignorar advertencias menores de tablas existentes
-        if (!err.message?.includes('already exists')) {
-          console.warn(`⚠️ Nota en DDL automático (${err.message}):`, statement.substring(0, 60));
-        }
-      }
-    }
-
-    await db.query('SET FOREIGN_KEY_CHECKS = 1');
-    console.log(`🚀 Esquema de MySQL inicializado exitosamente (${executed} sentencias ejecutadas)!`);
-    await importCatalogSeed(db);
-    return true;
   } catch (error: any) {
     console.error('❌ No se pudo auto-inicializar la base de datos MySQL:', error.message);
     return false;
+  } finally {
+    isInitializing = false;
   }
 }
