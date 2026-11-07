@@ -30,4 +30,23 @@ export class SystemController {
       res.status(500).json({ status: 'ERROR', message: error.message });
     }
   };
+
+  exportBackup = async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const backup = await this.systemService.exportFullBackup();
+      res.json({ status: 'SUCCESS', data: backup });
+    } catch (error: any) {
+      res.status(500).json({ status: 'ERROR', message: error.message });
+    }
+  };
+
+  restoreBackup = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const payload = req.body?.data || req.body;
+      const result = await this.systemService.restoreFullBackup(payload);
+      res.json({ status: 'SUCCESS', data: result });
+    } catch (error: any) {
+      res.status(500).json({ status: 'ERROR', message: error.message });
+    }
+  };
 }

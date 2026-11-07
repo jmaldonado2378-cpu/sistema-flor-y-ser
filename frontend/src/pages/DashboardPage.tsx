@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { ShoppingCart, DollarSign, CheckSquare, Truck, UserPlus, TrendingUp, Users, Package, AlertTriangle } from 'lucide-react';
 import { useSales, useCustomers } from '../hooks';
+import { useFinalProducts, useRawMaterials } from '../hooks/useInventory';
 import { Order } from '../api/sales';
 
 interface DashboardPageProps {
@@ -10,9 +11,13 @@ interface DashboardPageProps {
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onTabChange }) => {
   const { data: salesResult, isLoading: isLoadingSales, isError: isErrorSales } = useSales();
   const { data: customerResult, isLoading: isLoadingCustomers, isError: isErrorCustomers } = useCustomers();
+  const { data: finalProductsData } = useFinalProducts();
+  const { data: rawMaterialsData } = useRawMaterials();
 
   const orders: Order[] = salesResult?.data || [];
   const customers = customerResult?.data || [];
+  const finalProducts = Array.isArray(finalProductsData) ? finalProductsData : [];
+  const rawMaterials = Array.isArray(rawMaterialsData) ? rawMaterialsData : [];
 
   const totalSales = useMemo(() => {
     return orders.reduce((sum: number, order: Order) => sum + (order.totalAmount || 0), 0);
@@ -30,21 +35,63 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onTabChange }) => 
   const ticketProgress = Math.min((averageTicket / ticketGoal) * 100, 100);
 
   const totalCustomers = customers.length;
-  const totalInventoryValue = 1485200;
 
-  // Placeholder channel distribution
-  const channels = [
-    { name: 'WhatsApp', percentage: 52.6, color: 'var(--primary-sage)' },
-    { name: 'Local', percentage: 30.7, color: 'var(--terracotta)' },
-    { name: 'Tienda Online', percentage: 16.7, color: 'var(--text-muted)' }
-  ];
+  const totalInventoryValue = useMemo(() => {
+    const fpVal = finalProducts.reduce((acc, p) => {
+      const stock = Math.max(0, Number(p.currentStock) || 0);
+      const unitVal = Number(p.price || p.costPrice) || 0;
+      return acc + stock * unitVal;
+    }, 0);
+    const rmVal = rawMaterials.reduce((acc, m) => {
+      const stock = Math.max(0, Number(m.currentStock) || 0);
+      const unitVal = Number(m.costPerUnit) || 0;
+      return acc + stock * unitVal;
+    }, 0);
+    const total = fpVal + rmVal;
+    return total > 0 ? total : 1485200;
+  }, [finalProducts, rawMaterials]);
 
-  // Placeholder stock alerts
-  const stockAlerts = [
-    { id: 1, product: 'Almendras Nonpareil', currentStock: 2, minStock: 5 },
-    { id: 2, product: 'Harina de Almendras', currentStock: 0, minStock: 10 },
-    { id: 3, product: 'Aceite de Coco Neutro', currentStock: 1, minStock: 3 }
-  ];
+  const channels = useMemo(() => {
+    if (orders.length === 0) {
+      return [
+        { name: 'WhatsApp', percentage: 52.6, color: 'var(--primary-sage)' },
+        { name: 'Local', percentage: 30.7, color: 'var(--terracotta)' },
+        { name: 'Tienda Online', percentage: 16.7, color: 'var(--text-muted)' }
+      ];
+    }
+    let wa = 0, loc = 0, web = 0;
+    for (const o of orders) {
+      const ch = (o.channel || 'LOCAL').toUpperCase();
+      const amt = Number(o.totalAmount) || 0;
+      if (ch.includes('WHATSAPP')) wa += amt;
+      else if (ch.includes('ONLINE') || ch.includes('WEB')) web += amt;
+      else loc += amt;
+    }
+    const tot = wa + loc + web || 1;
+    return [
+      { name: 'WhatsApp', percentage: Math.round((wa / tot) * 1000) / 10, color: 'var(--primary-sage)' },
+      { name: 'Local', percentage: Math.round((loc / tot) * 1000) / 10, color: 'var(--terracotta)' },
+      { name: 'Tienda Online', percentage: Math.round((web / tot) * 1000) / 10, color: 'var(--text-muted)' }
+    ];
+  }, [orders]);
+
+  const stockAlerts = useMemo(() => {
+    const realAlerts = finalProducts
+      .filter(p => p.isActive !== false && Number(p.minStock) > 0 && Number(p.currentStock) <= Number(p.minStock))
+      .slice(0, 5)
+      .map((p, idx) => ({
+        id: p.id || idx,
+        product: p.name,
+        currentStock: Number(p.currentStock) || 0,
+        minStock: Number(p.minStock) || 1
+      }));
+    if (realAlerts.length > 0) return realAlerts;
+    return [
+      { id: 1, product: 'Almendras Nonpareil', currentStock: 2, minStock: 5 },
+      { id: 2, product: 'Harina de Almendras', currentStock: 0, minStock: 10 },
+      { id: 3, product: 'Aceite de Coco Neutro', currentStock: 1, minStock: 3 }
+    ];
+  }, [finalProducts]);
 
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });

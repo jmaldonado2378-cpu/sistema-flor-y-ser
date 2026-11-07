@@ -37,16 +37,18 @@ try {
   console.warn('⚠️ tsc compilation warning, continuing build...');
 }
 
-// Sincronizar catalogSeedData.json en dist/database
-const srcSeed = path.join(__dirname, 'src', 'database', 'catalogSeedData.json');
+// Sincronizar catalogSeedData.json y liveBackupSnapshot.json en dist/database
 const distDb = path.join(__dirname, 'dist', 'database');
-const distSeed = path.join(distDb, 'catalogSeedData.json');
-if (fs.existsSync(srcSeed)) {
-  if (!fs.existsSync(distDb)) {
-    fs.mkdirSync(distDb, { recursive: true });
+if (!fs.existsSync(distDb)) {
+  fs.mkdirSync(distDb, { recursive: true });
+}
+for (const jsonFile of ['catalogSeedData.json', 'liveBackupSnapshot.json']) {
+  const srcJson = path.join(__dirname, 'src', 'database', jsonFile);
+  const distJson = path.join(distDb, jsonFile);
+  if (fs.existsSync(srcJson)) {
+    fs.copyFileSync(srcJson, distJson);
+    console.log(`✅ ${jsonFile} sincronizado a dist/database/`);
   }
-  fs.copyFileSync(srcSeed, distSeed);
-  console.log('✅ catalogSeedData.json sincronizado a dist/database/');
 }
 
 console.log('🚀 Build process completed successfully!');

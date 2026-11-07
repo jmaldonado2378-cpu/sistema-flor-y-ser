@@ -372,6 +372,8 @@ app.delete('/api/v1/marketing/campaigns/:id', requireAuth, marketingController.d
 app.get('/api/v1/system/db-status', systemController.getDbStatus);
 app.post('/api/v1/system/purge-seed-data', requireAuth, requireRole('ADMIN'), systemController.purgeSeedData);
 app.post('/api/v1/system/restore-catalog', requireAuth, requireRole('ADMIN'), systemController.restoreCatalog);
+app.get('/api/v1/system/backup/export', requireAuth, requireRole('ADMIN'), systemController.exportBackup);
+app.post('/api/v1/system/backup/restore', requireAuth, requireRole('ADMIN'), systemController.restoreBackup);
 app.post('/api/v1/system/import-catalog', requireAuth, requireRole('ADMIN'), async (_req: Request, res: Response) => {
   try {
     const result = await importCatalogSeed(db);

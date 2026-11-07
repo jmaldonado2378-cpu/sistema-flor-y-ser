@@ -42,24 +42,7 @@ const KNOWN_OFFICIAL_PASSWORDS: Record<string, string> = {
 };
 
 function purgeLegacyLocalDataCaches() {
-  const legacyKeys = [
-    'floryser_customers_v2',
-    'customers',
-    'floryser_sales_orders',
-    'floryser_sales_orders_v2',
-    'floryser_raw_materials_v2',
-    'floryser_final_products_v2',
-    'floryser_packaging_v2',
-    'floryser_families_v3',
-    'floryser_tasks_v2',
-    'floryser_expenses_v2',
-    'floryser_suppliers_v2',
-    'floryser_receipts_v2',
-    'floryser_checking_account_movements_v2'
-  ];
-  legacyKeys.forEach(k => {
-    try { localStorage.removeItem(k); } catch {}
-  });
+  // No se borran clientes ni ventas locales para preservar el espejo de seguridad en el navegador
 }
 
 function normalizeUserObject(u: User): User {

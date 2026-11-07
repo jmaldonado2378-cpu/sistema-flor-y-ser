@@ -869,7 +869,27 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
       throw new ApiError(response.status, body.error || body.message || `Error ${response.status}`, body.details);
     }
 
-    return await response.json() as T;
+    const jsonResult = await response.json() as T;
+
+    // Guardar copia espejo de seguridad en el navegador cuando se leen clientes o ventas desde MySQL
+    if (method === 'GET') {
+      try {
+        const cleanEp = endpoint.split('?')[0];
+        if (cleanEp === '/customers') {
+          const list = (jsonResult as any)?.data || jsonResult;
+          if (Array.isArray(list) && list.length > 0) {
+            localStorage.setItem('floryser_cloud_mirror_customers', JSON.stringify(list));
+          }
+        } else if (cleanEp === '/sales/orders') {
+          const list = (jsonResult as any)?.data || jsonResult;
+          if (Array.isArray(list) && list.length > 0) {
+            localStorage.setItem('floryser_cloud_mirror_orders', JSON.stringify(list));
+          }
+        }
+      } catch {}
+    }
+
+    return jsonResult;
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;

@@ -818,11 +818,100 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
             <button
               type="button"
               className="btn flex items-center gap-2"
+              style={{ backgroundColor: '#1D4ED8', color: '#FFFFFF', fontWeight: 700 }}
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('floryser_jwt_token');
+                  const res = await fetch('/api/v1/system/backup/export', {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                  });
+                  const json = await res.json();
+                  if (res.ok && json.data) {
+                    const blob = new Blob([JSON.stringify(json.data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    const dateStr = new Date().toISOString().split('T')[0];
+                    a.href = url;
+                    a.download = `floryser-backup-${dateStr}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  } else {
+                    alert('Error al exportar backup: ' + (json.message || 'No se pudo generar el archivo'));
+                  }
+                } catch (err: any) {
+                  alert('Error al descargar backup: ' + err.message);
+                }
+              }}
+            >
+              💾 Descargar Backup Completo (.json)
+            </button>
+
+            <label
+              className="btn flex items-center gap-2 cursor-pointer"
+              style={{ backgroundColor: '#7C3AED', color: '#FFFFFF', fontWeight: 700, margin: 0 }}
+            >
+              📥 Restaurar desde Archivo Backup (.json)
+              <input
+                type="file"
+                accept=".json"
+                style={{ display: 'none' }}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const confirmed = window.confirm(
+                    `¿Deseas restaurar la copia de seguridad "${file.name}"?\n\n` +
+                    'Esta operación es aditiva y segura: restaura clientes, ventas, productos, materias primas, precios y usuarios sin borrar registros existentes.'
+                  );
+                  if (!confirmed) {
+                    e.target.value = '';
+                    return;
+                  }
+                  try {
+                    const text = await file.text();
+                    const parsed = JSON.parse(text);
+                    const token = localStorage.getItem('floryser_jwt_token');
+                    const res = await fetch('/api/v1/system/backup/restore', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                      },
+                      body: JSON.stringify({ data: parsed })
+                    });
+                    const json = await res.json();
+                    if (res.ok && json.data) {
+                      const c = json.data.counts || {};
+                      alert(
+                        `✅ ¡Copia de Seguridad Restaurada Exitosamente!\n\n` +
+                        `• Clientes: ${c.customers ?? 0}\n` +
+                        `• Ventas / Pedidos: ${c.orders ?? 0}\n` +
+                        `• Productos Finales: ${c.finalProducts ?? 0}\n` +
+                        `• Materias Primas: ${c.rawMaterials ?? 0}\n` +
+                        `• Usuarios: ${c.users ?? 0}`
+                      );
+                      window.location.reload();
+                    } else {
+                      alert('Error al restaurar backup: ' + (json.message || 'Archivo inválido'));
+                    }
+                  } catch (err: any) {
+                    alert('Error al procesar el archivo de backup: ' + err.message);
+                  } finally {
+                    e.target.value = '';
+                  }
+                }}
+              />
+            </label>
+
+            <button
+              type="button"
+              className="btn flex items-center gap-2"
               style={{ backgroundColor: '#059669', color: '#FFFFFF', fontWeight: 700 }}
               onClick={async () => {
                 const confirmed = window.confirm(
-                  '🔄 ¿Deseas restaurar el Catálogo Oficial y recuperar el stock y precios desde el Kardex y Estructura de Costos?\n\n' +
-                  'Esta acción es 100% segura: no borra ningún dato, repone los artículos faltantes y sincroniza tu último stock real registrado.'
+                  '🔄 ¿Deseas restaurar el Snapshot Oficial y recuperar clientes, ventas, catálogo, stock y precios?\n\n' +
+                  'Esta acción es 100% segura: no borra ningún dato, repone los registros faltantes y sincroniza tu último estado real registrado.'
                 );
                 if (!confirmed) return;
 
@@ -837,15 +926,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
                   });
                   const json = await res.json();
                   if (res.ok && json.data) {
-                    localStorage.removeItem('floryser_raw_materials_v2');
-                    localStorage.removeItem('floryser_final_products_v2');
                     const c = json.data.counts || {};
                     alert(
-                      `✅ ¡Catálogo y Stock Recuperados Exitosamente!\n\n` +
-                      `• Productos Finales restaurados: ${c.finalProducts ?? 0}\n` +
-                      `• Materias Primas restauradas: ${c.rawMaterials ?? 0}\n` +
-                      `• Materiales de Empaque: ${c.packagingMaterials ?? 0}\n` +
-                      `• Registros de Stock / Precios reconstruidos desde Kardex: ${c.reconstructedStock ?? 0}`
+                      `✅ ¡Datos y Catálogo Recuperados Exitosamente!\n\n` +
+                      `• Clientes restaurados: ${c.customers ?? 0}\n` +
+                      `• Ventas / Pedidos: ${c.orders ?? 0}\n` +
+                      `• Productos Finales: ${c.finalProducts ?? 0}\n` +
+                      `• Materias Primas: ${c.rawMaterials ?? 0}\n` +
+                      `• Materiales de Empaque: ${c.packaging ?? c.packagingMaterials ?? 0}`
                     );
                     window.location.reload();
                   } else {
@@ -856,7 +944,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = () => {
                 }
               }}
             >
-              🔄 Restaurar Catálogo Oficial y Recuperar Stock
+              🔄 Restaurar Snapshot Oficial y Recuperar Stock
             </button>
 
             <button

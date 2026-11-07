@@ -1,4 +1,5 @@
-import { importCatalogSeed } from '../database/seedCatalog';
+import fs from 'fs';
+import { importCatalogSeed, restoreFromSnapshotData, findSnapshotFile } from '../database/seedCatalog';
 import { autoInitDatabase } from '../database/autoInit';
 
 export class SystemService {
@@ -140,5 +141,80 @@ export class SystemService {
       counts: res.counts,
       message: res.message || 'Catálogo oficial restaurado y stock sincronizado desde Kardex exitosamente.'
     };
+  }
+
+  /**
+   * Exporta una copia de seguridad completa de todas las tablas de MySQL
+   * y actualiza el snapshot local del servidor si el sistema de archivos lo permite.
+   */
+  async exportFullBackup(): Promise<any> {
+    await autoInitDatabase(this.db);
+
+    const safeQuery = async (sql: string, params: any[] = []) => {
+      try {
+        const res = await this.db.query(sql, params);
+        return res.rows || [];
+      } catch {
+        return [];
+      }
+    };
+
+    const ordersRows = await safeQuery('SELECT * FROM orders ORDER BY created_at DESC');
+    const orderItemsRows = await safeQuery('SELECT * FROM order_items');
+    const itemsByOrder: Record<string, any[]> = {};
+    for (const item of orderItemsRows) {
+      const oid = item.order_id;
+      if (!itemsByOrder[oid]) itemsByOrder[oid] = [];
+      itemsByOrder[oid].push(item);
+    }
+    const ordersWithItems = ordersRows.map((o: any) => ({
+      ...o,
+      items: itemsByOrder[o.id] || []
+    }));
+
+    const backup = {
+      exportedAt: new Date().toISOString(),
+      version: '2.0',
+      system_users: await safeQuery('SELECT * FROM system_users'),
+      article_families: await safeQuery('SELECT * FROM article_families ORDER BY sort_order ASC'),
+      suppliers: await safeQuery('SELECT * FROM suppliers'),
+      packaging_materials: await safeQuery('SELECT * FROM packaging_materials'),
+      raw_materials: await safeQuery('SELECT * FROM raw_materials'),
+      final_products: await safeQuery('SELECT * FROM final_products'),
+      customers: await safeQuery('SELECT * FROM customers ORDER BY created_at DESC'),
+      orders: ordersWithItems,
+      stock_movements: await safeQuery('SELECT * FROM stock_movements ORDER BY created_at DESC'),
+      product_pricing_structures: await safeQuery('SELECT * FROM product_pricing_structures'),
+      operational_expenses: await safeQuery('SELECT * FROM operational_expenses'),
+      operational_tasks: await safeQuery('SELECT * FROM operational_tasks'),
+      audit_logs: await safeQuery('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 500')
+    };
+
+    try {
+      const snapPath = findSnapshotFile('liveBackupSnapshot.json');
+      if (snapPath) {
+        fs.writeFileSync(snapPath, JSON.stringify(backup, null, 2), 'utf-8');
+      }
+    } catch {}
+
+    return backup;
+  }
+
+  /**
+   * Restaura una copia de seguridad completa (.json) de forma aditiva (sin borrar registros existentes).
+   */
+  async restoreFullBackup(payload?: any): Promise<{ success: boolean; counts: any; message: string }> {
+    await autoInitDatabase(this.db);
+
+    let dataToRestore = payload;
+    if (!dataToRestore || Object.keys(dataToRestore).length === 0) {
+      const snapPath = findSnapshotFile('liveBackupSnapshot.json');
+      if (!snapPath) {
+        throw new Error('No se proporcionó archivo de backup ni se encontró liveBackupSnapshot.json en el servidor.');
+      }
+      dataToRestore = JSON.parse(fs.readFileSync(snapPath, 'utf-8'));
+    }
+
+    return await restoreFromSnapshotData(this.db, dataToRestore);
   }
 }

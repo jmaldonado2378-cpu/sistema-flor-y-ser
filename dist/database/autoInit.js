@@ -212,14 +212,16 @@ async function autoInitDatabase(db) {
             catch (e) {
                 console.warn("⚠️ Nota al verificar tabla stock_movements:", e.message);
             }
-            // Sincronizar catálogo base de Costos SISTEMA únicamente si las tablas están vacías (< 10 registros)
+            // Sincronizar backup base si las tablas de catálogo o de clientes están vacías
             try {
                 const prodCheck = await db.query('SELECT COUNT(*) AS total FROM final_products');
                 const prodTotal = parseInt(prodCheck.rows[0]?.total ?? prodCheck.rows[0]?.['COUNT(*)'] ?? '0', 10);
                 const rmCheck = await db.query('SELECT COUNT(*) AS total FROM raw_materials');
                 const rmTotal = parseInt(rmCheck.rows[0]?.total ?? rmCheck.rows[0]?.['COUNT(*)'] ?? '0', 10);
-                if (prodTotal < 10 && rmTotal < 10) {
-                    console.log(`📦 Catálogo vacío (${prodTotal} productos, ${rmTotal} materias primas). Restaurando catálogo completo y reconstruyendo stock...`);
+                const custCheck = await db.query('SELECT COUNT(*) AS total FROM customers');
+                const custTotal = parseInt(custCheck.rows[0]?.total ?? custCheck.rows[0]?.['COUNT(*)'] ?? '0', 10);
+                if ((prodTotal < 10 && rmTotal < 10) || custTotal === 0) {
+                    console.log(`📦 Detectadas tablas vacías (${prodTotal} productos, ${rmTotal} materias primas, ${custTotal} clientes). Restaurando snapshot oficial...`);
                     await (0, seedCatalog_1.importCatalogSeed)(db);
                 }
             }

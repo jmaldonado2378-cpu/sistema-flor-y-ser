@@ -33,5 +33,24 @@ class SystemController {
             res.status(500).json({ status: 'ERROR', message: error.message });
         }
     };
+    exportBackup = async (_req, res) => {
+        try {
+            const backup = await this.systemService.exportFullBackup();
+            res.json({ status: 'SUCCESS', data: backup });
+        }
+        catch (error) {
+            res.status(500).json({ status: 'ERROR', message: error.message });
+        }
+    };
+    restoreBackup = async (req, res) => {
+        try {
+            const payload = req.body?.data || req.body;
+            const result = await this.systemService.restoreFullBackup(payload);
+            res.json({ status: 'SUCCESS', data: result });
+        }
+        catch (error) {
+            res.status(500).json({ status: 'ERROR', message: error.message });
+        }
+    };
 }
 exports.SystemController = SystemController;
